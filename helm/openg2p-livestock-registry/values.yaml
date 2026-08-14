@@ -1,0 +1,104 @@
+# Livestock Registry — values overlay for the openg2p-registry chart.
+#
+# This chart has no templates; it deploys the openg2p-registry subchart (pinned
+# in Chart.yaml, aliased `registry`) with the overrides below. Install:
+#
+#     helm repo add openg2p https://openg2p.github.io/openg2p-helm
+#     helm dependency build ./helm/openg2p-livestock-registry
+#     helm install livestock-registry ./helm/openg2p-livestock-registry
+#
+# Two kinds of override:
+#   * global.*    — Helm propagates these to the subchart (and its subcharts).
+#   * registry.*  — values for the openg2p-registry subchart itself.
+# Everything not listed (keycloak/iam wiring, id-generator, demo users) is
+# inherited from the subchart defaults.
+
+# ── Globals (propagate to the openg2p-registry subchart) ──────────────────────
+global:
+  registryVariant: 'livestock-registry'
+  # Ingress host for this registry. Overrides the subchart's generic default.
+  registryHostname: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.org'
+
+# ── openg2p-registry subchart overrides ───────────────────────────────────────
+registry:
+  # Livestock-built images (each FROM the matching openg2p-registry base image).
+  # Only the tag is CI-rewritten in lockstep with the chart version; the base
+  # image they extend is pinned by the openg2p-registry dependency version.
+  staffApi:
+    image:
+      repository: openg2p/openg2p-livestock-registry-staff-api
+      tag: 0.0.0-develop
+  partnerApi:
+    image:
+      repository: openg2p/openg2p-livestock-registry-partner-api
+      tag: 0.0.0-develop
+  celeryWorker:
+    image:
+      repository: openg2p/openg2p-livestock-registry-celery
+      tag: 0.0.0-develop
+  celeryBeat:
+    image:
+      repository: openg2p/openg2p-livestock-registry-celery
+      tag: 0.0.0-develop
+  dbSeed:
+    image:
+      repository: openg2p/openg2p-livestock-registry-db-seed
+      tag: 0.0.0-develop
+    # Geo/images/templates loaders are generic and safe to enable. Sample data is
+    # NOT: the platform's load_sample_data.py is hardcoded to the reference
+    # (farmer) registry's tables, so it cannot load livestock records. The livestock
+    # sown sample set ships as SQL at /seed/sample-data in the db-seed image and
+    # is applied explicitly (see local/docker-compose.yml), never by this flag.
+    loadGeoData: true
+    loadSampleData: false
+    loadImages: true
+    loadTemplates: true
+
+  # Name of this registry's tile in IAM. The roles/permissions catalog itself is
+  # registry-agnostic and comes from the subchart.
+  iamRegister:
+    applicationDescription: "Livestock Registry"
+
+  # Functional-ID pools, one per register that generates ids. The subchart
+  # defaults to the REFERENCE registry's registers (individual + household), so
+  # the livestock registers must be declared here. NB Helm merges maps, so the
+  # defaults are inherited too and unused pools are provisioned — harmless, and a
+  # parent `null` cannot remove a subchart default.
+  idgenerator:
+    idGenerator:
+      appConfig:
+        idTypes:
+          livestock:
+            idLength: 12
+          land:
+            idLength: 12
+          cluster:
+            idLength: 10
+
+  # staffUi and beneApi are consumed as-is from the openg2p-registry base images
+  # (subchart defaults already point at openg2p/openg2p-registry-*), so they are
+  # intentionally not overridden.
+
+  # ── Livestock e2e sanity suite (image built here; Set 2 field tests) ────────
+  # The subchart ships the reference (Individual) sanity values; override them
+  # for the Livestock register. Behaviour toggles (runE2e/failOnError) keep the
+  # subchart defaults.
+  sanity:
+    enabled: true
+    image:
+      repository: openg2p/openg2p-livestock-registry-sanity-tests
+      tag: 0.0.0-develop
+    regType: Livestock
+    regRecordType: 'spdci-extensions-dci:Livestock'
+    # livestock functional_record_id of the injected sanity record (see
+    # test/sanity/sanity/fixtures.py).
+    searchText: SANITY-LIVESTOCK-0001
+    # Consented scope + scopes asserted absent — top-level keys of the livestock
+    # outgoing DCI template (openg2p_livestock_to_dci.json.j2).
+    dataScopes: "livestock_details"
+    deniedScopes: "animal_details,health_event_details,vaccination_details,vital_event_details,breeding_details"
+    # The Livestock register + the UI coordinates the change-request test edits
+    # (must match the livestock-extension seed metadata).
+    farmerRegisterId: 6b06a95a-9a6c-5a33-a33d-c1625716c59c
+    crTabId: "livestock_livestock_tab"
+    crSectionId: "livestock_survey_personnel_section_02"
