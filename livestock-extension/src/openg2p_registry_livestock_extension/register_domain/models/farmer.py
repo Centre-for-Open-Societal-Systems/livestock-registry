@@ -14,10 +14,11 @@ from openg2p_registry_core.models import (
 from sqlalchemy import Date, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from .admin_area import G2PAdminArea
 from ..services import G2PRegisterDomainServiceFarmer
 
 
-class G2PFarmer:
+class G2PFarmer(G2PAdminArea):
 
     farmer_id: Mapped[str] = mapped_column(String, nullable=True)
     fayda_fan_id: Mapped[str] = mapped_column(String, nullable=True)

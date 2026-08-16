@@ -60,8 +60,10 @@ class G2PRegisterDomainServiceLivestock(G2PRegisterDomainService):
             "source_system",
             "surveyor_name",
             "supervisor_name",
-            "address_line_1",
-            "address_line_2",
+            "region",
+            "zone",
+            "woreda",
+            "kebele",
             "country_code",
         ]
         search_text = []
@@ -78,7 +80,10 @@ class G2PRegisterDomainServiceLivestock(G2PRegisterDomainService):
     def construct_record_name(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing record name for livestock record")
 
-        keys = ["farmer_name", "oan_id"]
+        # Farmer name only. Appending the OAN id here put the name and a long
+        # identifier on one line in the register list, where the id is already
+        # shown as its own column.
+        keys = ["farmer_name"]
         record_name = []
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
