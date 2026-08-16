@@ -1,8 +1,8 @@
 # Livestock Registry — Staff Portal UI image.
 #
 # Thin extension of the registry-platform staff-ui image. The Next.js app itself
-# is used unchanged; this image only overrides presentation that the platform
-# bakes in rather than exposing through the theme.
+# is used unchanged; this image only overrides what the platform bakes into its
+# build output rather than exposing through configuration.
 #
 # WHY THIS IMAGE EXISTS
 # Branding reaches the UI two ways. Colours, logo, favicon and the dashboard
@@ -14,9 +14,18 @@
 # background-size: cover, and there is no class or theme key for that — so the
 # rule has to be overridden in the compiled stylesheet.
 #
+# The same constraint is why the Dashboard header button is added here: the portal
+# is published as a finished build, so a new control cannot be contributed as a
+# component or a route. See the patch step at the foot of this file.
+#
 # Build context = repo root (matching the other docker/*/Dockerfile images).
 ARG RP_VERSION=0.0.0-develop.296
 FROM openg2p/openg2p-registry-staff-ui:${RP_VERSION}
+
+# Browser-facing origin of the dashboard service, compiled into the client bundle
+# by patch-dashboard-nav.js below — so changing it needs a rebuild, not a restart.
+ARG DASHBOARD_URL=http://dashboard.localtest.me:3001
+ARG DASHBOARD_LABEL=Dashboard
 
 COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock_bg.jpg /app/public/images/common/livestock_bg.jpg
 
@@ -59,3 +68,13 @@ RUN set -eu; \
       mv "$(dirname "$f")/${old}.css" "$(dirname "$f")/${new}.css"; \
       echo "background override appended; stylesheet ${old}.css -> ${new}.css (busts the immutable cache)"; \
     done
+
+# ── Add the Dashboard header button ─────────────────────────────────────────
+# Puts a Dashboard control immediately left of Configuration, pointing at the
+# dashboard-ui service. The dashboard is a separate origin — the portal cannot be
+# extended with new routes — so the target is baked in here rather than resolved
+# as a portal route. Runs after the stylesheet rename above, which rewrites
+# references by CSS basename and so is unaffected by the chunk renames this does.
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-dashboard-nav.js /tmp/patch-dashboard-nav.js
+RUN DASHBOARD_URL="${DASHBOARD_URL}" DASHBOARD_LABEL="${DASHBOARD_LABEL}" \
+    node /tmp/patch-dashboard-nav.js

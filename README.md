@@ -16,6 +16,7 @@ breeding lines) onto the platform's register model.
 | Path | Purpose |
 |---|---|
 | `livestock-extension/` | The livestock domain package — models, schemas, services, seed metadata (registers, AWE policy, DCI templates) |
+| `dashboard-ui/` | The Livestock Registry analytics dashboard — a Next.js app that reads this registry's own tables (see [dashboard-ui/README.md](dashboard-ui/README.md)) |
 | `docker/` | Thin Dockerfiles (`FROM openg2p/openg2p-registry-*` + `pip install livestock-extension`) selected at runtime by `REGISTRY_EXTENSION_MODULE` (Option C) |
 | `helm/openg2p-livestock-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the livestock values overlay (no templates) |
 | `docker-compose.yml`, `local/` | Docker Compose stack for running the registry on a laptop (`local/` holds its env file and the mock master-data catalog API) |
@@ -61,19 +62,33 @@ vaccine and disease are seeded as attribute lookups — see
 ## Run it locally
 
 ```bash
-docker compose up -d --build
+docker compose --env-file local/.env up -d --build
 ```
 
-Then open the **Staff Portal at http://localhost:3000** and log in with
+Then open the **Staff Portal at http://portal.localtest.me:3000** and log in with
 `admin` / `admin`.
 
 The stack runs the whole login chain — Keycloak (realm `staff`), the IAM staff
 API and master data — alongside the registry, so this is a real OIDC login and
 the registry resolves the user's roles into permissions exactly as a deployment
-does. Staff API on http://localhost:8000/docs, Partner API on
-http://localhost:8002/docs, mock livestock catalogue on http://localhost:8010/docs.
-See [local/README.md](local/README.md) for the full service list and how the
-pieces fit together.
+does. Staff API on http://localhost:8001/docs, Partner API on
+http://localhost:8002/docs, master data API on http://localhost:8010/docs.
+See [local/README.md](local/README.md) for the full service list, why the hosts
+are `*.localtest.me` rather than `localhost`, and which integrations are off.
+
+## Dashboard
+
+The portal header carries a **Dashboard** button, left of Configuration, which
+opens the Livestock Registry dashboard at
+**http://dashboard.localtest.me:3001**. Its own **Back** button returns to the
+page the portal was on.
+
+The dashboard is a separate service because the platform ships the Staff Portal
+as a finished build that cannot be given new routes — so the button is added to
+the published bundle at image build time
+(`docker/staff-ui/assets/patch-dashboard-nav.js`) and points at another origin.
+It reads the registry database directly and issues nothing but `SELECT`s, so
+every panel reflects the records the registry currently holds.
 
 ## Deploy
 
