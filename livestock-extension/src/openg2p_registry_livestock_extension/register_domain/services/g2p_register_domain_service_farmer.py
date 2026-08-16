@@ -58,8 +58,10 @@ class G2PRegisterDomainServiceFarmer(G2PRegisterDomainService):
             "last_name",
             "mobile_number",
             "status",
-            "address_line_1",
-            "address_line_2",
+            "region",
+            "zone",
+            "woreda",
+            "kebele",
             "country_code",
         ]
         search_text = []

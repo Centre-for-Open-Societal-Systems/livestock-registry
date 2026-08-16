@@ -18,11 +18,12 @@ from openg2p_registry_core.models import (
 from sqlalchemy import Date, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from .admin_area import G2PAdminArea
 from ..services import G2PRegisterDomainServiceLivestock
 from .enums import LivestockStateEnum, SourceSystemEnum, SyncStatusEnum
 
 
-class G2PLivestock:
+class G2PLivestock(G2PAdminArea):
 
     # Farmer identity, carried not owned.
     farmer_uuid: Mapped[str] = mapped_column(String, nullable=True)

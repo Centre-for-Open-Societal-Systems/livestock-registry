@@ -75,8 +75,18 @@ registry:
           cluster:
             idLength: 10
 
-  # staffUi and beneApi are consumed as-is from the openg2p-registry base images
-  # (subchart defaults already point at openg2p/openg2p-registry-*), so they are
+  # The UI is the platform's, unchanged apart from the page background: the
+  # dashboard tiles a small tile via a compiled Tailwind class, and a photograph
+  # needs background-size: cover, which no theme key can express. The asset and
+  # the CSS override are baked in by docker/staff-ui/Dockerfile — that one file
+  # is the whole reason this image is built here rather than consumed as-is.
+  staffUi:
+    image:
+      repository: openg2p/openg2p-livestock-registry-staff-ui
+      tag: 0.0.0-develop
+
+  # beneApi is consumed as-is from the openg2p-registry base image (the subchart
+  # default already points at openg2p/openg2p-registry-*), so it is
   # intentionally not overridden.
 
   # ── Livestock e2e sanity suite (image built here; Set 2 field tests) ────────

@@ -1,3 +1,15 @@
+-- Which registry artefacts route through AWE.
+--
+-- REGISTER      — an update change request on a Livestock record opens an
+--                 approval request and is applied only once approved.
+-- INTAKE_FORM   — finalizing an intake submission opens an approval request
+--                 too. This is what puts the submission into the staff
+--                 portal's "My Tasks" tile: that count comes from
+--                 /awe/my_task_stats, so a submission with no AWE task is
+--                 invisible there no matter how many are pending approval.
+--
+-- Both point at the single-stage policies seeded in awe_meta_data/, whose
+-- approver is the Registry Admin.
 INSERT INTO "public"."g2p_registry_awe_policy_configurations" (
     "awe_policy_config_id",
     "policy_scope",
