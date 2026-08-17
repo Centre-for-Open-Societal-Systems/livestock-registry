@@ -18,6 +18,11 @@
 ARG RP_VERSION=0.0.0-develop.296
 FROM openg2p/openg2p-registry-staff-ui:${RP_VERSION}
 
+# Browser-facing origin of the dashboard service, compiled into the client bundle
+# by patch-dashboard-nav.js below — so changing it needs a rebuild, not a restart.
+ARG DASHBOARD_URL=http://localhost:3001
+ARG DASHBOARD_LABEL=Dashboard
+
 COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock_bg.jpg /app/public/images/common/livestock_bg.jpg
 
 # Repoint the dashboard background at the photo and make it cover the viewport.
@@ -59,3 +64,19 @@ RUN set -eu; \
       mv "$(dirname "$f")/${old}.css" "$(dirname "$f")/${new}.css"; \
       echo "background override appended; stylesheet ${old}.css -> ${new}.css (busts the immutable cache)"; \
     done
+
+# ── Add the Dashboard header button ─────────────────────────────────────────
+# Puts a Dashboard control immediately left of Configuration, pointing at the
+# dashboard-ui service. The dashboard is a separate origin — the portal ships as
+# a finished build and cannot be extended with new routes — so the target is
+# baked in here rather than resolved as a portal route.
+#
+# Runs AFTER the stylesheet rename above: that step rewrites references by CSS
+# basename, so it is unaffected by the chunk edits this makes. The patch itself
+# exits non-zero unless it matches at least two bundles (the header is a client
+# component, emitted into both a static and a server chunk — patching only one
+# trips a hydration mismatch), so a base-image change fails the build instead of
+# silently dropping the button.
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-dashboard-nav.js /tmp/patch-dashboard-nav.js
+RUN DASHBOARD_URL="${DASHBOARD_URL}" DASHBOARD_LABEL="${DASHBOARD_LABEL}" \
+    node /tmp/patch-dashboard-nav.js
