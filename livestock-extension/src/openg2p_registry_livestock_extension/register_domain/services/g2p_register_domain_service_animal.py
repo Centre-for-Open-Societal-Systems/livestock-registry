@@ -3,7 +3,13 @@ from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
-from .domain_validation_utils import as_float, parse_date, validation_error
+from .domain_validation_utils import (
+    as_float,
+    ear_tag_used_by_other_animal,
+    is_blank,
+    parse_date,
+    validation_error,
+)
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -15,6 +21,75 @@ class G2PRegisterDomainServiceAnimal(G2PRegisterDomainService):
             self._validate_not_in_future(record, "date_of_birth")
             self._validate_not_in_future(record, "registration_date")
             self._validate_weight(record)
+            self._populate_age_from_date_of_birth(record)
+        # Runs only once every record above has passed — so by this point
+        # every ear_tag_id/species/breed used below is known non-blank and
+        # already in the normalized ET+10-digit form.
+        await self._validate_no_duplicate_ear_tags(records)
+
+    def _validate_required_fields(self, record: dict) -> None:
+        for field, label in _REQUIRED_FIELDS.items():
+            if is_blank(record.get(field)):
+                validation_error(f"Please provide the {label} before saving the record.")
+
+    def _validate_ear_tag_id(self, record: dict) -> None:
+        value = record.get("ear_tag_id")
+        if value is None or str(value).strip() == "":
+            return
+        normalized = re.sub(r"\s+", "", str(value)).upper()
+        if not _EAR_TAG_PATTERN.match(normalized):
+            validation_error(
+                "ear_tag_id must be ET followed by exactly 10 digits, e.g. ET0000000013"
+            )
+        # Store the normalized form, not whatever casing/spacing was typed —
+        # otherwise "et5678765435" and "ET5678765435" would both pass this
+        # check yet be treated as different tags by the duplicate check
+        # below (and by ear_tag_exists/get_animal_species elsewhere).
+        record["ear_tag_id"] = normalized
+
+    async def _validate_no_duplicate_ear_tags(self, records: list[dict]) -> None:
+        """Two different animals must never share an ear tag with the same
+        species and breed — mirroring the Old System's duplicate check,
+        which this section had no equivalent of at all. Two layers:
+
+        1. Within this same save (this farmer's own rows, all sent together
+           every time one row is saved): caught by the `seen` dict below,
+           no DB round trip needed.
+        2. Against everything else already saved anywhere — a different
+           farmer's animal, or one already approved into the register: the
+           `ear_tag_used_by_other_animal` DB check, which excludes this
+           submission's own rows so re-saving an animal you already
+           registered isn't flagged as a duplicate of itself.
+        """
+        self_ids = {
+            str(record["internal_record_id"])
+            for record in records
+            if record.get("internal_record_id")
+        }
+
+        seen: dict[tuple, str] = {}
+        for record in records:
+            ear_tag_id = record.get("ear_tag_id")
+            if is_blank(ear_tag_id):
+                continue
+            key = (ear_tag_id, record.get("species"), record.get("breed"))
+            if key in seen:
+                validation_error(
+                    f"ear_tag_id '{ear_tag_id}' is used by more than one animal of the "
+                    "same species and breed in this record."
+                )
+            seen[key] = ear_tag_id
+
+            if await ear_tag_used_by_other_animal(
+                ear_tag_id,
+                record.get("species"),
+                record.get("breed"),
+                exclude_internal_record_ids=self_ids,
+            ):
+                validation_error(
+                    f"ear_tag_id '{ear_tag_id}' is already registered to a different "
+                    "animal of the same species and breed."
+                )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))

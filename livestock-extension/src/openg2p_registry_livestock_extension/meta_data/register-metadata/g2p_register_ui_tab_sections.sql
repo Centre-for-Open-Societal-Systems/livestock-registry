@@ -5,7 +5,12 @@ INSERT INTO "public"."g2p_register_ui_tab_sections" ("tab_section_id","register_
 ('31696471-cf4c-5c5a-a17c-26941411f557','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_animal_tab','livestock_animal_details_section_01',10),
 ('690af941-c5bf-5687-a08b-c59f5e69a81e','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_health_event_tab','livestock_health_event_details_section_01',10),
 ('7a4aa1c3-511b-54e4-a81e-562fc7ba0454','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_health_event_tab','livestock_vaccination_details_section_01',20),
-('68c4cfd7-b2fc-56cb-ad4c-05ca7d1c0721','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_health_event_tab','livestock_vaccine_schedule_details_section_01',30),
+-- Vaccine Schedule Details (livestock_vaccine_schedule_details_section_01) was
+-- unlinked from this tab on purpose: it used to be re-entered per Livestock
+-- record, duplicating the same vaccine+species+interval on every farmer's
+-- holding. Interval/Active/Notes now live on the Vaccine attribute value
+-- itself (Configuration -> Attribute Values -> VACCINE_TYPE), set once, shared
+-- by everyone. The section/register/data are untouched, just not shown here.
 ('92418b0b-585f-59ca-acb1-75135fd8a9fa','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_vital_event_tab','livestock_vital_event_details_section_01',10),
 ('67638503-557e-59f9-a983-7e2d6bfb9909','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_vital_event_tab','livestock_breeding_details_section_01',20),
 ('84721b63-f862-5ca7-aba5-fee321f2564b','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_import_batch_tab','livestock_import_batch_details_section_01',10),
