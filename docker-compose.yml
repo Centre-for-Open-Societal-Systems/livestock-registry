@@ -160,6 +160,61 @@ services:
   # ───────────────────────────────────────────────────────────────────────────
   # Shared services (chart equivalent: the `commons-services` release)
   # ───────────────────────────────────────────────────────────────────────────
+  awe:
+    # Approval Workflow Engine — runs the change-request / intake approval
+    # workflows behind the Change Request screens. Owns its own `awe` database
+    # (init.sql creates the empty database; AWE migrates it on first boot) and
+    # its own Keycloak client (awe-admin-resolver) to resolve users/roles.
+    #
+    # Gated behind the "awe" profile: the image lives on a private GitLab
+    # registry (registry.gitlab.com/openg2p/awe/...) that needs `docker login`,
+    # so a plain `docker compose up` must not require it. It only actually
+    # starts with `--profile awe` (or COMPOSE_PROFILES=awe). AWE_ENABLED=false
+    # (the documented local default — see local/README.md) already disables the
+    # feature at the app level; staff-api and db-seed no longer wait on this
+    # container (see their depends_on) so the two stay independent.
+    profiles: ['awe']
+    image: ${AWE_API_IMAGE:-registry.gitlab.com/openg2p/awe/openg2p-awe:0.0.0-develop.67}
+    <<: *amd64
+    environment:
+      UVICORN_HOST: '0.0.0.0'
+      UVICORN_PORT: '8000'
+      CONFIG_PATH: /app/config/default.yaml
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_NAME: awe
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./local/awe/config/default.yaml:/app/config/default.yaml:ro
+    ports:
+      - '${AWE_API_PORT:-8030}:8000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/awe/health')"
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  awe-ui:
+    # AWE's own admin console (policy/task management) — not linked from the
+    # Livestock portal, reached directly at http://localhost:8031.
+    # Same "awe" profile gate as the awe service above — see its comment.
+    profiles: ['awe']
+    image: ${AWE_UI_IMAGE:-registry.gitlab.com/openg2p/awe/openg2p-awe-ui:0.0.0-develop.67}
+    depends_on:
+      awe:
+        condition: service_healthy
+    ports:
+      - '${AWE_UI_PORT:-8031}:8080'
+
   iam:
     image: ${IAM_IMAGE}
     <<: *amd64
@@ -233,6 +288,40 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${MASTER_DATA_PORT}/ping')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+
+  # Loads the real Ethiopia region/zone/woreda/kebele hierarchy into master-data's
+  # geo tables (g2p_geo_levels/g2p_geo_level_values). Without this they're empty
+  # and the Location section's Region/Zone/Woreda/Kebele dropdowns have nothing
+  # to show — see docker/local-dev/geo-seed/ for the seed SQL and its own
+  # comments (this dev image's geo tables key level_value_mnemonic as globally
+  # UNIQUE, so ~2,080 of the 21,053 real rows — duplicate-named kebeles/woredas
+  # elsewhere in the country — are skipped on import; the remaining 18,973
+  # uniquely-named region/zone/woreda/kebele values load and resolve normally).
+  # Deliberately NOT routed through db-seed's own LOAD_GEO_DATA (that toggle
+  # runs the platform's generic/fictional sample geo loader, which would
+  # coexist with this real data and pollute the dropdowns).
+  livestock-registry-geo-seed:
+    image: postgres:16
+    container_name: livestock-registry-geo-seed
+    depends_on:
+      master-data:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${MASTER_DATA_DB}
+      PGUSER: ${MASTER_DATA_DB_USER}
+      PGPASSWORD: ${MASTER_DATA_DB_PASSWORD}
+    volumes:
+      - ./docker/local-dev/geo-seed/ethiopia_geo_seed.sql.gz:/opt/ethiopia_geo_seed.sql.gz:ro
+    entrypoint: ["sh", "-c", "gunzip -c /opt/ethiopia_geo_seed.sql.gz | psql -v ON_ERROR_STOP=1"]
+    restart: "no"
 
   id-generator:
     image: ${IDGEN_IMAGE}
@@ -292,6 +381,10 @@ services:
       REGISTRY_STAFF_PORTAL_API_TEMPLATE_BUCKET_NAME: ${TEMPLATE_BUCKET}
       REGISTRY_STAFF_PORTAL_API_AUDIT_ENABLED: ${AUDIT_ENABLED}
       REGISTRY_STAFF_PORTAL_API_AWE_ENABLED: ${AWE_ENABLED}
+      REGISTRY_STAFF_PORTAL_API_AWE_BASE_URL: http://awe:8000
+      REGISTRY_STAFF_PORTAL_API_AWE_DEFAULT_CALLBACK_URL: http://staff-api:8000/awe/webhooks/decision
+      REGISTRY_STAFF_PORTAL_API_AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
+      REGISTRY_STAFF_PORTAL_API_AWE_CALLBACK_HMAC_SECRET: ${AWE_CALLBACK_HMAC_SECRET}
     ports:
       - '${STAFF_API_PORT}:8000'
     depends_on:
@@ -301,6 +394,9 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      # No depends_on for awe: it's gated behind the "awe" profile (see the
+      # awe service's comment) and AWE_ENABLED=false already turns the
+      # integration off at the app level, so staff-api must not block on it.
     healthcheck:
       test:
         - CMD-SHELL
@@ -465,11 +561,22 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       AWE_DB_SEED_ENABLED: ${AWE_ENABLED}
+      AWE_PGHOST: postgres
+      AWE_PGPORT: '5432'
+      AWE_PGDATABASE: awe
+      AWE_PGUSER: postgres
+      AWE_PGPASSWORD: ${POSTGRES_PASSWORD}
+      AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
+      AWE_CALLBACK_HMAC_SECRET: ${AWE_CALLBACK_HMAC_SECRET}
+      AWE_CALLBACK_CALLER_SERVICE: registry
     depends_on:
       staff-api:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      livestock-registry-geo-seed:
+        condition: service_completed_successfully
+      # No depends_on for awe — see staff-api's depends_on comment above.
     restart: 'no'
 
   sample-data:

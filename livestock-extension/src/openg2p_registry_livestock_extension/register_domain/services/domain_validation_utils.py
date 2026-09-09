@@ -155,15 +155,18 @@ async def ear_tag_used_by_other_animal(
     missing entirely — see `_validate_no_duplicate_ear_tags` in
     G2PRegisterDomainServiceAnimal, the only caller.
 
-    Unlike `ear_tag_exists` above, this one IS scoped to the record being
-    edited: `exclude_internal_record_ids` should be every internal_record_id
-    already present in the current save's own row list, so re-saving an
-    animal you already registered — its ear tag is already sitting in
-    g2p_intake_form_animals from the previous save — doesn't look like a
-    duplicate of itself. g2p_register_animals needs no such exclusion:
-    intake forms only ever create new submissions, so a row being drafted
-    here can't already be sitting in the approved register under the same
-    internal_record_id.
+    Scoped to the record being edited on BOTH tables:
+    `exclude_internal_record_ids` should be every internal_record_id already
+    present in the current save's own row list. This matters just as much
+    for g2p_register_animals as for g2p_intake_form_animals — editing an
+    already-approved animal's *other* fields (e.g. health_status) resubmits
+    its unchanged ear_tag/species/breed, and without excluding its own
+    internal_record_id that combination is always found "already registered"
+    against itself, permanently blocking every edit to an approved animal
+    that doesn't touch its ear tag. (Found via G2R-136 audit-log testing:
+    editing Health Status on an already-approved animal raised
+    "ear_tag_id ... is already registered to a different animal" even though
+    nothing about the tag, species or breed had changed.)
     """
     if is_blank(ear_tag_id):
         return False
@@ -176,11 +179,14 @@ async def ear_tag_used_by_other_animal(
     exclude_internal_record_ids = exclude_internal_record_ids or set()
 
     def _same_animal_key(model):
-        return and_(
+        conditions = [
             model.ear_tag_id == ear_tag_id,
             model.species == species,
             model.breed == breed,
-        )
+        ]
+        if exclude_internal_record_ids:
+            conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        return and_(*conditions)
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
@@ -190,14 +196,10 @@ async def ear_tag_used_by_other_animal(
         if in_register:
             return True
 
-        matching_intake_ids = (
-            await session.execute(
-                select(G2PIntakeFormAnimal.internal_record_id).where(_same_animal_key(G2PIntakeFormAnimal))
-            )
-        ).scalars().all()
-        return any(
-            str(record_id) not in exclude_internal_record_ids for record_id in matching_intake_ids
-        )
+        in_intake = (
+            await session.execute(select(exists().where(_same_animal_key(G2PIntakeFormAnimal))))
+        ).scalar()
+        return bool(in_intake)
 
 
 async def get_animal_species(ear_tag_id: str) -> str | None:

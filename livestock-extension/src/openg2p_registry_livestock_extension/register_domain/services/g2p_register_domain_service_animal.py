@@ -1,7 +1,10 @@
 import logging
+import re
 from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
+
+from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
     as_float,
@@ -14,10 +17,30 @@ from .domain_validation_utils import (
 _logger = logging.getLogger("g2p-register-domain-service")
 
 
-class G2PRegisterDomainServiceAnimal(G2PRegisterDomainService):
+# ET followed by exactly 10 digits, as enforced by _check_ear_tag_format in
+# g2p_livestock_registry/models/live_stock_registry_line.py.
+_EAR_TAG_PATTERN = re.compile(r"^ET\d{10}$")
+
+# field -> human label used in the "Please provide the ... " message, mirroring
+# the fields marked "widget-required" on the Livestock Details form.
+_REQUIRED_FIELDS = {
+    "ear_tag_id": "livestock ear tag",
+    "species": "species",
+    "breed": "breed",
+    "gender": "gender",  # G2R-135 mandatory constraint
+    "date_of_birth": "date of birth",
+    "vaccination_status": "vaccination status",
+    "health_status": "health status",
+    "registration_date": "registration date",
+}
+
+
+class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
         for record in records:
+            self._validate_required_fields(record)
+            self._validate_ear_tag_id(record)
             self._validate_not_in_future(record, "date_of_birth")
             self._validate_not_in_future(record, "registration_date")
             self._validate_weight(record)
@@ -100,6 +123,31 @@ class G2PRegisterDomainServiceAnimal(G2PRegisterDomainService):
         weight = as_float(record.get("weight"))
         if weight is not None and weight <= 0:
             validation_error("weight must be greater than zero")
+
+    def _populate_age_from_date_of_birth(self, record: dict) -> None:
+        """Derive the stored Age display string from date_of_birth, the same
+        way `g2p.livestock.registry.line._compute_age` did in the Odoo module.
+        Overwrites whatever was submitted for "age" — it is a display value
+        derived from date_of_birth, not independent input.
+        """
+        birth_date = parse_date(record.get("date_of_birth"))
+        if birth_date is None:
+            record["age"] = None
+            return
+        years, months = self._calculate_age_years_months(birth_date)
+        record["age"] = f"{years} years, {months} months"
+
+    @staticmethod
+    def _calculate_age_years_months(birth_date: date) -> tuple[int, int]:
+        today = date.today()
+        years = today.year - birth_date.year
+        months = today.month - birth_date.month
+        if today.day < birth_date.day:
+            months -= 1
+        if months < 0:
+            years -= 1
+            months += 12
+        return years, months
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for animal record")
