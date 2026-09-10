@@ -23,6 +23,7 @@ class G2PAnimal:
     animal_name: Mapped[str] = mapped_column(String, nullable=True)
     species: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (LIVESTOCK_SPECIES)
     breed: Mapped[str] = mapped_column(String, nullable=True)     # Attribute lookup (LIVESTOCK_BREED)
+    colour: Mapped[str] = mapped_column(String, nullable=True)
     gender: Mapped[GenderEnum] = mapped_column(String, nullable=True)  # GenderEnum
     date_of_birth: Mapped[str] = mapped_column(Date, nullable=True)
     age: Mapped[str] = mapped_column(String, nullable=True)
@@ -36,6 +37,15 @@ class G2PAnimal:
 # All Register classes should have the prefix G2PRegister
 class G2PRegisterAnimal(G2PRegister, G2PAnimal):
     __tablename__ = "g2p_register_animals"
+
+    # G2R-135 mandatory constraints — overridden non-nullable here rather than
+    # on G2PAnimal itself: the mixin is shared with G2PIntakeFormAnimal, where
+    # a legitimate partial draft (saved mid-entry, filled in later) can't be
+    # forced to have these yet. Only the approved register — the one entity
+    # this requirement is actually about — enforces them at the DB level.
+    ear_tag_id: Mapped[str] = mapped_column(String, nullable=False)
+    species: Mapped[str] = mapped_column(String, nullable=False)   # Attribute lookup (LIVESTOCK_SPECIES)
+    gender: Mapped[GenderEnum] = mapped_column(String, nullable=False)  # GenderEnum
 
     def get_search_text_fields(self) -> str:
         """Return animal fields used to build search_text."""
