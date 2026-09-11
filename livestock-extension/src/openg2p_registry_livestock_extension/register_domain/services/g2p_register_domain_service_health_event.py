@@ -9,6 +9,11 @@ from .domain_validation_utils import (
     ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
 )
 
+# Kept as its own import line rather than folded into the block above: the
+# block is edited by other in-flight work on this file, and a separate
+# statement keeps the two changes from landing on the same lines.
+from .domain_validation_utils import event_already_recorded, first_repeated_key
+
 _logger = logging.getLogger("g2p-register-domain-service")
 
 # field -> human label used in the "Please provide the ... " message, mirroring
@@ -35,6 +40,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             await validate_species_matches(record)
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
+        await self._validate_no_duplicate_events(records)
 
     def _validate_required_fields(self, record: dict) -> None:
         for field, label in _REQUIRED_FIELDS.items():
@@ -109,3 +115,59 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         )
 
         return " ".join(record_name).strip()
+
+    async def _validate_no_duplicate_events(self, records: list[dict]) -> None:
+        """The same health event must not be recorded twice for one animal:
+        same ear tag, same event type, same disease and same onset date —
+        the Old System's _check_duplicate_health_event. Two layers, like
+        _validate_no_duplicate_ear_tags on the Animal section: the rows of
+        this save first, then the register plus every intake draft
+        (excluding this save's own rows, so editing an already-approved
+        event isn't flagged against itself). A row without an onset date is
+        left alone here — there is nothing to say it is the same event.
+        """
+
+        def key_of(record: dict):
+            onset = parse_date(record.get("date_onset"))
+            if is_blank(record.get("ear_tag_id")) or is_blank(record.get("event_type")) or onset is None:
+                return None
+            disease = record.get("disease_type")
+            return (
+                str(record["ear_tag_id"]).strip(),
+                str(record["event_type"]).strip().upper(),
+                None if is_blank(disease) else str(disease).strip(),
+                onset,
+            )
+
+        repeated = first_repeated_key(records, key_of)
+        if repeated:
+            ear_tag_id, event_type, _disease, onset = repeated
+            validation_error(
+                f"The {event_type} health event for ear tag '{ear_tag_id}' on {onset} "
+                "is entered more than once in this record."
+            )
+
+        self_ids = {
+            str(record["internal_record_id"])
+            for record in records
+            if record.get("internal_record_id")
+        }
+        for record in records:
+            key = key_of(record)
+            if key is None:
+                continue
+            ear_tag_id, event_type, disease, onset = key
+            if await event_already_recorded(
+                "HealthEvent",
+                {
+                    "ear_tag_id": ear_tag_id,
+                    "event_type": event_type,
+                    "disease_type": disease,
+                    "date_onset": onset,
+                },
+                exclude_internal_record_ids=self_ids,
+            ):
+                validation_error(
+                    f"A {event_type} health event for ear tag '{ear_tag_id}' on {onset} "
+                    "is already recorded."
+                )
