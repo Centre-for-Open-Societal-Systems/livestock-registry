@@ -9,22 +9,34 @@ from sqlalchemy import select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import parse_date, validation_error
-from ..models.enums import LivestockStateEnum
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
-# stage_order (on the registry.intake_form.livestock AWE policy) -> the state
-# that stage's approval advances a Livestock intake draft to. Mirrors gen1's
-# Kebele -> Woreda -> Zone -> Region ladder (g2p_livestock_registry/models/
-# livestock_registry.py _APPROVAL_LEVELS). The final stage (Region) is NOT
-# listed here — it's handled separately in post_approval_stage below via
-# event_type == "request_approved", so it always means VERIFIED regardless
-# of which literal stage_order number the policy's last stage happens to be.
-_STAGE_ORDER_TO_STATE = {
-    1: LivestockStateEnum.KEBELE_APPROVED,
-    2: LivestockStateEnum.WOREDA_APPROVED,
-    3: LivestockStateEnum.ZONE_APPROVED,
-}
+# LivestockStateEnum is NOT imported at module level here (unlike the rest of this
+# file's plain `from ..models... import` style would suggest): this is the extension's
+# only service module that needs something from ..models, and models/*.py each import
+# back from ..services at module level (G2PRegisterDomainServiceLivestock included) —
+# so a top-level `from ..models.enums import LivestockStateEnum` here deadlocks that
+# cycle the moment this module is the first thing to touch the services package.
+# _stage_order_to_state() below fetches it lazily instead, the same way
+# _extension_models() fetches the models themselves further down this file.
+
+
+def _stage_order_to_state():
+    """stage_order (on the registry.intake_form.livestock AWE policy) -> the state
+    that stage's approval advances a Livestock intake draft to. Mirrors gen1's
+    Kebele -> Woreda -> Zone -> Region ladder (g2p_livestock_registry/models/
+    livestock_registry.py _APPROVAL_LEVELS). The final stage (Region) is NOT
+    listed here — it's handled separately in post_approval_stage below via
+    event_type == "request_approved", so it always means VERIFIED regardless
+    of which literal stage_order number the policy's last stage happens to be.
+    """
+    LivestockStateEnum = _extension_models().LivestockStateEnum
+    return {
+        1: LivestockStateEnum.KEBELE_APPROVED,
+        2: LivestockStateEnum.WOREDA_APPROVED,
+        3: LivestockStateEnum.ZONE_APPROVED,
+    }
 
 
 # FR- followed by exactly 10 digits, as enforced by _check_farmer_id_format in
@@ -167,9 +179,9 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         here is all that's needed for it to reach the live register too.
         """
         new_state = (
-            LivestockStateEnum.VERIFIED
+            _extension_models().LivestockStateEnum.VERIFIED
             if event_type == "request_approved"
-            else _STAGE_ORDER_TO_STATE.get(stage_order)
+            else _stage_order_to_state().get(stage_order)
         )
         if new_state is None:
             return
