@@ -8,7 +8,7 @@ from openg2p_registry_core.models import (
     G2PRegisterChangeRequest,
 )
 from openg2p_registry_core.services import G2PRegisterDomainService
-from sqlalchemy import select
+from sqlalchemy import and_, exists, func, select
 
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -58,6 +58,13 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
             self._validate_offspring_count(record)
+        # Run only once every record above has passed — so by this point
+        # every ear_tag_id/event_type/disease_type used below is known
+        # non-blank where required. Mirrors G2PRegisterDomainServiceAnimal's
+        # own duplicate checks, which run the same way after its per-record
+        # loop (see its validate_domain_attributes).
+        await self._validate_no_duplicate_mortality(records)
+        await self._validate_no_duplicate_disease(records)
 
     def _validate_required_fields(self, record: dict) -> None:
         for field, label in _REQUIRED_FIELDS.items():
@@ -116,6 +123,156 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         if is_blank(record.get("offspring_gender")):
             validation_error("Please provide the sex of the offspring before saving the record.")
 
+    def _vital_event_models(self):
+        """The Vital Event register + intake-form models, imported the same
+        way post_approve/_next_ear_tag_number already do — see the comment
+        on post_approve for why this must go through the
+        "openg2p_registry_extensions" alias, not a relative "..models"
+        import. Factored out here since the two duplicate-check helpers
+        below need it as well.
+        """
+        import importlib
+
+        models = importlib.import_module(
+            "openg2p_registry_extensions.register_domain.models"
+        )
+        return models.G2PRegisterVitalEvent, models.G2PIntakeFormVitalEvent
+
+    async def _validate_no_duplicate_mortality(self, records: list[dict]) -> None:
+        """An animal can only die once — mirrors the Old System's "A
+        Mortality event already exists for this animal" check
+        (g2p_livestock_registry/models/livestock_event.py
+        _check_duplicate_vital_event), which Gen2 had no equivalent of.
+        Two layers, same as G2PRegisterDomainServiceAnimal's own duplicate
+        checks: within this same save's own rows first (no DB round trip),
+        then against everything else already saved anywhere — approved
+        register or still-pending intake draft — excluding this save's own
+        rows so re-saving an existing Mortality event's other fields isn't
+        flagged against itself.
+        """
+        self_ids = {
+            str(record["internal_record_id"])
+            for record in records
+            if record.get("internal_record_id")
+        }
+
+        seen_ear_tags: set[str] = set()
+        for record in records:
+            if str(record.get("event_type") or "").upper() != "MORTALITY":
+                continue
+            ear_tag_id = record.get("ear_tag_id")
+            if is_blank(ear_tag_id):
+                continue
+            ear_tag_id = str(ear_tag_id).strip()
+
+            if ear_tag_id in seen_ear_tags:
+                validation_error("A Mortality event already exists for this animal.")
+            seen_ear_tags.add(ear_tag_id)
+
+            if await self._mortality_exists(ear_tag_id, self_ids):
+                validation_error("A Mortality event already exists for this animal.")
+
+    async def _mortality_exists(
+        self, ear_tag_id: str, exclude_internal_record_ids: set[str]
+    ) -> bool:
+        from openg2p_fastapi_common.context import dbengine
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        G2PRegisterVitalEvent, G2PIntakeFormVitalEvent = self._vital_event_models()
+
+        def _condition(model):
+            conditions = [model.ear_tag_id == ear_tag_id, model.event_type == "MORTALITY"]
+            if exclude_internal_record_ids:
+                conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+            return and_(*conditions)
+
+        session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+        async with session_maker() as session:
+            in_register = (
+                await session.execute(select(exists().where(_condition(G2PRegisterVitalEvent))))
+            ).scalar()
+            if in_register:
+                return True
+            in_intake = (
+                await session.execute(select(exists().where(_condition(G2PIntakeFormVitalEvent))))
+            ).scalar()
+            return bool(in_intake)
+
+    async def _validate_no_duplicate_disease(self, records: list[dict]) -> None:
+        """Block re-logging the same disease case twice for the same
+        animal — mirrors the Old System's duplicate check on (line_id,
+        disease_type, effective date of onset), which Gen2 had no
+        equivalent of. Effective onset = date_onset if given, else
+        event_date — same fallback the Old System used, and safe here since
+        _validate_required_fields already guarantees event_date is filled
+        in for any record that reaches this point.
+        """
+        self_ids = {
+            str(record["internal_record_id"])
+            for record in records
+            if record.get("internal_record_id")
+        }
+
+        seen: set[tuple] = set()
+        for record in records:
+            if str(record.get("event_type") or "").upper() != "DISEASE":
+                continue
+            ear_tag_id = record.get("ear_tag_id")
+            disease_type = record.get("disease_type")
+            if is_blank(ear_tag_id) or is_blank(disease_type):
+                continue
+            ear_tag_id = str(ear_tag_id).strip()
+            disease_type = str(disease_type).strip().lower()
+            onset = parse_date(record.get("date_onset")) or parse_date(record.get("event_date"))
+            if onset is None:
+                continue
+
+            key = (ear_tag_id, disease_type, onset)
+            if key in seen:
+                validation_error(
+                    "A Disease event with the same disease and date of onset already "
+                    "exists for this animal."
+                )
+            seen.add(key)
+
+            if await self._disease_case_exists(ear_tag_id, disease_type, onset, self_ids):
+                validation_error(
+                    "A Disease event with the same disease and date of onset already "
+                    "exists for this animal."
+                )
+
+    async def _disease_case_exists(
+        self, ear_tag_id: str, disease_type: str, onset, exclude_internal_record_ids: set[str]
+    ) -> bool:
+        from openg2p_fastapi_common.context import dbengine
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        G2PRegisterVitalEvent, G2PIntakeFormVitalEvent = self._vital_event_models()
+
+        def _condition(model):
+            effective_onset = func.coalesce(model.date_onset, model.event_date)
+            conditions = [
+                model.ear_tag_id == ear_tag_id,
+                model.event_type == "DISEASE",
+                func.lower(model.disease_type) == disease_type,
+                effective_onset == onset,
+            ]
+            if exclude_internal_record_ids:
+                conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+            return and_(*conditions)
+
+        session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+        async with session_maker() as session:
+            in_register = (
+                await session.execute(select(exists().where(_condition(G2PRegisterVitalEvent))))
+            ).scalar()
+            if in_register:
+                return True
+            in_intake = (
+                await session.execute(select(exists().where(_condition(G2PIntakeFormVitalEvent))))
+            ).scalar()
+            return bool(in_intake)
+
     async def post_approve(self, change_request: G2PRegisterChangeRequest, session) -> None:
         """BIRTH event -> auto-create the newborn Animal profile(s) under
         Livestock Details, with a freshly generated ear tag each — mirrors
@@ -152,9 +309,34 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 )
             )
         ).scalar_one_or_none()
+
+        if not vital_event:
+            # change_request.internal_record_id is the PARENT Livestock
+            # record's id here, not the Vital Event row's own id — for a
+            # "new table row" change request (adding a Vital Event to a
+            # Livestock record that's already an approved register entry),
+            # the platform records no id for the specific child row that
+            # was added (confirmed empirically against the identical
+            # Health Event case — see
+            # G2PRegisterDomainServiceHealthEvent.post_approve). Fall back
+            # to the most recently created Vital Event under that parent —
+            # the row this approval is almost certainly about. Without this
+            # fallback, a Mortality/Disease/Birth event added via "Edit
+            # Details" on an existing record silently never triggers offspring
+            # creation or the Health Status sync below at all.
+            vital_event = (
+                await session.execute(
+                    select(G2PRegisterVitalEvent)
+                    .where(G2PRegisterVitalEvent.link_internal_record_id == change_request.internal_record_id)
+                    .order_by(G2PRegisterVitalEvent.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+
         if not vital_event:
             return
         await self._maybe_generate_offspring(vital_event, session)
+        await self._sync_animal_health_status(vital_event, session)
 
     async def post_ingest(self, register_id: str, register_row, session) -> None:
         """Same offspring auto-creation as post_approve, above, but for a
@@ -168,6 +350,83 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         if register_id != VITAL_EVENT_REGISTER_ID:
             return
         await self._maybe_generate_offspring(register_row, session)
+        await self._sync_animal_health_status(register_row, session)
+
+    async def _sync_animal_health_status(self, vital_event, session) -> None:
+        """MORTALITY -> the linked animal's Health Status becomes DECEASED;
+        DISEASE -> SICK. Mirrors the Old System's create()-time side effect
+        (g2p_livestock_registry/models/livestock_event.py: `rec.line_id.
+        health_status = 'deceased'` / `'sick'`), which Gen2 had no
+        equivalent of — recording one of these events left the animal's own
+        Health Status field on Livestock Details completely untouched.
+
+        Called from both post_approve and post_ingest, same as
+        _maybe_generate_offspring above — but unlike offspring generation,
+        this needs no "already synced" guard: (re)setting health_status to
+        the same value on a repeat approval is harmless, not a duplicate
+        side effect to prevent.
+        """
+        event_type = str(vital_event.event_type or "").upper()
+        new_status = {"MORTALITY": "DECEASED", "DISEASE": "SICK"}.get(event_type)
+        if new_status is None:
+            return
+
+        G2PRegisterAnimal, _ = _animal_models()
+        animal = (
+            await session.execute(
+                select(G2PRegisterAnimal).where(
+                    G2PRegisterAnimal.ear_tag_id == vital_event.ear_tag_id,
+                    G2PRegisterAnimal.link_internal_record_id == vital_event.link_internal_record_id,
+                )
+            )
+        ).scalar()
+        if not animal:
+            return
+        animal.health_status = new_status
+        await session.flush()
+        _logger.info(
+            "%s event %s: set animal %s health_status to %s",
+            event_type, vital_event.internal_record_id, animal.ear_tag_id, new_status,
+        )
+
+    async def post_intake_upsert(self, rows: list, session) -> None:
+        """Reserve a BIRTH row's offspring ear tag(s) the moment its
+        intake-form section is saved (staff clicking "Next"), instead of
+        only once the whole submission is later approved/ingested
+        (post_approve / post_ingest, above) — lets staff see the tag(s) the
+        newborn(s) will get immediately, before they've even finished the
+        rest of the form. _create_offspring_animals reuses these exact
+        reserved tags at that later point rather than generating new ones,
+        so what was shown here is guaranteed to be what gets created.
+
+        Only reserves — never creates the Animal profile(s) themselves: at
+        this point the dam herself may still be nothing more than an
+        intake draft (not yet a live register row this offspring could link
+        to), so actual creation stays deferred to post_approve/post_ingest.
+        """
+        for row in rows:
+            if str(getattr(row, "event_type", "") or "").upper() != "BIRTH":
+                continue
+            if not is_blank(getattr(row, "offspring_ear_tags", None)):
+                continue  # already reserved — never re-reserve on a later edit
+            count = as_int(getattr(row, "offspring_count", None)) or 0
+            if count < 1:
+                continue
+            row.offspring_ear_tags = ", ".join(await self._reserve_ear_tags(session, count))
+
+    async def _reserve_ear_tags(self, session, count: int) -> list[str]:
+        G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
+        next_tag_number = await self._next_ear_tag_number(session, G2PRegisterAnimal, G2PIntakeFormAnimal)
+        tags = []
+        for _ in range(count):
+            if next_tag_number > 9999999999:
+                validation_error(
+                    "Cannot generate a new ear tag: the ET0000000000-ET9999999999 "
+                    "sequence is exhausted."
+                )
+            tags.append(f"ET{next_tag_number:010d}")
+            next_tag_number += 1
+        return tags
 
     async def _maybe_generate_offspring(self, vital_event, session) -> None:
         if str(vital_event.event_type or "").upper() != "BIRTH":
@@ -203,27 +462,25 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         ).scalar()
         breed = dam.breed if dam else None
 
-        next_tag_number = await self._next_ear_tag_number(session, G2PRegisterAnimal, G2PIntakeFormAnimal)
+        # Reuse the tag(s) already reserved at intake-save time
+        # (post_intake_upsert, above) when they're there and match this
+        # count, so what staff were shown earlier is exactly what gets
+        # created. Falls back to generating fresh ones otherwise — a draft
+        # from before this feature existed, or any other mismatch.
+        reserved = [
+            tag.strip() for tag in (vital_event.offspring_ear_tags or "").split(",") if tag.strip()
+        ]
+        if len(reserved) == count:
+            ear_tags = reserved
+        else:
+            ear_tags = await self._reserve_ear_tags(session, count)
 
         animal_service = G2PRegisterDomainServiceAnimal()
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         actor = vital_event.last_approved_by or vital_event.created_by
 
         created_tags = []
-        for _ in range(count):
-            # ear_tag_id is always exactly ET + 10 digits (_EAR_TAG_PATTERN,
-            # enforced on manual entry by G2PRegisterDomainServiceAnimal); a
-            # sequence at the ceiling would silently overflow into 11 digits
-            # here since :010d only pads, never truncates — reject instead of
-            # inserting an offspring whose ear tag no longer matches the
-            # format anything else validates against.
-            if next_tag_number > 9999999999:
-                validation_error(
-                    "Cannot generate a new ear tag: the ET0000000000-ET9999999999 "
-                    "sequence is exhausted."
-                )
-            ear_tag_id = f"ET{next_tag_number:010d}"
-            next_tag_number += 1
+        for ear_tag_id in ear_tags:
             internal_id = str(uuid.uuid4())
 
             payload = {
@@ -276,11 +533,21 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
 
     async def _next_ear_tag_number(self, session, G2PRegisterAnimal, G2PIntakeFormAnimal) -> int:
         """The next unused ET+10-digit sequence number, one higher than the
-        highest already in use anywhere — the approved register, or a
-        still-pending intake draft. Mirrors _generate_next_ear_tag in the
-        Odoo module, but computes the whole batch's starting point once
+        highest already in use anywhere — the approved register, a
+        still-pending intake draft, or already reserved (but not yet
+        materialized as an Animal row) on some other Vital Event's own
+        offspring_ear_tags. That last source is what keeps two Birth events
+        being drafted concurrently (post_intake_upsert, above) from ever
+        reserving the same number twice. Mirrors _generate_next_ear_tag in
+        the Odoo module, but computes the whole batch's starting point once
         rather than re-querying per offspring.
         """
+        import importlib
+
+        vital_event_models = importlib.import_module(
+            "openg2p_registry_extensions.register_domain.models"
+        )
+
         max_num = 0
         for model in (G2PRegisterAnimal, G2PIntakeFormAnimal):
             tags = (
@@ -290,6 +557,22 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 match = _EAR_TAG_PATTERN.match((tag or "").strip().upper())
                 if match:
                     max_num = max(max_num, int(match.group(1)))
+
+        for model in (
+            vital_event_models.G2PRegisterVitalEvent,
+            vital_event_models.G2PIntakeFormVitalEvent,
+        ):
+            reservations = (
+                await session.execute(
+                    select(model.offspring_ear_tags).where(model.offspring_ear_tags.is_not(None))
+                )
+            ).scalars().all()
+            for reserved in reservations:
+                for tag in (reserved or "").split(","):
+                    match = _EAR_TAG_PATTERN.match(tag.strip().upper())
+                    if match:
+                        max_num = max(max_num, int(match.group(1)))
+
         return max_num + 1
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:

@@ -13,6 +13,7 @@ class G2PSchemaVitalEvent:
 
     ear_tag_id: Optional[str] = None
     species: Optional[str] = None
+    age: Optional[str] = None
     event_type: Optional[VitalEventTypeEnum] = None
     event_date: Optional[date] = None
     cause: Optional[VitalEventCauseEnum] = None
@@ -28,6 +29,7 @@ class G2PSchemaVitalEvent:
     offspring_ear_tag_prefix: Optional[str] = None
     offspring_gender: Optional[GenderEnum] = None
     offspring_generated: Optional[bool] = None
+    offspring_ear_tags: Optional[str] = None
     reporting_officer: Optional[str] = None
     notes: Optional[str] = None
 

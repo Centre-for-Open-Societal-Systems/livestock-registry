@@ -48,7 +48,7 @@ COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock_bg.jpg /app/public/i
 # So the file is also RENAMED and every reference in the build output rewritten,
 # which is what makes the new rule actually reach the browser.
 RUN set -eu; \
-    css="$(grep -rl 'bg_pattern' /app/.next/static/css/ || true)"; \
+    css="$(find /app/.next/static -name '*.css' -exec grep -l 'bg_pattern' {} + 2>/dev/null || true)"; \
     if [ -z "$css" ]; then \
       echo "FATAL: no compiled stylesheet references bg_pattern — override would be dead"; exit 1; \
     fi; \
