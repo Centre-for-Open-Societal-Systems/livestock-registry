@@ -17,6 +17,7 @@ class G2PVaccination:
 
     ear_tag_id: Mapped[str] = mapped_column(String, nullable=True)
     species: Mapped[str] = mapped_column(String, nullable=True)  # Attribute lookup (LIVESTOCK_SPECIES)
+    age: Mapped[str] = mapped_column(String, nullable=True)  # Copied from the animal at Ear Tag autofill time (G2R-57)
     vaccine_type: Mapped[str] = mapped_column(String, nullable=True)  # Attribute lookup (VACCINE_TYPE)
     vaccination_date: Mapped[str] = mapped_column(Date, nullable=True)
     next_due_date: Mapped[str] = mapped_column(Date, nullable=True)

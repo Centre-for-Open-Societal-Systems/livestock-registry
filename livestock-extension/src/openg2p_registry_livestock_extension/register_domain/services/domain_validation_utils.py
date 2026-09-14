@@ -202,6 +202,54 @@ async def ear_tag_used_by_other_animal(
         return bool(in_intake)
 
 
+async def secondary_identifier_used_by_other_animal(
+    secondary_identifier: str,
+    species,
+    breed,
+    exclude_internal_record_ids: set[str] | None = None,
+) -> bool:
+    """Same check as ear_tag_used_by_other_animal, for `secondary_identifier`
+    — the leg band/wing tag/hive number an _EAR_TAG_EXEMPT_SPECIES animal
+    (poultry, beehive; see G2PRegisterDomainServiceAnimal) identifies by
+    instead of an ear tag. Kept as a separate function rather than a
+    parameterized field name so each stays a straightforward, obviously
+    correct mirror of the other — see that function's docstring for why the
+    exclude_internal_record_ids scoping (and its ear-tag-only caveat) matter.
+    """
+    if is_blank(secondary_identifier):
+        return False
+
+    from openg2p_fastapi_common.context import dbengine
+    from sqlalchemy import and_, exists, select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
+    exclude_internal_record_ids = exclude_internal_record_ids or set()
+
+    def _same_animal_key(model):
+        conditions = [
+            model.secondary_identifier == secondary_identifier,
+            model.species == species,
+            model.breed == breed,
+        ]
+        if exclude_internal_record_ids:
+            conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        return and_(*conditions)
+
+    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+    async with session_maker() as session:
+        in_register = (
+            await session.execute(select(exists().where(_same_animal_key(G2PRegisterAnimal))))
+        ).scalar()
+        if in_register:
+            return True
+
+        in_intake = (
+            await session.execute(select(exists().where(_same_animal_key(G2PIntakeFormAnimal))))
+        ).scalar()
+        return bool(in_intake)
+
+
 async def get_animal_species(ear_tag_id: str) -> str | None:
     """The species already recorded against ear_tag_id under Livestock
     Details, or None if the ear tag isn't known anywhere. Checks the
@@ -275,6 +323,44 @@ async def humanize_attribute_value(value_id: str | None) -> str:
             )
         ).scalar()
         return display or value_id
+
+
+async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
+    """(requires_ear_tag, is_flock_species) for a LIVESTOCK_SPECIES value —
+    e.g. Poultry/Beehive vs. Cattle/Sheep/... — configurable per species from
+    Configuration > Attributes > Species (an Edit Attribute Value's "Requires
+    Ear Tag" / "Flock / Group Species" checkboxes), not a hardcoded species
+    list in this codebase. Backed by G2PAttributeValueSpeciesConfig, a
+    per-value side table (see core-patches/apply_patches.py Fix 4) the same
+    way G2PAttributeValueSchedule already backs per-value vaccine scheduling
+    — most species (and every non-species attribute value) never get a row
+    there, which is why every field on it is nullable.
+
+    Defaults to (True, False) — ear-tag-required, not a flock — whenever no
+    row exists (species left blank, a species nobody has configured yet, or
+    a brand-new species just added in Configuration). That default matches
+    every species' actual behavior before this table existed, so an
+    unconfigured species behaves exactly as before rather than silently
+    losing its ear-tag requirement.
+    """
+    requires_ear_tag, is_flock_species = True, False
+    if is_blank(species_value_id):
+        return requires_ear_tag, is_flock_species
+
+    from openg2p_fastapi_common.context import dbengine
+    from openg2p_registry_core.models import G2PAttributeValueSpeciesConfig
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+    async with session_maker() as session:
+        config = await session.get(G2PAttributeValueSpeciesConfig, species_value_id)
+        if config is None:
+            return requires_ear_tag, is_flock_species
+        if config.requires_ear_tag is not None:
+            requires_ear_tag = config.requires_ear_tag
+        if config.is_flock_species is not None:
+            is_flock_species = config.is_flock_species
+        return requires_ear_tag, is_flock_species
 
 
 async def validate_species_matches(record: dict) -> None:

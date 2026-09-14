@@ -13,6 +13,7 @@ class G2PSchemaHealthEvent:
 
     ear_tag_id: Optional[str] = None
     species: Optional[str] = None
+    age: Optional[str] = None
     event_type: Optional[HealthEventTypeEnum] = None
     disease_type: Optional[str] = None
     date_onset: Optional[date] = None

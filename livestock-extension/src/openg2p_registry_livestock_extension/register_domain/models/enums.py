@@ -46,6 +46,15 @@ class AnimalStateEnum(StrEnum):
 class GenderEnum(StrEnum):
     MALE = "MALE"
     FEMALE = "FEMALE"
+    # A _FLOCK_SPECIES row (poultry, beehive — see
+    # G2PRegisterDomainServiceAnimal) stands for a whole flock/hive, not one
+    # sexed individual, so MALE/FEMALE alone can't honestly answer Gender
+    # there. Added so Gender can stay required everywhere (G2R-135) without
+    # forcing a fake single sex onto a mixed group. Available on every use of
+    # GenderEnum (also offspring_gender on Vital Events), but only offered in
+    # the Livestock Details form's Gender dropdown for now — a single
+    # newborn's offspring_gender should still just be MALE/FEMALE.
+    MIXED = "MIXED"
 
 
 class HealthStatusEnum(StrEnum):

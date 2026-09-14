@@ -1,7 +1,8 @@
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from openg2p_registry_core.services import G2PRegisterDomainService
+from sqlalchemy import and_, exists, select
 
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -19,6 +20,13 @@ _REQUIRED_FIELDS = {
     "event_type": "event type",
 }
 
+# Same cycle window the Old System used (g2p_livestock_registry/models/
+# livestock_event.py _check_duplicate_breeding_event): a Natural Breeding or
+# AI event within 21 days either side of an existing one, for the same
+# animal and same event_type, is treated as logging the same breeding cycle
+# twice rather than a genuinely new attempt.
+_CYCLE_WINDOW_DAYS = 21
+
 
 class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainService):
 
@@ -30,6 +38,10 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             self._validate_not_in_future(record, "breeding_date")
             self._validate_not_in_future(record, "pregnancy_confirmation_date")
             self._validate_date_order(record, "breeding_date", "expected_calving_date")
+        # Run only once every record above has passed — mirrors
+        # G2PRegisterDomainServiceVitalEvent's own duplicate checks, which
+        # run the same way after its per-record loop.
+        await self._validate_no_duplicate_breeding(records)
 
     def _validate_required_fields(self, record: dict) -> None:
         for field, label in _REQUIRED_FIELDS.items():
@@ -56,6 +68,110 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         end = parse_date(record.get(later))
         if start and end and end < start:
             validation_error(f"{later} must not be before {earlier}")
+
+    def _breeding_models(self):
+        """The Breeding register + intake-form models, imported the same way
+        G2PRegisterDomainServiceVitalEvent._vital_event_models does — through
+        the "openg2p_registry_extensions" alias, not a relative "..models"
+        import, else SQLAlchemy refuses the second declarative Table
+        registration. See that method's docstring for the full reasoning.
+        """
+        import importlib
+
+        models = importlib.import_module(
+            "openg2p_registry_extensions.register_domain.models"
+        )
+        return models.G2PRegisterBreeding, models.G2PIntakeFormBreeding
+
+    async def _validate_no_duplicate_breeding(self, records: list[dict]) -> None:
+        """Block logging the same breeding cycle twice — mirrors the Old
+        System's "Another {AI/Natural Breeding} event already exists for
+        this animal within the same breeding cycle" check
+        (g2p_livestock_registry/models/livestock_event.py
+        _check_duplicate_breeding_event), which Gen2 had no equivalent of.
+        A conflict is a same ear_tag_id + same event_type (AI vs Natural
+        Breeding are tracked as separate cycles) event whose breeding_date
+        falls within _CYCLE_WINDOW_DAYS of this one. Two layers, same as
+        the Mortality/Disease checks above: within this same save's own
+        rows first (no DB round trip), then against everything else already
+        saved anywhere — approved register or still-pending intake draft —
+        excluding this save's own rows so re-saving an existing Breeding
+        event's other fields isn't flagged against itself.
+        """
+        self_ids = {
+            str(record["internal_record_id"])
+            for record in records
+            if record.get("internal_record_id")
+        }
+
+        seen: list[tuple[str, str, date]] = []
+        for record in records:
+            ear_tag_id = record.get("ear_tag_id")
+            event_type = record.get("event_type")
+            breeding_date = parse_date(record.get("breeding_date"))
+            if is_blank(ear_tag_id) or is_blank(event_type) or breeding_date is None:
+                continue
+            ear_tag_id = str(ear_tag_id).strip()
+            event_type = str(event_type).strip().upper()
+
+            for seen_ear_tag_id, seen_event_type, seen_date in seen:
+                if (
+                    seen_ear_tag_id == ear_tag_id
+                    and seen_event_type == event_type
+                    and abs((breeding_date - seen_date).days) <= _CYCLE_WINDOW_DAYS
+                ):
+                    self._raise_duplicate_breeding_error(event_type)
+            seen.append((ear_tag_id, event_type, breeding_date))
+
+            if await self._breeding_conflict_exists(
+                ear_tag_id, event_type, breeding_date, self_ids
+            ):
+                self._raise_duplicate_breeding_error(event_type)
+
+    def _raise_duplicate_breeding_error(self, event_type: str) -> None:
+        label = "AI" if event_type == "AI" else "Natural Breeding"
+        validation_error(
+            f"Another {label} event already exists for this animal within the same "
+            "breeding cycle."
+        )
+
+    async def _breeding_conflict_exists(
+        self,
+        ear_tag_id: str,
+        event_type: str,
+        breeding_date: date,
+        exclude_internal_record_ids: set[str],
+    ) -> bool:
+        from openg2p_fastapi_common.context import dbengine
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        G2PRegisterBreeding, G2PIntakeFormBreeding = self._breeding_models()
+
+        window_start = breeding_date - timedelta(days=_CYCLE_WINDOW_DAYS)
+        window_end = breeding_date + timedelta(days=_CYCLE_WINDOW_DAYS)
+
+        def _condition(model):
+            conditions = [
+                model.ear_tag_id == ear_tag_id,
+                model.event_type == event_type,
+                model.breeding_date >= window_start,
+                model.breeding_date <= window_end,
+            ]
+            if exclude_internal_record_ids:
+                conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+            return and_(*conditions)
+
+        session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+        async with session_maker() as session:
+            in_register = (
+                await session.execute(select(exists().where(_condition(G2PRegisterBreeding))))
+            ).scalar()
+            if in_register:
+                return True
+            in_intake = (
+                await session.execute(select(exists().where(_condition(G2PIntakeFormBreeding))))
+            ).scalar()
+            return bool(in_intake)
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for breeding record")

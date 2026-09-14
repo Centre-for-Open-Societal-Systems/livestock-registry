@@ -12,6 +12,7 @@ class G2PSchemaVaccination:
 
     ear_tag_id: Optional[str] = None
     species: Optional[str] = None
+    age: Optional[str] = None
     vaccine_type: Optional[str] = None
     vaccination_date: Optional[date] = None
     next_due_date: Optional[date] = None

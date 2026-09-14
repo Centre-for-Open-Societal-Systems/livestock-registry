@@ -1,15 +1,38 @@
 import logging
 from datetime import date
 
+from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
+from sqlalchemy import select
 
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
-    ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
+    _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
+
+# Health Event's own register_id, from g2p_register_definitions.sql. Used by
+# post_approve/post_ingest, below, to auto-sync the linked animal's Health
+# Status — mirrors VITAL_EVENT_REGISTER_ID in
+# g2p_register_domain_service_vital_event.py.
+HEALTH_EVENT_REGISTER_ID = "a40e4a02-1b82-5b31-89df-71624bd96545"
+
+# event_type -> the linked animal's new Health Status. Mirrors the Old
+# System's create()-time side effect (g2p_livestock_registry/models/
+# livestock_event.py G2PLivestockHealthEvent._sync_health_status: disease/
+# injury -> 'sick', recovery -> 'healthy'), which Gen2 had no equivalent of —
+# recording one of these events left the animal's own Health Status field on
+# Livestock Details completely untouched. TREATMENT is deliberately absent
+# (not in gen1 either) — administering treatment doesn't by itself say
+# whether the animal is now well; a separate DISEASE/INJURY or RECOVERY
+# event still carries that call.
+_HEALTH_STATUS_BY_EVENT_TYPE = {
+    "DISEASE": "SICK",
+    "INJURY": "SICK",
+    "RECOVERY": "HEALTHY",
+}
 
 # field -> human label used in the "Please provide the ... " message, mirroring
 # the fields marked "widget-required" on the Health Event Details form.
@@ -69,6 +92,96 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         end = parse_date(record.get(later))
         if start and end and end < start:
             validation_error(f"{later} must not be before {earlier}")
+
+    async def post_approve(self, change_request: G2PRegisterChangeRequest, session) -> None:
+        """DISEASE/INJURY event -> the linked animal's Health Status becomes
+        SICK; RECOVERY -> HEALTHY. Covers the CHANGE REQUEST path: a Health
+        Event added/edited against a Livestock record that is already an
+        approved register entry. See post_ingest, below, for the other way
+        a Health Event reaches this table — a still-draft record's *first*
+        approval. Mirrors G2PRegisterDomainServiceVitalEvent.post_approve.
+        """
+        if change_request.section_register_id != HEALTH_EVENT_REGISTER_ID:
+            return
+
+        # Resolved through the "openg2p_registry_extensions" alias, not a
+        # relative "..models" import — same reasoning as
+        # G2PRegisterDomainServiceVitalEvent.post_approve and
+        # domain_validation_utils._animal_models.
+        import importlib
+
+        G2PRegisterHealthEvent = importlib.import_module(
+            "openg2p_registry_extensions.register_domain.models"
+        ).G2PRegisterHealthEvent
+
+        health_event = (
+            await session.execute(
+                select(G2PRegisterHealthEvent).where(
+                    G2PRegisterHealthEvent.internal_record_id == change_request.internal_record_id
+                )
+            )
+        ).scalar_one_or_none()
+
+        if not health_event:
+            # change_request.internal_record_id is the PARENT Livestock
+            # record's id here, not the Health Event row's own id — for a
+            # "new table row" change request (adding a Health Event to a
+            # Livestock record that's already an approved register entry),
+            # the platform records no id for the specific child row that
+            # was added (confirmed empirically: g2p_register_verifications
+            # carries no row for these change requests either). Fall back
+            # to the most recently created Health Event under that parent —
+            # the row this approval is almost certainly about. Without this
+            # fallback, a Health Event added via "Edit Details" on an
+            # existing record silently never syncs Health Status at all.
+            health_event = (
+                await session.execute(
+                    select(G2PRegisterHealthEvent)
+                    .where(G2PRegisterHealthEvent.link_internal_record_id == change_request.internal_record_id)
+                    .order_by(G2PRegisterHealthEvent.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+
+        if not health_event:
+            return
+        await self._sync_animal_health_status(health_event, session)
+
+    async def post_ingest(self, register_id: str, register_row, session) -> None:
+        """Same Health Status sync as post_approve, above, but for a Health
+        Event that reaches the register by a still-draft submission's FIRST
+        approval (intake_form_register_ingest_worker converting the whole
+        submission's rows from intake-form drafts into real register rows).
+        register_row here IS the just-inserted G2PRegisterHealthEvent — no
+        lookup needed, unlike post_approve.
+        """
+        if register_id != HEALTH_EVENT_REGISTER_ID:
+            return
+        await self._sync_animal_health_status(register_row, session)
+
+    async def _sync_animal_health_status(self, health_event, session) -> None:
+        event_type = str(health_event.event_type or "").upper()
+        new_status = _HEALTH_STATUS_BY_EVENT_TYPE.get(event_type)
+        if new_status is None:
+            return
+
+        G2PRegisterAnimal, _ = _animal_models()
+        animal = (
+            await session.execute(
+                select(G2PRegisterAnimal).where(
+                    G2PRegisterAnimal.ear_tag_id == health_event.ear_tag_id,
+                    G2PRegisterAnimal.link_internal_record_id == health_event.link_internal_record_id,
+                )
+            )
+        ).scalar()
+        if not animal:
+            return
+        animal.health_status = new_status
+        await session.flush()
+        _logger.info(
+            "%s health event %s: set animal %s health_status to %s",
+            event_type, health_event.internal_record_id, animal.ear_tag_id, new_status,
+        )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for health event record")

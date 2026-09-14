@@ -12,6 +12,32 @@ from .domain_validation_utils import parse_date, validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
+# LivestockStateEnum is NOT imported at module level here (unlike the rest of this
+# file's plain `from ..models... import` style would suggest): this is the extension's
+# only service module that needs something from ..models, and models/*.py each import
+# back from ..services at module level (G2PRegisterDomainServiceLivestock included) —
+# so a top-level `from ..models.enums import LivestockStateEnum` here deadlocks that
+# cycle the moment this module is the first thing to touch the services package.
+# _stage_order_to_state() below fetches it lazily instead, the same way
+# _extension_models() fetches the models themselves further down this file.
+
+
+def _stage_order_to_state():
+    """stage_order (on the registry.intake_form.livestock AWE policy) -> the state
+    that stage's approval advances a Livestock intake draft to. Mirrors gen1's
+    Kebele -> Woreda -> Zone -> Region ladder (g2p_livestock_registry/models/
+    livestock_registry.py _APPROVAL_LEVELS). The final stage (Region) is NOT
+    listed here — it's handled separately in post_approval_stage below via
+    event_type == "request_approved", so it always means VERIFIED regardless
+    of which literal stage_order number the policy's last stage happens to be.
+    """
+    LivestockStateEnum = _extension_models().LivestockStateEnum
+    return {
+        1: LivestockStateEnum.KEBELE_APPROVED,
+        2: LivestockStateEnum.WOREDA_APPROVED,
+        3: LivestockStateEnum.ZONE_APPROVED,
+    }
+
 
 # FR- followed by exactly 10 digits, as enforced by _check_farmer_id_format in
 # g2p_livestock_registry/models/livestock_registry.py.
@@ -129,6 +155,53 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         if not livestock:
             return
         await self._sync_farmer_identity(livestock, session)
+
+    async def post_approval_stage(
+        self, submission, stage_order: int | None, event_type: str, session
+    ) -> None:
+        """Advances the Livestock intake draft's own `state` through the
+        Kebele -> Woreda -> Zone -> Region hierarchical approval ladder as
+        each AWE stage completes — see LivestockStateEnum. Called by the
+        core-patched g2p_awe_webhook_service.py (Fix 5, docker/staff-api/
+        core-patches/apply_patches.py) once per approved stage:
+        event_type="stage_completed" for the non-final stages (Kebele/
+        Woreda/Zone), and once more with event_type="request_approved" for
+        whichever stage is last (Region) — always VERIFIED regardless of
+        that stage's literal stage_order number, so this stays correct even
+        if the policy's stage count ever changes.
+
+        Runs on the still-draft G2PIntakeFormLivestock row, not the live
+        register row: the live register row for this submission does not
+        exist yet at KEBELE/WOREDA/ZONE_APPROVED time (it's only created
+        once the whole submission is approved and later ingested by the
+        celery worker) — and by the time it IS created, ingestion copies
+        this draft row's fields verbatim, `state` included, so setting it
+        here is all that's needed for it to reach the live register too.
+        """
+        new_state = (
+            _extension_models().LivestockStateEnum.VERIFIED
+            if event_type == "request_approved"
+            else _stage_order_to_state().get(stage_order)
+        )
+        if new_state is None:
+            return
+
+        G2PIntakeFormLivestock = _extension_models().G2PIntakeFormLivestock
+        livestock_row = (
+            await session.execute(
+                select(G2PIntakeFormLivestock).where(
+                    G2PIntakeFormLivestock.submission_id == submission.submission_id
+                )
+            )
+        ).scalar_one_or_none()
+        if not livestock_row:
+            return
+        livestock_row.state = new_state.value
+        await session.flush()
+        _logger.info(
+            "Submission %s: state -> %s (stage_order=%s, event_type=%s)",
+            submission.submission_id, new_state.value, stage_order, event_type,
+        )
 
     async def post_ingest(self, register_id: str, register_row, session) -> None:
         """Same Farmer-identity sync as post_approve, above, for a Livestock

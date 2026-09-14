@@ -97,6 +97,21 @@ services:
       timeout: 5s
       retries: 30
 
+  # Local SMTP catcher for the outbreak-alert email (and any future
+  # transactional email) — nothing sends real mail in dev. Web UI at
+  # http://localhost:${MAILPIT_UI_PORT} shows every message the celery-beat
+  # outbreak-alert sweep sends, in place of a real district/regional vet
+  # officer's inbox.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - '${MAILPIT_UI_PORT}:8025'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8025/readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   minio-init:
     image: minio/mc:latest
     # The MinIO chart creates no buckets; the platform's DocumentBucket enum
@@ -385,6 +400,17 @@ services:
       REGISTRY_STAFF_PORTAL_API_AWE_DEFAULT_CALLBACK_URL: http://staff-api:8000/awe/webhooks/decision
       REGISTRY_STAFF_PORTAL_API_AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
       REGISTRY_STAFF_PORTAL_API_AWE_CALLBACK_HMAC_SECRET: ${AWE_CALLBACK_HMAC_SECRET}
+      # For the livestock extension's approver-resolver controller/service
+      # (g2p_approver_resolver_controller.py, approver_resolver_service.py) —
+      # read directly via os.environ, not through the platform's own
+      # REGISTRY_STAFF_PORTAL_API_-prefixed Settings class, since this is
+      # extension-owned config, not core platform config.
+      KEYCLOAK_HOST: ${KEYCLOAK_HOST}
+      KEYCLOAK_PORT: ${KEYCLOAK_PORT}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID}
+      AUTH_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
+      APPROVER_RESOLVER_SECRET: ${APPROVER_RESOLVER_SECRET}
     ports:
       - '${STAFF_API_PORT}:8000'
     depends_on:
@@ -517,12 +543,33 @@ services:
       REGISTRY_CELERY_BEAT_OUTGEST_DATA_PUBLISH_BEAT_PRODUCER_FREQUENCY: '20'
       REGISTRY_CELERY_BEAT_OUTGEST_TOPIC_REGISTER_BEAT_PRODUCER_FREQUENCY: '20'
       REGISTRY_CELERY_BEAT_DEDUPLICATION_BEAT_PRODUCER_FREQUENCY: '30'
+      # Notifiable-disease outbreak alert (register_domain/services/outbreak_alert_service.py) —
+      # read directly via os.getenv, not through celery-beat's own Settings class.
+      # Defaults to Mailpit (fake inbox); set the OUTBREAK_ALERT_SMTP_* vars in
+      # local/.env to point at a real SMTP relay (e.g. Gmail) instead — opt-in,
+      # never commit real credentials into this file.
+      OUTBREAK_ALERT_SMTP_HOST: ${OUTBREAK_ALERT_SMTP_HOST:-mailpit}
+      OUTBREAK_ALERT_SMTP_PORT: ${OUTBREAK_ALERT_SMTP_PORT:-1025}
+      OUTBREAK_ALERT_SMTP_USE_TLS: ${OUTBREAK_ALERT_SMTP_USE_TLS:-false}
+      OUTBREAK_ALERT_SMTP_USERNAME: ${OUTBREAK_ALERT_SMTP_USERNAME:-}
+      OUTBREAK_ALERT_SMTP_PASSWORD: ${OUTBREAK_ALERT_SMTP_PASSWORD:-}
+      OUTBREAK_ALERT_FROM_EMAIL: ${OUTBREAK_ALERT_FROM_EMAIL:-alerts@livestock-registry.local}
+      OUTBREAK_ALERT_FALLBACK_EMAILS: ${OUTBREAK_ALERT_FALLBACK_EMAILS:-vet.duty-officer@example.com}
+      # Reminder emails (vaccination_reminder_service, approval_pending_reminder_service,
+      # calving_reminder_service) — reuse the OUTBREAK_ALERT_SMTP_* relay above,
+      # each with its own recipient list.
+      VACCINATION_REMINDER_FALLBACK_EMAILS: ${VACCINATION_REMINDER_FALLBACK_EMAILS:-vet.duty-officer@example.com}
+      APPROVAL_REMINDER_FALLBACK_EMAILS: ${APPROVAL_REMINDER_FALLBACK_EMAILS:-vet.duty-officer@example.com}
+      APPROVAL_REMINDER_DISTRICT_EMAILS: ${APPROVAL_REMINDER_DISTRICT_EMAILS:-}
+      CALVING_REMINDER_FALLBACK_EMAILS: ${CALVING_REMINDER_FALLBACK_EMAILS:-vet.duty-officer@example.com}
       CELERY_APP: openg2p_registry_celery_beat.main.celery_app
       CELERY_OPTS: worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db
     depends_on:
       staff-api:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
 
   db-seed:

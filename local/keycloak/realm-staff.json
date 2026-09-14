@@ -73,9 +73,26 @@
         { "name": "Schema Designer", "description": "Configuration role" },
         { "name": "Integration Specialist", "description": "Configuration role" },
         { "name": "Reference Data Specialist", "description": "Configuration role" },
-        { "name": "Technical Administrator", "description": "Configuration role" }
+        { "name": "Technical Administrator", "description": "Configuration role" },
+        { "name": "Field Officer", "description": "Livestock hierarchical approval role" },
+        { "name": "Kebele Approver", "description": "Livestock hierarchical approval role" },
+        { "name": "Woreda Approver", "description": "Livestock hierarchical approval role" },
+        { "name": "Zone Approver", "description": "Livestock hierarchical approval role" },
+        { "name": "Region Approver", "description": "Livestock hierarchical approval role" }
       ]
     }
+  },
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"approver_location_value\",\"displayName\":\"Approver location value\",\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"multivalued\":true}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+          ]
+        }
+      }
+    ]
   },
   "users": [
     {
@@ -111,6 +128,132 @@
           "query-clients",
           "view-realm"
         ]
+      }
+    },
+    {
+      "username": "service-account-livestock-staff-portal",
+      "enabled": true,
+      "serviceAccountClientId": "livestock-staff-portal",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-users",
+          "view-clients",
+          "query-clients",
+          "view-realm"
+        ]
+      }
+    },
+    {
+      "username": "field.officer.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "field.officer.test@openg2p.org",
+      "firstName": "Field Officer",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Field Officer"
+        ]
+      }
+    },
+    {
+      "username": "kebele.approver.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "kebele.approver.test@openg2p.org",
+      "firstName": "Kebele Approver",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Kebele Approver"
+        ]
+      },
+      "attributes": {
+        "approver_location_value": ["Dire Arerti"]
+      }
+    },
+    {
+      "username": "woreda.approver.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "woreda.approver.test@openg2p.org",
+      "firstName": "Woreda Approver",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Woreda Approver"
+        ]
+      },
+      "attributes": {
+        "approver_location_value": ["Ada'a"]
+      }
+    },
+    {
+      "username": "zone.approver.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "zone.approver.test@openg2p.org",
+      "firstName": "Zone Approver",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Zone Approver"
+        ]
+      },
+      "attributes": {
+        "approver_location_value": ["East Shewa"]
+      }
+    },
+    {
+      "username": "region.approver.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "region.approver.test@openg2p.org",
+      "firstName": "Region Approver",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Region Approver"
+        ]
+      },
+      "attributes": {
+        "approver_location_value": ["Oromia"]
       }
     }
   ]

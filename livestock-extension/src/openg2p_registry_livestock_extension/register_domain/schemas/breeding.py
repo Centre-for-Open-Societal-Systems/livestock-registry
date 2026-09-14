@@ -13,6 +13,7 @@ class G2PSchemaBreeding:
 
     ear_tag_id: Optional[str] = None
     species: Optional[str] = None
+    age: Optional[str] = None
     event_type: Optional[BreedingEventTypeEnum] = None
     breeding_date: Optional[date] = None
     sire_or_semen_id: Optional[str] = None

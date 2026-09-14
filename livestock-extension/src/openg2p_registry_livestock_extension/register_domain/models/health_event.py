@@ -18,6 +18,7 @@ class G2PHealthEvent:
 
     ear_tag_id: Mapped[str] = mapped_column(String, nullable=True)
     species: Mapped[str] = mapped_column(String, nullable=True)  # Attribute lookup (LIVESTOCK_SPECIES)
+    age: Mapped[str] = mapped_column(String, nullable=True)  # Copied from the animal at Ear Tag autofill time (G2R-57)
     event_type: Mapped[HealthEventTypeEnum] = mapped_column(String, nullable=True)  # HealthEventTypeEnum
     disease_type: Mapped[str] = mapped_column(String, nullable=True)  # Attribute lookup (LIVESTOCK_DISEASE)
     date_onset: Mapped[str] = mapped_column(Date, nullable=True)
