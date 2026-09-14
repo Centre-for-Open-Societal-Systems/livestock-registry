@@ -11,6 +11,15 @@ from .domain_validation_utils import (
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
 )
 
+# Kept as its own import line rather than folded into the block above: the
+# block is edited by other in-flight work on this file, and a separate
+# statement keeps the two changes from landing on the same lines.
+from .domain_validation_utils import (
+    event_already_recorded,
+    first_repeated_key,
+    humanize_attribute_value,
+)
+
 _logger = logging.getLogger("g2p-register-domain-service")
 
 # Vaccination's own register_id, from g2p_register_definitions.sql. Used by
@@ -39,6 +48,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             self._validate_not_in_future(record, "vaccination_date")
             await self._populate_next_due_date(record)
             self._validate_date_order(record, "vaccination_date", "next_due_date")
+        await self._validate_no_duplicate_events(records)
 
     def _validate_required_fields(self, record: dict) -> None:
         for field, label in _REQUIRED_FIELDS.items():
@@ -230,3 +240,54 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         )
 
         return " ".join(record_name).strip()
+
+    async def _validate_no_duplicate_events(self, records: list[dict]) -> None:
+        """The same vaccine must not be recorded twice for one animal on the
+        same day: same ear tag, same vaccine, same vaccination date. The Old
+        System had no such check for vaccinations (only for health, vital
+        and breeding events) — added here because a second identical row
+        can only be a data-entry slip, and it would wrongly push the
+        animal's next due date. Same two layers as the other event sections:
+        this save's own rows, then register + intake drafts excluding this
+        save's own rows.
+        """
+
+        def key_of(record: dict):
+            on = parse_date(record.get("vaccination_date"))
+            if is_blank(record.get("ear_tag_id")) or is_blank(record.get("vaccine_type")) or on is None:
+                return None
+            return (
+                str(record["ear_tag_id"]).strip(),
+                str(record["vaccine_type"]).strip(),
+                on,
+            )
+
+        repeated = first_repeated_key(records, key_of)
+        if repeated:
+            ear_tag_id, vaccine_type, on = repeated
+            vaccine_label = await humanize_attribute_value(vaccine_type)
+            validation_error(
+                f"Vaccine '{vaccine_label}' for ear tag '{ear_tag_id}' on {on} "
+                "is entered more than once in this record."
+            )
+
+        self_ids = {
+            str(record["internal_record_id"])
+            for record in records
+            if record.get("internal_record_id")
+        }
+        for record in records:
+            key = key_of(record)
+            if key is None:
+                continue
+            ear_tag_id, vaccine_type, on = key
+            if await event_already_recorded(
+                "Vaccination",
+                {"ear_tag_id": ear_tag_id, "vaccine_type": vaccine_type, "vaccination_date": on},
+                exclude_internal_record_ids=self_ids,
+            ):
+                vaccine_label = await humanize_attribute_value(vaccine_type)
+                validation_error(
+                    f"Vaccine '{vaccine_label}' for ear tag '{ear_tag_id}' on {on} "
+                    "is already recorded."
+                )

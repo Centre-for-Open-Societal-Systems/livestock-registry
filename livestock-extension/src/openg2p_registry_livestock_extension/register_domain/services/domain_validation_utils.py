@@ -391,3 +391,109 @@ async def validate_species_matches(record: dict) -> None:
             f"which is recorded as '{actual_label}' under Livestock Details. "
             "Select the matching species, or check you entered the correct ear tag."
         )
+
+
+# ─── Duplicate event checks (G2R-134) ────────────────────────────────────────
+#
+# The Old System refused to record the same event twice for one animal
+# (`_check_duplicate_health_event` and friends in the Odoo module); Gen2 only
+# had the ear-tag duplicate check above for the Animal section. The two
+# helpers below give an event section the same two-layer check the Animal
+# section already has: first within the rows of the current save, then
+# against everything already in the register or drafted in any intake
+# submission. What counts as "the same event" is decided by each section's
+# own domain service, which passes the fields that must match. Used by the
+# Health Event and Vaccination services here; the Vital Event (mortality /
+# disease) and Breeding (21-day cycle) checks live in their own services
+# with their own helpers.
+
+
+def _event_models(register_mnemonic: str):
+    """The (register, intake) model pair for an event section, e.g.
+    "HealthEvent" -> (G2PRegisterHealthEvent, G2PIntakeFormHealthEvent).
+    Imported through the "openg2p_registry_extensions" alias for the same
+    reason _animal_models does: importing via "..models" would register a
+    second copy of every table with SQLAlchemy.
+    """
+    import importlib
+
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    return (
+        getattr(models, f"G2PRegister{register_mnemonic}"),
+        getattr(models, f"G2PIntakeForm{register_mnemonic}"),
+    )
+
+
+def first_repeated_key(records: list[dict], key_of) -> tuple | None:
+    """The first key that appears on more than one row of this save, or
+    None. `key_of(record)` returns the tuple that identifies an event for
+    duplicate purposes, or None to leave that row out (e.g. ear tag or date
+    not filled in yet — required-field checks own those).
+    """
+    seen: set[tuple] = set()
+    for record in records:
+        key = key_of(record)
+        if key is None:
+            continue
+        if key in seen:
+            return key
+        seen.add(key)
+    return None
+
+
+async def event_already_recorded(
+    register_mnemonic: str,
+    match: dict,
+    exclude_internal_record_ids: set[str] | None = None,
+    within_days: tuple | None = None,
+) -> bool:
+    """True if an event with these same field values already exists for
+    this section — approved into the register, or drafted under any intake
+    submission.
+
+    `match` maps column name -> value that must be equal (a None value
+    matches IS NULL, so "no disease recorded" is a value in its own right,
+    not a wildcard). `within_days=(column, date, days)` adds a date-window
+    condition instead of an exact date, for rules like the Old System's
+    "no second breeding event of the same type within 21 days".
+
+    `exclude_internal_record_ids` must be every internal_record_id already
+    present in the current save's own rows, for the same reason as in
+    ear_tag_used_by_other_animal: editing an already-approved event
+    resubmits its unchanged key fields, and without excluding its own row it
+    would always be found "already recorded" against itself.
+    """
+    from datetime import timedelta
+
+    from openg2p_fastapi_common.context import dbengine
+    from sqlalchemy import and_, exists, select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    register_model, intake_model = _event_models(register_mnemonic)
+    exclude_internal_record_ids = exclude_internal_record_ids or set()
+
+    def _same_event(model):
+        conditions = []
+        for column, value in match.items():
+            attribute = getattr(model, column)
+            conditions.append(attribute.is_(None) if value is None else attribute == value)
+        if within_days:
+            column, on, days = within_days
+            attribute = getattr(model, column)
+            conditions.append(attribute.between(on - timedelta(days=days), on + timedelta(days=days)))
+        if exclude_internal_record_ids:
+            conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        return and_(*conditions)
+
+    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+    async with session_maker() as session:
+        in_register = (
+            await session.execute(select(exists().where(_same_event(register_model))))
+        ).scalar()
+        if in_register:
+            return True
+
+        in_intake = (
+            await session.execute(select(exists().where(_same_event(intake_model))))
+        ).scalar()
+        return bool(in_intake)
