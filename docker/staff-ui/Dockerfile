@@ -78,3 +78,43 @@ RUN set -eu; \
 COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-dashboard-nav.js /tmp/patch-dashboard-nav.js
 RUN DASHBOARD_URL="${DASHBOARD_URL}" DASHBOARD_LABEL="${DASHBOARD_LABEL}" \
     node /tmp/patch-dashboard-nav.js
+
+# ── Rename the attribute-value "Sort Order" field label to "Display Order" ──
+# Configuration -> Attributes (and Configuration -> Registry -> Languages,
+# which shares the same i18n key) label the g2p_attribute_values.sort_order
+# field "Sort Order". The value is opaque as a name for what the field
+# actually does — set the position a value takes in its attribute's list —
+# so it is relabelled "Display Order" for clarity.
+#
+# The string is translated i18n content, not a component prop, so unlike the
+# Dashboard button above this is a plain text substitution: every compiled
+# bundle holding the literal key/value pair `"sort_order":"Sort Order"` gets
+# it swapped for `"sort_order":"Display Order"`. Asserts at least one match so
+# a base-image change (translations restructured, key renamed) fails the
+# build instead of silently leaving the old label in place.
+RUN set -eu; \
+    files="$(grep -rl '"sort_order":"Sort Order"' /app/.next 2>/dev/null || true)"; \
+    if [ -z "$files" ]; then \
+      echo "FATAL: no compiled bundle has the sort_order label — rename would be dead"; exit 1; \
+    fi; \
+    for f in $files; do \
+      sed -i 's/"sort_order":"Sort Order"/"sort_order":"Display Order"/g' "$f"; \
+      echo "  patched ${f#/app/.next/}"; \
+    done; \
+    case "$files" in \
+      */static/*) \
+        for f in $files; do \
+          case "$f" in \
+            */static/*) \
+              old="$(basename "$f")"; ext="${old##*.}"; base="${old%.*}"; new="${base}.do.${ext}"; \
+              grep -rl "$old" /app/.next 2>/dev/null | while read -r ref; do \
+                sed -i "s/${old}/${new}/g" "$ref"; \
+              done; \
+              mv "$(dirname "$f")/${old}" "$(dirname "$f")/${new}"; \
+              echo "  renamed ${old} -> ${new} (busts the immutable cache)"; \
+              ;; \
+          esac; \
+        done; \
+        ;; \
+    esac; \
+    echo "sort_order label renamed to 'Display Order'"
