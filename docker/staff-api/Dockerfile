@@ -20,3 +20,11 @@ ENV REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension
 
 COPY livestock-extension/ /app/livestock-extension/
 RUN pip install --no-cache-dir /app/livestock-extension
+
+# Local fixes to the base image's installed openg2p_registry_core, pending a
+# proper upstream release of the registry-platform base image. Baked in here
+# (rather than patched on the running container) so they survive every
+# rebuild — see core-patches/apply_patches.py for exactly what each one does
+# and why it's a targeted find/replace rather than a whole-file swap.
+COPY docker/staff-api/core-patches/apply_patches.py /tmp/apply_patches.py
+RUN python3 /tmp/apply_patches.py && rm /tmp/apply_patches.py

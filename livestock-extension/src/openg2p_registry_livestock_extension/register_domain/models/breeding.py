@@ -18,6 +18,7 @@ class G2PBreeding:
 
     ear_tag_id: Mapped[str] = mapped_column(String, nullable=True)
     species: Mapped[str] = mapped_column(String, nullable=True)  # Attribute lookup (LIVESTOCK_SPECIES)
+    age: Mapped[str] = mapped_column(String, nullable=True)  # Copied from the animal at Ear Tag autofill time (G2R-57)
     event_type: Mapped[BreedingEventTypeEnum] = mapped_column(String, nullable=True)  # BreedingEventTypeEnum
     breeding_date: Mapped[str] = mapped_column(Date, nullable=True)
     sire_or_semen_id: Mapped[str] = mapped_column(String, nullable=True)

@@ -6,13 +6,14 @@ from openg2p_registry_core.schemas import (
     G2PRegisterHistorySchema,
     G2PIntakeFormSchemaBase,
 )
-from ..models.enums import EventLocationEnum, VitalEventCauseEnum, VitalEventTypeEnum
+from ..models.enums import EventLocationEnum, GenderEnum, VitalEventCauseEnum, VitalEventTypeEnum
 
 
 class G2PSchemaVitalEvent:
 
     ear_tag_id: Optional[str] = None
     species: Optional[str] = None
+    age: Optional[str] = None
     event_type: Optional[VitalEventTypeEnum] = None
     event_date: Optional[date] = None
     cause: Optional[VitalEventCauseEnum] = None
@@ -26,6 +27,9 @@ class G2PSchemaVitalEvent:
     is_notifiable: Optional[bool] = None
     offspring_count: Optional[int] = None
     offspring_ear_tag_prefix: Optional[str] = None
+    offspring_gender: Optional[GenderEnum] = None
+    offspring_generated: Optional[bool] = None
+    offspring_ear_tags: Optional[str] = None
     reporting_officer: Optional[str] = None
     notes: Optional[str] = None
 

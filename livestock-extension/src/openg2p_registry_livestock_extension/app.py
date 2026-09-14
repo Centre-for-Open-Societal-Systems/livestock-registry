@@ -33,6 +33,7 @@ from .register_domain.services import (
     G2PRegisterDomainServiceBreeding, G2PRegisterDomainServiceVaccineSchedule,
     G2PRegisterDomainServiceImportBatch, G2PRegisterDomainServiceAuditLog,
 )
+from .register_domain.controllers import G2PAnimalBulkImportController, G2PApproverResolverController
 
 _logger = logging.getLogger(_config.logging_default_logger_name)
 
@@ -53,6 +54,18 @@ class Initializer(BaseInitializer):
         G2PRegisterDomainServiceVaccineSchedule()
         G2PRegisterDomainServiceImportBatch()
         G2PRegisterDomainServiceAuditLog()
+
+        # Custom HTTP endpoint (not a domain service hook) — see
+        # register_domain/controllers/g2p_animal_bulk_import_controller.py.
+        # post_init() registers the router onto the shared FastAPI app the
+        # same way every platform controller does
+        # (openg2p_fastapi_common.controller.BaseController.post_init).
+        G2PAnimalBulkImportController().post_init()
+        # Server-to-server endpoint AWE's "http" approver-rule calls to
+        # resolve who approves each stage of the hierarchical Kebele ->
+        # Woreda -> Zone -> Region chain, scoped to the record's own
+        # location — see g2p_approver_resolver_controller.py.
+        G2PApproverResolverController().post_init()
 
     def migrate_database(self, args):
 

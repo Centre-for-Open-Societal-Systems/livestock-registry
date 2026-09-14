@@ -16,6 +16,7 @@ class G2PSchemaAnimal:
     animal_name: Optional[str] = None
     species: Optional[str] = None
     breed: Optional[str] = None
+    quantity: Optional[int] = None
     gender: Optional[GenderEnum] = None
     date_of_birth: Optional[date] = None
     age: Optional[str] = None

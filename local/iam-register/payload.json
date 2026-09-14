@@ -626,6 +626,69 @@
         "verificationIntakeForm:create",
         "verificationIntakeForm:view"
       ]
+    },
+    {
+      "role_mnemonic": "Field Officer",
+      "role_description": "Livestock hierarchical approval role - Creates and submits new Livestock intake records from the field.",
+      "active": true,
+      "permissions": [
+        "intakeFormDefinition:view",
+        "intakeSubmission:edit",
+        "intakeSubmission:view",
+        "referenceData:view"
+      ]
+    },
+    {
+      "role_mnemonic": "Kebele Approver",
+      "role_description": "Livestock hierarchical approval role - Gives Kebele-level approval on Livestock intake records within their own assigned Kebele.",
+      "active": true,
+      "permissions": [
+        "intakeFormDefinition:view",
+        "intakeSubmission:approve",
+        "intakeSubmission:view",
+        "verificationIntakeForm:create",
+        "verificationIntakeForm:view",
+        "referenceData:view"
+      ]
+    },
+    {
+      "role_mnemonic": "Woreda Approver",
+      "role_description": "Livestock hierarchical approval role - Gives Woreda-level approval on Livestock intake records within their own assigned Woreda.",
+      "active": true,
+      "permissions": [
+        "intakeFormDefinition:view",
+        "intakeSubmission:approve",
+        "intakeSubmission:view",
+        "verificationIntakeForm:create",
+        "verificationIntakeForm:view",
+        "referenceData:view"
+      ]
+    },
+    {
+      "role_mnemonic": "Zone Approver",
+      "role_description": "Livestock hierarchical approval role - Gives Zone-level approval on Livestock intake records within their own assigned Zone.",
+      "active": true,
+      "permissions": [
+        "intakeFormDefinition:view",
+        "intakeSubmission:approve",
+        "intakeSubmission:view",
+        "verificationIntakeForm:create",
+        "verificationIntakeForm:view",
+        "referenceData:view"
+      ]
+    },
+    {
+      "role_mnemonic": "Region Approver",
+      "role_description": "Livestock hierarchical approval role - Gives final Region-level approval on Livestock intake records within their own assigned Region.",
+      "active": true,
+      "permissions": [
+        "intakeFormDefinition:view",
+        "intakeSubmission:approve",
+        "intakeSubmission:view",
+        "verificationIntakeForm:create",
+        "verificationIntakeForm:view",
+        "referenceData:view"
+      ]
     }
   ]
 }

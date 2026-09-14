@@ -7,7 +7,7 @@ can grow without a migration; sex, health and vaccination status are closed sets
 
 from openg2p_registry_core.models.g2p_intake_form import G2PIntakeForm
 from openg2p_registry_core.models import G2PRegister, G2PRegisterHistory
-from sqlalchemy import Date, Numeric, String, select
+from sqlalchemy import Date, Integer, Numeric, String, select
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..services import G2PRegisterDomainServiceAnimal
@@ -23,6 +23,13 @@ class G2PAnimal:
     animal_name: Mapped[str] = mapped_column(String, nullable=True)
     species: Mapped[str] = mapped_column(String, nullable=True)   # Attribute lookup (LIVESTOCK_SPECIES)
     breed: Mapped[str] = mapped_column(String, nullable=True)     # Attribute lookup (LIVESTOCK_BREED)
+    colour: Mapped[str] = mapped_column(String, nullable=True)
+    # Head count for a species recorded as a group rather than one row per
+    # individual (poultry, beehive — see G2PRegisterDomainServiceAnimal's
+    # _FLOCK_SPECIES). Unused/blank for an individually-tracked animal, where
+    # one row already *is* one animal. secondary_identifier on a flock row
+    # names the flock/batch/hive, not a single bird.
+    quantity: Mapped[int] = mapped_column(Integer, nullable=True)
     gender: Mapped[GenderEnum] = mapped_column(String, nullable=True)  # GenderEnum
     date_of_birth: Mapped[str] = mapped_column(Date, nullable=True)
     age: Mapped[str] = mapped_column(String, nullable=True)
@@ -36,6 +43,23 @@ class G2PAnimal:
 # All Register classes should have the prefix G2PRegister
 class G2PRegisterAnimal(G2PRegister, G2PAnimal):
     __tablename__ = "g2p_register_animals"
+
+    # G2R-135 mandatory constraints — overridden non-nullable here rather than
+    # on G2PAnimal itself: the mixin is shared with G2PIntakeFormAnimal, where
+    # a legitimate partial draft (saved mid-entry, filled in later) can't be
+    # forced to have these yet. Only the approved register — the one entity
+    # this requirement is actually about — enforces them at the DB level.
+    #
+    # ear_tag_id is NOT in this list: which identifier is mandatory now
+    # depends on species (see G2PRegisterDomainServiceAnimal's
+    # _EAR_TAG_EXEMPT_SPECIES) — poultry/beehive use secondary_identifier
+    # instead, since they have no ear to tag — so it can no longer be a
+    # blanket NOT NULL at the DB level. That "one of the two, which one
+    # depends on species" rule is enforced in the domain service
+    # (_validate_identifier_required), the same place species/breed-scoped
+    # uniqueness on either identifier is enforced.
+    species: Mapped[str] = mapped_column(String, nullable=False)   # Attribute lookup (LIVESTOCK_SPECIES)
+    gender: Mapped[GenderEnum] = mapped_column(String, nullable=False)  # GenderEnum
 
     def get_search_text_fields(self) -> str:
         """Return animal fields used to build search_text."""

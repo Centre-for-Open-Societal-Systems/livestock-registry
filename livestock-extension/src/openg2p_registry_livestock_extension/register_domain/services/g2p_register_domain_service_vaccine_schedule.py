@@ -2,16 +2,32 @@ import logging
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
-from .domain_validation_utils import as_int, validation_error
+from .audit_snapshot import AuditSnapshotMixin
+
+from .domain_validation_utils import as_int, is_blank, validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
+# field -> human label used in the "Please provide the ... " message, mirroring
+# the fields marked "widget-required" on the Vaccine Schedule Details form.
+_REQUIRED_FIELDS = {
+    "vaccine_name": "vaccine name",
+    "species": "species",
+    "interval_days": "interval",
+}
 
-class G2PRegisterDomainServiceVaccineSchedule(G2PRegisterDomainService):
+
+class G2PRegisterDomainServiceVaccineSchedule(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
         for record in records:
+            self._validate_required_fields(record)
             self._validate_positive(record, "interval_days")
+
+    def _validate_required_fields(self, record: dict) -> None:
+        for field, label in _REQUIRED_FIELDS.items():
+            if is_blank(record.get(field)):
+                validation_error(f"Please provide the {label} before saving the record.")
 
     def _validate_positive(self, record: dict, field: str) -> None:
         value = as_int(record.get(field))
