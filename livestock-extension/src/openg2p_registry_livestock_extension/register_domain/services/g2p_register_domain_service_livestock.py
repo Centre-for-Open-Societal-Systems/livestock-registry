@@ -324,3 +324,71 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         )
 
         return " ".join(record_name).strip()
+
+    def compute_deduplication_score_for_register(
+        self, change_request_id, register_id, incoming_data, session
+    ):
+        """Score each intake row once per (submission, register), not once per
+        form section.
+
+        Workaround for the platform's deduplication_intake_forms_vs_register
+        worker: it loops over every section of the form whose register has
+        purpose REGISTER and, for each, loads the whole intake row and asks
+        this method to score it. The Livestock form has three such sections
+        (Farmer Details, Survey Personnel, Location) all backed by this one
+        register, so the same row was scored three times and the same match
+        was written three times — showing one duplicate as three cards with a
+        "03" badge in the intake dedup tab. The score itself is right; only
+        the repeats are dropped here. The worker uses one session for the
+        whole task, so noting "already scored" on session.info is scoped to
+        exactly one worker run. Keyed on the row's own id as well, so a
+        register section with several rows still scores each row.
+
+        The proper fix is for the worker to visit each register once,
+        regardless of how many sections point at it; drop this override once
+        the platform does that.
+        """
+        if self._already_scored_in_this_run(
+            "livestock_dedup_scored_vs_register", change_request_id, register_id, incoming_data, session
+        ):
+            return []
+        return super().compute_deduplication_score_for_register(
+            change_request_id, register_id, incoming_data, session
+        )
+
+    def compute_deduplication_score_for_change_request(
+        self, change_request_id, register_id, incoming_data, other_change_requests, session
+    ):
+        """Same workaround as compute_deduplication_score_for_register, above,
+        for the intake-vs-intake path: deduplication_intake_forms_vs_intake_
+        forms_worker walks the same three sections and asked for the same row
+        to be scored three times, so the "Intake Possible Duplicates" tab
+        showed one other submission as three cards. Its own "best score per
+        candidate" pass only runs within one call, not across the three. The
+        change-request worker also calls this method, once per change
+        request, so nothing is skipped on that path.
+        """
+        if self._already_scored_in_this_run(
+            "livestock_dedup_scored_vs_intake", change_request_id, register_id, incoming_data, session
+        ):
+            return []
+        return super().compute_deduplication_score_for_change_request(
+            change_request_id, register_id, incoming_data, other_change_requests, session
+        )
+
+    @staticmethod
+    def _already_scored_in_this_run(bucket, change_request_id, register_id, incoming_data, session) -> bool:
+        key = (
+            str(change_request_id),
+            str(register_id),
+            str((incoming_data or {}).get("internal_record_id")),
+        )
+        scored = session.info.setdefault(bucket, set())
+        if key in scored:
+            _logger.info(
+                "Skipping repeat dedup scoring of the same row for submission "
+                f"{change_request_id}, register {register_id} ({bucket})"
+            )
+            return True
+        scored.add(key)
+        return False
