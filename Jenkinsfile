@@ -50,11 +50,19 @@
 //    this cluster and aborts db-seed every time. No reason to rediscover
 //    that the hard way here too.
 //
-// 5. No staffUi image override: this repo has no staff-ui build (confirmed
-//    against the repo's own docker/ directory in
-//    staging-jenkins-cicd-agent-setup.md) — that image is consumed
-//    unmodified from upstream, so it isn't part of the CI values at all and
-//    stays whatever the base values file says.
+// 5. CORRECTION (this rewrite): staging-jenkins-cicd-agent-setup.md and an
+//    earlier draft of this file both claimed there's no staff-ui build here
+//    and that it's "consumed unmodified from upstream." That's wrong — this
+//    repo does build a custom staff-ui image (confirmed real Dockerfile at
+//    docker/staff-ui/Dockerfile; the wrapper chart's own values.yaml comment
+//    says the asset + CSS override baked in by that Dockerfile is "the whole
+//    reason this image is built here rather than consumed as-is"). Without
+//    a staffUi image override, the chart falls through to the wrapper
+//    default `openg2p/openg2p-livestock-registry-staff-ui:0.0.0-develop` on
+//    Docker Hub — a repository that was never actually published, which is
+//    exactly the "repository does not exist" failure seen on staff-portal-ui.
+//    Fixed below: staff-ui is now a 6th built-and-pushed component, with the
+//    matching registry.staffUi image override in the CI values heredoc.
 
 pipeline {
     agent { label 'vpn-agent2' }
@@ -97,7 +105,7 @@ pipeline {
                             docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     '''
                     script {
-                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests']
+                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui']
                         components.each { name ->
                             def image = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:${env.IMAGE_TAG}"
                             sh """
@@ -152,6 +160,10 @@ registry:
   sanity:
     image:
       repository: ${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
+      tag: "${env.IMAGE_TAG}"
+  staffUi:
+    image:
+      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/staff-ui
       tag: "${env.IMAGE_TAG}"
 EOF
 
