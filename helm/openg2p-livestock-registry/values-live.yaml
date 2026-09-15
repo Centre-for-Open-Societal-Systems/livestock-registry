@@ -1,0 +1,118 @@
+# DRAFT v0 — values-live.yaml for helm/openg2p-livestock-registry
+# (chart dependency: openg2p-registry 0.0.0-develop.296, aliased `registry`)
+#
+# Written from openg2p-registry-0.0.0-develop.296's own default values.yaml
+# (extracted from the chart .tgz actually pinned in this repo's Chart.lock)
+# plus the already-PROVEN-working equivalents from farmer-registry's `far`
+# deploy and the OLD chart's `live` deploy. This is the base `-f` file the
+# rewritten Jenkinsfile expects at helm/openg2p-livestock-registry/values-live.yaml,
+# BEFORE the CI-generated image-tag overlay.
+#
+# STATUS: draft, not yet dry-run tested against the real cluster. This is
+# the deliberate chart-switch cutover for `live` (see Jenkinsfile header
+# comment and staging-livestock-registry-cicd-pipeline.md) — review this
+# file, run the Jenkinsfile's `helm template` dry-run step, and read the
+# rendered manifest by hand before ever setting DEPLOY_TO_LIVE=true.
+#
+# ============================================================================
+# PRE-FLIGHT — check BEFORE the first real deploy, not optional:
+#
+# This chart version calls several `commons-services-*` bare hostnames that
+# the OLD generic chart currently running in `live` never called (it predates
+# the Partner Management / Consent Manager / Keymanager integrations below).
+# `live`'s existing ExternalName alias Services were created to satisfy the
+# OLD chart's needs only (commons-services-awe, commons-services-auditmanager,
+# commons-services-cm-api, commons-services-cm-partner-api,
+# commons-services-iam-staff-portal-api — see
+# staging-livestock-registry-live-deployment.md checklist item 2). This NEW
+# chart additionally calls, as bare in-namespace hostnames:
+#   - commons-services-master-data-api   (global.masterDataApiUrl)
+#   - commons-services-keymanager        (global.keymanagerInstallationName)
+#   - commons-services-pm-partner-api    (global.partnerManagementApiUrl)
+#   - commons-services-pm-staff-portal-api (global.partnerManagementAdminApiUrl, sanity-only)
+# `commons-services-master-data-api` is confirmed already resolving in `far`
+# (farmer-registry's db-seed calls it successfully as a bare hostname), but
+# that doesn't guarantee `live` has the same alias — `far`/`crop` have extra
+# undocumented history per staging-livestock-registry-live-deployment.md's
+# own caveat on checklist item 1. CONFIRM (or create) ExternalName aliases
+# for all four in `live` before relying on partner-api's signature
+# verification / consent enforcement / keymanager paths. If unconfirmed,
+# consider setting partnerSignatureValidationEnabled/consentEnforcementEnabled
+# to false initially (see below) to get the base app up first.
+# ============================================================================
+ 
+global:
+  # --- Public hostname, matching the ALREADY-LIVE public domain (not this
+  # chart's own generic <release>.<namespace>.openg2p.org placeholder) ---
+  registryHostname: "livestock-registry.oanstaging.com"
+ 
+  # --- Cross-namespace DB access: `live` calls into the `commons` namespace,
+  # so bare `commons-postgresql` (this chart's default) will NOT resolve.
+  # Matches farmer-registry's proven-working far deploy exactly. ---
+  postgresqlHost: commons-postgresql.commons.svc.cluster.local
+ 
+  # --- MinIO: same FQDN + non-secure pattern already used by both the OLD
+  # `live` chart and farmer's `far` deploy. NOTE (inherited, not new): the
+  # chart's own comment says this must be a browser-reachable S3 endpoint for
+  # pre-signed URLs to work from outside the cluster network — the internal
+  # FQDN below is what's actually been used and reported working end-to-end
+  # for both far and the old live chart, but neither doc explicitly confirms
+  # browser-side image loading was tested through it. Worth a real check
+  # (view a seeded record's photo from an ordinary browser, not just VPN)
+  # after this deploy, same as it should be for far. ---
+  minioHost: commons-minio.commons.svc.cluster.local:9000
+  minioSecure: false
+ 
+  # --- Keycloak: this chart version has no separate internal-vs-public
+  # issuer split (unlike the old chart) — keycloakIssuerUrl auto-derives from
+  # keycloakBaseUrl + keycloakRealm and is used for BOTH server-side token
+  # calls and the browser-facing logout URL. Set the one public value; let
+  # the chart derive the rest. VERIFY server-side calls succeed post-deploy —
+  # this is architecturally different from far's split internal/external
+  # Keycloak URLs, since this chart schema doesn't expose that split. ---
+  keycloakBaseUrl: "https://keycloak.oanstaging.com"
+ 
+  # --- Partner signature verification / Consent Manager enforcement: chart
+  # defaults BOTH to true (fail-closed). Leave ON only once
+  # commons-services-pm-partner-api / commons-services-cm-partner-api are
+  # confirmed reachable from `live` (see PRE-FLIGHT above) — otherwise
+  # partner-api's DCI search endpoints will reject every request. Flip to
+  # false temporarily for a bring-up install if those integrations aren't
+  # confirmed yet; the chart's own values.yaml documents this as a
+  # legitimate, deliberate, auditable choice for exactly this situation.
+  # partnerSignatureValidationEnabled: false
+  # consentEnforcementEnabled: false
+ 
+  # --- AWE: shared instance lives in commons-services, consumed via the
+  # commons-services-awe ExternalName alias already confirmed present in
+  # `live` (per the OLD chart's checklist). aweHostname/aweBaseUrl below
+  # default to a public https://awe.<namespace>.openg2p.org placeholder that
+  # does NOT match this cluster (shared AWE isn't per-namespace) — override
+  # to whatever the confirmed-working AWE public hostname actually is for
+  # this environment (check far's working staff-portal-api envVars for the
+  # exact value it uses, or commons-services' own chart values). Left
+  # commented rather than guessing:
+  # aweHostname: "awe.oanstaging.com"
+ 
+# One-line-in-spirit fix matching the exact bug documented in
+# farmer-registry-image-update-and-dbseed-fix.md (section G) and
+# staging-livestock-registry-live-deployment.md (IAM tile mislabeling bug):
+# without this, the IAM staff-portal app switcher tile silently reads
+# "OpenG2P Registry" (this chart's own default) instead of naming this
+# registry.
+iamRegister:
+  applicationDescription: "Livestock Registry"
+ 
+# dbSeed: this chart version's OWN defaults (loadSampleData: false,
+# loadImages: false, loadTemplates: true, loadGeoData: false) already match
+# the safe/conservative posture farmer/crop needed to hand-add — no override
+# needed here unless sample data is deliberately wanted for this environment.
+# No `loadAttributes` key exists at this chart version (develop.296 predates
+# that feature — confirmed against templates/db-seed/job.yaml, which has no
+# LOAD_ATTRIBUTES/MDS_BASE_URL env at all), so nothing to set here for that.
+ 
+# celeryBeat: this chart version's own default resources (640Mi request /
+# 1536Mi limit) are already sized close to the worker's, unlike farmer's
+# original chart which needed a manual limit bump — no override needed
+# unless real usage shows otherwise after rollout (`kubectl top pod`).
+ 
