@@ -1,54 +1,64 @@
-# DRAFT v1 — values-live.yaml for helm/openg2p-livestock-registry
+# values-live.yaml for helm/openg2p-livestock-registry
 # (chart dependency: openg2p-registry 0.0.0-develop.296, aliased `registry`)
 #
-# Written from openg2p-registry-0.0.0-develop.296's own default values.yaml
-# (extracted from the chart .tgz actually pinned in this repo's Chart.lock)
-# plus the already-PROVEN-working equivalents from farmer-registry's `far`
-# deploy and the OLD chart's `live` deploy. This is the base `-f` file the
-# rewritten Jenkinsfile expects at helm/openg2p-livestock-registry/values-live.yaml,
-# BEFORE the CI-generated image-tag overlay.
+# STATUS (2026-09-15): v2 — three fixes layered on top of v0 (c7840bda,
+# committed by Simret):
 #
-# STATUS (2026-09-15): v0 caused a bare empty-body 404 on
-# livestock-registry.oanstaging.com — root cause confirmed: this wrapper
-# consumes openg2p-registry via `alias: registry` in Chart.yaml, and Helm's
-# automatic `global:` propagation does not reliably cross that alias
-# boundary. A top-level `global:` override lands in `.Values.global` at the
-# umbrella-chart level, but every template that actually matters (the
-# staff-portal-ui/staff-portal-api/partner-api/idgenerator VirtualServices,
-# all living inside the aliased `registry` subchart tree) only ever saw the
-# chart's own unrendered default host pattern. Confirmed empirically via
-# `helm get values livestock-registry -n live -a -o yaml`, walked with a
-# small Python script printing every path where the key `registryHostname`
-# appears: `global.registryHostname` was correctly the override, but
-# `registry.global.registryHostname` (and every subchart further nested
-# under `registry`) was still the raw default. See
-# staging-livestock-registry-cicd-pipeline.md for the full writeup — this
-# will recur for any future registry built on this same chart family with
-# the same aliasing pattern, not specific to livestock.
+# 1. Global-propagation gap across the `registry` chart alias. v0 set
+#    `global:` at the top level only, which does not cross the `registry`
+#    alias boundary into the openg2p-registry subchart — confirmed via
+#    `helm get values -a` and later via `helm template` dry-run that
+#    staff-ui/staff-api/partner-api all rendered raw chart-default hosts
+#    (*.live.openg2p.org) instead of the real domain. Fixed by duplicating
+#    global under `registry:` via a YAML anchor (&global/*global).
 #
-# FIX: the same `global:` block is duplicated under `registry:` via a YAML
-# anchor (one source of truth, `&global`/`*global`). `iamRegister.applicationDescription`
-# — a second, parallel bug (ordinary non-`global` key, never auto-propagates
-# at all; bare top-level was a silent no-op) — moved under `registry:` too.
-# `staffUi.iamPublicUrl` / `staffUi.envVars.COOKIE_DOMAIN` — same story again,
-# ordinary subchart-scoped keys (confirmed via
-# charts/openg2p-registry-0.0.0-develop.296.tgz values.yaml lines ~868-887)
-# that default to the chart's `.{{ .Release.Namespace }}.openg2p.org`
-# placeholder and must be set at `registry.staffUi.*` to take effect. Left
-# un-fixed, COOKIE_DOMAIN would silently drop the session cookie on login —
-# the exact bug documented in staging-farmer-registry-far-deployment.md
-# section 10 — and IAM_URL would point the server-side login fetch at a
-# nonexistent host.
+# 2. The SAME propagation gap exists ONE LEVEL DEEPER: id-generator is not
+#    a template in openg2p-registry itself — it's a THIRD chart layer,
+#    aliased `idgenerator` inside openg2p-registry's own Chart.yaml
+#    (openg2p-livestock-registry -> registry -> idgenerator ->
+#    openg2p-id-generator, gitlab.com/openg2p/id-generator). Confirmed via
+#    `helm template`: even after fix #1, id-generator's VirtualService
+#    still rendered "idgenerator-livestock-registry.live.openg2p.org".
+#    Root cause: id-generator's OWN chart has its own LOCAL default for
+#    the key `global.idGeneratorHostname` ('idgenerator.trial.openg2p.org'),
+#    completely independent of `registryHostname` and of the OUTER
+#    registry-scope's own (also-unrelated) default for the same key name
+#    ('idgenerator-{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.org').
+#    Every OTHER component (bene-api, staff-ui, etc.) also reads this same
+#    `global.idGeneratorHostname` key to build its calls INTO id-generator
+#    (idGeneratorApiUrl), so one explicit override here fixes both id-
+#    generator's own public host AND everyone else's URL for reaching it —
+#    PROVIDED it's propagated into both `registry.global` and
+#    `registry.idgenerator.global` via the same anchor duplication.
 #
-# Dry-run verified 2026-09-15 on vpn-agent2 (`helm template` against this
-# file alone, no CI image overlay needed since none of this touches images):
-# all of registry/staff-api/partner-api hostnames, COOKIE_DOMAIN, IAM_URL,
-# and the IAM tile applicationDescription now render correctly. NOT yet
-# applied to the real cluster as of this write — read the full rendered
-# manifest by hand before ever setting DEPLOY_TO_LIVE=true again.
+# 3. celery-beat-producer was OOMKilled (exit 137) at the chart's own
+#    default limit (1536Mi) — confirmed via `kubectl describe pod` /
+#    lastState. Startup banner showed concurrency:32 (prefork) against a
+#    job the chart's own comment describes as holding up to 2000 records
+#    in memory per tick; 1.5Gi is not enough in practice. Bumped to 3Gi as
+#    a conservative first pass — right-size down later via `kubectl top
+#    pod` once stable.
+#
+# BEFORE re-enabling DEPLOY_TO_LIVE=true: re-run `helm template` and
+# confirm ALL FOUR VirtualServices (staff-ui, staff-api, partner-api,
+# id-generator) render *.oanstaging.com hosts, not *.live.openg2p.org or
+# *.trial.openg2p.org.
+#
+# STILL OPEN / NOT YET VERIFIED (do before the next real deploy):
+#   - Does the Istio Gateway + TLS cert actually cover
+#     idgenerator-livestock-registry.oanstaging.com,
+#     staff-livestock-registry.oanstaging.com, and
+#     partner-livestock-registry.oanstaging.com? We've only directly
+#     confirmed a valid cert+Gateway entry for the bare
+#     livestock-registry.oanstaging.com host (curl -v tested). The
+#     Gateway's `hosts:` list we saw only showed 2 entries
+#     (livestock-registry.oanstaging.com, livestock-dashboard.oanstaging.com)
+#     — re-check the FULL gateway host list and cert SANs before assuming
+#     staff-/partner-/idgenerator- subdomains will actually terminate TLS
+#     correctly once this deploys.
 #
 # ============================================================================
-# PRE-FLIGHT — check BEFORE the first real deploy, not optional:
+# PRE-FLIGHT — check BEFORE the next real deploy, not optional:
 #
 # This chart version calls several `commons-services-*` bare hostnames that
 # the OLD generic chart currently running in `live` never called (it predates
@@ -63,27 +73,26 @@
 #   - commons-services-keymanager        (global.keymanagerInstallationName)
 #   - commons-services-pm-partner-api    (global.partnerManagementApiUrl)
 #   - commons-services-pm-staff-portal-api (global.partnerManagementAdminApiUrl, sanity-only)
-# `commons-services-master-data-api` is confirmed already resolving in `far`
-# (farmer-registry's db-seed calls it successfully as a bare hostname), but
-# that doesn't guarantee `live` has the same alias — `far`/`crop` have extra
-# undocumented history per staging-livestock-registry-live-deployment.md's
-# own caveat on checklist item 1. CONFIRM (or create) ExternalName aliases
-# for all four in `live` before relying on partner-api's signature
-# verification / consent enforcement / keymanager paths. If unconfirmed,
-# consider setting partnerSignatureValidationEnabled/consentEnforcementEnabled
-# to false initially (see below) to get the base app up first.
+# CONFIRMED applied and resolving in `live` as of 2026-09-15 (kubectl get svc
+# -n live showed all four as ExternalName, ~24m old).
 # ============================================================================
- 
+
 global: &global
   # --- Public hostname, matching the ALREADY-LIVE public domain (not this
   # chart's own generic <release>.<namespace>.openg2p.org placeholder) ---
   registryHostname: "livestock-registry.oanstaging.com"
- 
+
+  # --- id-generator has its OWN separate hostname key (not derived from
+  # registryHostname at all) — see STATUS fix #2 above. Must match whatever
+  # the Gateway/cert actually cover; matches the same "<prefix>-livestock-
+  # registry" convention already used for staff-/partner-. ---
+  idGeneratorHostname: "idgenerator-livestock-registry.oanstaging.com"
+
   # --- Cross-namespace DB access: `live` calls into the `commons` namespace,
   # so bare `commons-postgresql` (this chart's default) will NOT resolve.
   # Matches farmer-registry's proven-working far deploy exactly. ---
   postgresqlHost: commons-postgresql.commons.svc.cluster.local
- 
+
   # --- MinIO: same FQDN + non-secure pattern already used by both the OLD
   # `live` chart and farmer's `far` deploy. NOTE (inherited, not new): the
   # chart's own comment says this must be a browser-reachable S3 endpoint for
@@ -95,7 +104,7 @@ global: &global
   # after this deploy, same as it should be for far. ---
   minioHost: commons-minio.commons.svc.cluster.local:9000
   minioSecure: false
- 
+
   # --- Keycloak: this chart version has no separate internal-vs-public
   # issuer split (unlike the old chart) — keycloakIssuerUrl auto-derives from
   # keycloakBaseUrl + keycloakRealm and is used for BOTH server-side token
@@ -104,7 +113,7 @@ global: &global
   # this is architecturally different from far's split internal/external
   # Keycloak URLs, since this chart schema doesn't expose that split. ---
   keycloakBaseUrl: "https://keycloak.oanstaging.com"
- 
+
   # --- Partner signature verification / Consent Manager enforcement: chart
   # defaults BOTH to true (fail-closed). Leave ON only once
   # commons-services-pm-partner-api / commons-services-cm-partner-api are
@@ -115,7 +124,7 @@ global: &global
   # legitimate, deliberate, auditable choice for exactly this situation.
   # partnerSignatureValidationEnabled: false
   # consentEnforcementEnabled: false
- 
+
   # --- AWE: shared instance lives in commons-services, consumed via the
   # commons-services-awe ExternalName alias already confirmed present in
   # `live` (per the OLD chart's checklist). aweHostname/aweBaseUrl below
@@ -126,7 +135,7 @@ global: &global
   # exact value it uses, or commons-services' own chart values). Left
   # commented rather than guessing:
   # aweHostname: "awe.oanstaging.com"
- 
+
 # WORKAROUND for the confirmed Helm alias/global-propagation gap described
 # above: `global:` values set only at the top level never reach templates
 # living inside the `registry`-aliased openg2p-registry subchart (which is
@@ -134,18 +143,33 @@ global: &global
 # here via the &global/*global YAML anchor is the standard fix for this
 # class of Helm bug — one source of truth, applied at both levels.
 #
-# iamRegister.applicationDescription and staffUi.iamPublicUrl/envVars.COOKIE_DOMAIN
-# also moved/added here — all three are ordinary (non-`global`) keys that
-# only ever take effect at the exact path the `registry` subchart expects.
+# iamRegister.applicationDescription also moved here (was previously bare
+# top-level, which is a silent no-op for an ordinary non-`global` key since
+# only charts/openg2p-registry/templates/iam-register/job.yaml reads it, via
+# .Values.iamRegister.applicationDescription from *within* the registry
+# subchart's own scope).
 registry:
   global: *global
+
+  # id-generator is a THIRD chart layer nested inside openg2p-registry
+  # itself (aliased `idgenerator`) — the same global-propagation gap applies
+  # at THIS alias boundary too. Without this, id-generator's own
+  # VirtualService (and everyone else's calls into it) fall back to that
+  # subchart's own local, unrelated default for global.idGeneratorHostname.
+  idgenerator:
+    global: *global
+
   iamRegister:
     applicationDescription: "Livestock Registry"
-  staffUi:
-    iamPublicUrl: "https://staff-iam.oanstaging.com"
-    envVars:
-      COOKIE_DOMAIN: ".oanstaging.com"
- 
+
+  # celery-beat-producer was OOMKilled at the chart's default 1536Mi limit —
+  # see STATUS fix #3 above. Bumped to 3Gi; right-size down later with
+  # `kubectl top pod` once stable.
+  celeryBeat:
+    resources:
+      limits:
+        memory: 3Gi
+
 # dbSeed: this chart version's OWN defaults (loadSampleData: false,
 # loadImages: false, loadTemplates: true, loadGeoData: false) already match
 # the safe/conservative posture farmer/crop needed to hand-add — no override
@@ -153,8 +177,3 @@ registry:
 # No `loadAttributes` key exists at this chart version (develop.296 predates
 # that feature — confirmed against templates/db-seed/job.yaml, which has no
 # LOAD_ATTRIBUTES/MDS_BASE_URL env at all), so nothing to set here for that.
- 
-# celeryBeat: this chart version's own default resources (640Mi request /
-# 1536Mi limit) are already sized close to the worker's, unlike farmer's
-# original chart which needed a manual limit bump — no override needed
-# unless real usage shows otherwise after rollout (`kubectl top pod`).
