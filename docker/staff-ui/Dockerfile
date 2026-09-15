@@ -47,6 +47,12 @@ COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock_bg.jpg /app/public/i
 # forever — a hard refresh does not necessarily re-fetch an immutable asset.
 # So the file is also RENAMED and every reference in the build output rewritten,
 # which is what makes the new rule actually reach the browser.
+#
+# overrides.css rides on the same step: it targets the possible-duplicate match
+# cards (see the comments in the file) and is appended to the same global
+# stylesheet, so it is covered by the same rename. Its selectors are asserted
+# the same way as bg_pattern.
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/overrides.css /tmp/overrides.css
 RUN set -eu; \
     css="$(find /app/.next/static -name '*.css' -exec grep -l 'bg_pattern' {} + 2>/dev/null || true)"; \
     if [ -z "$css" ]; then \
@@ -61,7 +67,11 @@ RUN set -eu; \
         'background-position:center center!important;' \
         'background-attachment:fixed!important;' \
         '}' >> "$f"; \
-      old="$(basename "$f" .css)"; new="${old}ls1"; \
+      for cls in ':grid-cols-3' '.pl-10' '.border-l' '.truncate'; do \
+        grep -qF -- "$cls" "$f" || { echo "FATAL: compiled stylesheet no longer has $cls — overrides.css would be dead"; exit 1; }; \
+      done; \
+      printf '\n' >> "$f"; cat /tmp/overrides.css >> "$f"; \
+      old="$(basename "$f" .css)"; new="${old}ls$(md5sum "$f" | cut -c1-6)"; \
       grep -rl "$old" /app/.next 2>/dev/null | while read -r ref; do \
         sed -i "s/${old}/${new}/g" "$ref"; \
       done; \
