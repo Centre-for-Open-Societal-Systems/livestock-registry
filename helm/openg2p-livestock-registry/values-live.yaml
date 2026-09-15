@@ -115,4 +115,3 @@ iamRegister:
 # 1536Mi limit) are already sized close to the worker's, unlike farmer's
 # original chart which needed a manual limit bump — no override needed
 # unless real usage shows otherwise after rollout (`kubectl top pod`).
- 
