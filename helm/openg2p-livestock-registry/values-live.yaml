@@ -1,4 +1,4 @@
-# DRAFT v0 — values-live.yaml for helm/openg2p-livestock-registry
+# DRAFT v1 — values-live.yaml for helm/openg2p-livestock-registry
 # (chart dependency: openg2p-registry 0.0.0-develop.296, aliased `registry`)
 #
 # Written from openg2p-registry-0.0.0-develop.296's own default values.yaml
@@ -8,11 +8,44 @@
 # rewritten Jenkinsfile expects at helm/openg2p-livestock-registry/values-live.yaml,
 # BEFORE the CI-generated image-tag overlay.
 #
-# STATUS: draft, not yet dry-run tested against the real cluster. This is
-# the deliberate chart-switch cutover for `live` (see Jenkinsfile header
-# comment and staging-livestock-registry-cicd-pipeline.md) — review this
-# file, run the Jenkinsfile's `helm template` dry-run step, and read the
-# rendered manifest by hand before ever setting DEPLOY_TO_LIVE=true.
+# STATUS (2026-09-15): v0 caused a bare empty-body 404 on
+# livestock-registry.oanstaging.com — root cause confirmed: this wrapper
+# consumes openg2p-registry via `alias: registry` in Chart.yaml, and Helm's
+# automatic `global:` propagation does not reliably cross that alias
+# boundary. A top-level `global:` override lands in `.Values.global` at the
+# umbrella-chart level, but every template that actually matters (the
+# staff-portal-ui/staff-portal-api/partner-api/idgenerator VirtualServices,
+# all living inside the aliased `registry` subchart tree) only ever saw the
+# chart's own unrendered default host pattern. Confirmed empirically via
+# `helm get values livestock-registry -n live -a -o yaml`, walked with a
+# small Python script printing every path where the key `registryHostname`
+# appears: `global.registryHostname` was correctly the override, but
+# `registry.global.registryHostname` (and every subchart further nested
+# under `registry`) was still the raw default. See
+# staging-livestock-registry-cicd-pipeline.md for the full writeup — this
+# will recur for any future registry built on this same chart family with
+# the same aliasing pattern, not specific to livestock.
+#
+# FIX: the same `global:` block is duplicated under `registry:` via a YAML
+# anchor (one source of truth, `&global`/`*global`). `iamRegister.applicationDescription`
+# — a second, parallel bug (ordinary non-`global` key, never auto-propagates
+# at all; bare top-level was a silent no-op) — moved under `registry:` too.
+# `staffUi.iamPublicUrl` / `staffUi.envVars.COOKIE_DOMAIN` — same story again,
+# ordinary subchart-scoped keys (confirmed via
+# charts/openg2p-registry-0.0.0-develop.296.tgz values.yaml lines ~868-887)
+# that default to the chart's `.{{ .Release.Namespace }}.openg2p.org`
+# placeholder and must be set at `registry.staffUi.*` to take effect. Left
+# un-fixed, COOKIE_DOMAIN would silently drop the session cookie on login —
+# the exact bug documented in staging-farmer-registry-far-deployment.md
+# section 10 — and IAM_URL would point the server-side login fetch at a
+# nonexistent host.
+#
+# Dry-run verified 2026-09-15 on vpn-agent2 (`helm template` against this
+# file alone, no CI image overlay needed since none of this touches images):
+# all of registry/staff-api/partner-api hostnames, COOKIE_DOMAIN, IAM_URL,
+# and the IAM tile applicationDescription now render correctly. NOT yet
+# applied to the real cluster as of this write — read the full rendered
+# manifest by hand before ever setting DEPLOY_TO_LIVE=true again.
 #
 # ============================================================================
 # PRE-FLIGHT — check BEFORE the first real deploy, not optional:
@@ -41,7 +74,7 @@
 # to false initially (see below) to get the base app up first.
 # ============================================================================
  
-global:
+global: &global
   # --- Public hostname, matching the ALREADY-LIVE public domain (not this
   # chart's own generic <release>.<namespace>.openg2p.org placeholder) ---
   registryHostname: "livestock-registry.oanstaging.com"
@@ -94,14 +127,24 @@ global:
   # commented rather than guessing:
   # aweHostname: "awe.oanstaging.com"
  
-# One-line-in-spirit fix matching the exact bug documented in
-# farmer-registry-image-update-and-dbseed-fix.md (section G) and
-# staging-livestock-registry-live-deployment.md (IAM tile mislabeling bug):
-# without this, the IAM staff-portal app switcher tile silently reads
-# "OpenG2P Registry" (this chart's own default) instead of naming this
-# registry.
-iamRegister:
-  applicationDescription: "Livestock Registry"
+# WORKAROUND for the confirmed Helm alias/global-propagation gap described
+# above: `global:` values set only at the top level never reach templates
+# living inside the `registry`-aliased openg2p-registry subchart (which is
+# every VirtualService that actually matters). Duplicating the same block
+# here via the &global/*global YAML anchor is the standard fix for this
+# class of Helm bug — one source of truth, applied at both levels.
+#
+# iamRegister.applicationDescription and staffUi.iamPublicUrl/envVars.COOKIE_DOMAIN
+# also moved/added here — all three are ordinary (non-`global`) keys that
+# only ever take effect at the exact path the `registry` subchart expects.
+registry:
+  global: *global
+  iamRegister:
+    applicationDescription: "Livestock Registry"
+  staffUi:
+    iamPublicUrl: "https://staff-iam.oanstaging.com"
+    envVars:
+      COOKIE_DOMAIN: ".oanstaging.com"
  
 # dbSeed: this chart version's OWN defaults (loadSampleData: false,
 # loadImages: false, loadTemplates: true, loadGeoData: false) already match
