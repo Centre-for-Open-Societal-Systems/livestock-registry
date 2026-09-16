@@ -6,6 +6,7 @@
 
 // RP_VERSION below (0.0.0-develop.296) is carried over from the original
 // draft as-is
+
 pipeline {
     agent { label 'vpn-agent2' }
 
@@ -92,8 +93,12 @@ registry:
     image:
       repository: ${env.ECR_REGISTRY}/${ECR_PATH}/staff-ui
       tag: "${env.IMAGE_TAG}"
+  sanity:
+    image:
+      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
+      tag: "${env.IMAGE_TAG}"
 EOF
-                       
+
                         # Dry-run + diff, kept even without a human gate so there's an
                         # audit trail to look at if a deploy ever needs investigating.
                         helm get values \${HELM_RELEASE} -n \${HELM_NAMESPACE} -a -o yaml > /tmp/live-values-before-\${BUILD_NUMBER}.yaml
