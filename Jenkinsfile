@@ -1,12 +1,7 @@
 // Livestock-registry CI/CD pipeline.
-//
-//
-// The old in-repo chart (helm/openg2p-livestock-registry) and its
-// unfinished values-live.yaml are UNTOUCHED by this file now.
 
 // RP_VERSION below (0.0.0-develop.296) is carried over from the original
 // draft as-is
-
 
 pipeline {
     agent { label 'vpn-agent2' }
@@ -17,12 +12,15 @@ pipeline {
         RP_VERSION       = '0.0.0-develop.296' // TODO verify — see header note
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
-        // The chart actually running in `live` today — NOT this repo's own
-        // helm/openg2p-livestock-registry. See header comment.
+       
         HELM_CHART_REPO  = 'openg2p'
         HELM_CHART_URL   = 'https://openg2p.github.io/openg2p-helm'
         HELM_CHART_REF   = 'openg2p/openg2p-farmer-registry'
         HELM_CHART_VER   = '1.2.0'
+
+       
+        HELM_NAMESPACE_DEV       = 'live'
+        DEV_KUBECONFIG_CRED_ID   = 'gen2-dev-livestock-kubeconfig'
     }
 
     stages {
@@ -61,15 +59,12 @@ pipeline {
             }
         }
 
-        stage('Deploy to Live') {
+        stage('Prepare Deploy Values') {
+          
             when { branch 'develop' }
             steps {
-                withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
-                    sh """
-                        helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
-                        helm repo update ${HELM_CHART_REPO}
-
-                        cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
+                sh """
+                    cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
 registry:
   staffApi:
     image:
@@ -100,6 +95,87 @@ registry:
       repository: ${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
       tag: "${env.IMAGE_TAG}"
 EOF
+                """
+            }
+        }
+
+        stage('Deploy to Development') {
+ 
+            // `helm upgrade --install` (not `--reuse-values`) is used
+            // deliberately: every run supplies the full intended value set
+            // (checked-in values.yaml + these --set flags) from repo state,
+            // so there's nothing to drift out of sync with and no
+            // dependency on a prior release already existing -- unlike the
+            // staging stage below, which targets an already-running release
+            // built from a DIFFERENT chart lineage and has no in-repo
+            // values file to be declarative from.        
+           
+            // Wrapped in catchError so a problem specific to the dev
+            // cluster (still new, less battle-tested than staging) does
+            // NOT block the staging "Deploy to Live" stage below from
+            // running. A dev-deploy failure marks this stage (and the
+            // build) unstable/failed for visibility, but doesn't abort
+            // the pipeline before staging's own deploy gets a chance.
+            when { branch 'develop' }
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
+                        sh """
+                            helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
+                            helm repo update ${HELM_CHART_REPO}
+                            helm dependency build ./helm/openg2p-livestock-registry
+
+                            IMAGE_SET_FLAGS="
+                                --set registry.staffApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-api
+                                --set registry.staffApi.image.tag=${env.IMAGE_TAG}
+                                --set registry.partnerApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/partner-api
+                                --set registry.partnerApi.image.tag=${env.IMAGE_TAG}
+                                --set registry.celeryWorker.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/celery
+                                --set registry.celeryWorker.image.tag=${env.IMAGE_TAG}
+                                --set registry.celeryBeat.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/celery
+                                --set registry.celeryBeat.image.tag=${env.IMAGE_TAG}
+                                --set registry.dbSeed.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/db-seed
+                                --set registry.dbSeed.image.tag=${env.IMAGE_TAG}
+                                --set registry.staffUi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-ui
+                                --set registry.staffUi.image.tag=${env.IMAGE_TAG}
+                                --set registry.sanity.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
+                                --set registry.sanity.image.tag=${env.IMAGE_TAG}
+                            "
+
+                            # Dry-run audit trail, same reasoning as staging's own dry-run step.
+                            helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
+                                \$IMAGE_SET_FLAGS \
+                                > /tmp/dev-rendered-\${BUILD_NUMBER}.yaml
+                            echo "Rendered \$(wc -l < /tmp/dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's own values.yaml plus image overrides only (public hostname untouched -- see header comment). Archived for audit."
+
+                            # No --atomic here either, same reasoning as staging: if
+                            # id-generator's GitLab-403 ImagePullBackOff is present on
+                            # this cluster too (same private-registry credential
+                            # problem, likely cluster-agnostic — not yet independently
+                            # confirmed on dev), --wait would block the full timeout
+                            # and auto-rollback would discard a good deploy.
+                            helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
+                                --create-namespace \
+                                \$IMAGE_SET_FLAGS \
+                                --cleanup-on-fail --timeout 10m
+
+                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
+                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui -n \${HELM_NAMESPACE_DEV} --timeout=180s
+                            kubectl rollout status deployment/\${HELM_RELEASE}-partner-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
+                        """
+                        archiveArtifacts artifacts: '/tmp/dev-rendered-*.yaml', allowEmptyArchive: true
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Live') {
+            when { branch 'develop' }
+            steps {
+                withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh """
+                        helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
+                        helm repo update ${HELM_CHART_REPO}
 
                         # Dry-run + diff, kept even without a human gate so there's an
                         # audit trail to look at if a deploy ever needs investigating.
@@ -121,9 +197,10 @@ EOF
                             > /tmp/live-rendered-\${BUILD_NUMBER}.yaml
                         echo "Rendered \$(wc -l < /tmp/live-rendered-\${BUILD_NUMBER}.yaml) lines against the currently-deployed values (image tags only overridden). Archived for audit."
 
+                       
                         helm upgrade \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
                             --reuse-values -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
-                            --atomic --cleanup-on-fail --timeout 10m
+                            --cleanup-on-fail --timeout 10m
 
                         kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n \${HELM_NAMESPACE} --timeout=180s
                         kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui -n \${HELM_NAMESPACE} --timeout=180s
@@ -175,10 +252,12 @@ Jenkins
                     body: """
 Hi ${committerName},
 
-Livestock Registry build or deployment failed. Deploy uses --atomic, so if
-the failure was in the Deploy stage, Helm should have already rolled `live`
-back to the previous revision automatically -- worth confirming with
-`helm history livestock-registry -n live` rather than assuming it.
+Livestock Registry build or deployment failed. Deploy no longer uses
+--atomic (dropped 2026-09-16 -- it was blocking on the already-broken
+id-generator Deployment and auto-rolling-back every run), so a Deploy
+failure does NOT automatically revert `live`. Check
+`helm history livestock-registry -n live` and `helm status livestock-registry -n live`
+to see exactly what state the release is in before assuming anything.
 
 Job:    ${env.JOB_NAME}
 Branch: ${env.GIT_BRANCH}
