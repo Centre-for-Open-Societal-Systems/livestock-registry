@@ -1,41 +1,33 @@
 // Livestock-registry CI/CD pipeline.
-//
-//
-// The old in-repo chart (helm/openg2p-livestock-registry) and its
-// unfinished values-live.yaml are UNTOUCHED by this file now.
 
 // RP_VERSION below (0.0.0-develop.296) is carried over from the original
 // draft as-is
 
-
 pipeline {
     agent { label 'vpn-agent2' }
- 
+
     environment {
         AWS_REGION       = 'ap-south-1'
         ECR_PATH         = 'openg2p/livestock-registry'
         RP_VERSION       = '0.0.0-develop.296' // TODO verify — see header note
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
-        // The chart actually running in `live` today — NOT this repo's own
-        // helm/openg2p-livestock-registry. See header comment.
+       
         HELM_CHART_REPO  = 'openg2p'
         HELM_CHART_URL   = 'https://openg2p.github.io/openg2p-helm'
         HELM_CHART_REF   = 'openg2p/openg2p-farmer-registry'
         HELM_CHART_VER   = '1.2.0'
- 
-        // Dev-cluster deploy target (see header comment above). Separate
-        // physical cluster from HELM_NAMESPACE/staging-rke2-kubeconfig
-        // above; same chart/release-name convention, different kubeconfig.
+
+       
         HELM_NAMESPACE_DEV       = 'live'
-        DEV_KUBECONFIG_CRED_ID   = 'gen2-dev-kubeconfig'
+        DEV_KUBECONFIG_CRED_ID   = 'gen2-dev-livestock-kubeconfig'
     }
- 
+
     stages {
         stage('Checkout') {
             steps { checkout scm }
         }
- 
+
         stage('Build & Push Images') {
             steps {
                 withCredentials([
@@ -66,13 +58,9 @@ pipeline {
                 }
             }
         }
- 
+
         stage('Prepare Deploy Values') {
-            // Split out 2026-09-16 so both deploy targets (dev cluster and
-            // staging cluster's `live` namespace) share the exact same
-            // image-tag overlay file instead of two copies that could drift.
-            // Content is cluster/namespace-agnostic (image repo+tag only) —
-            // safe to reuse verbatim against either kubeconfig.
+          
             when { branch 'develop' }
             steps {
                 sh """
@@ -110,27 +98,9 @@ EOF
                 """
             }
         }
- 
+
         stage('Deploy to Development') {
-            // New 2026-09-16, REWRITTEN same day after the values design
-            // changed. This does NOT use the generic openg2p/openg2p-
-            // farmer-registry chart the staging "Deploy to Live" stage
-            // below targets. It uses THIS repo's own chart
-            // (helm/openg2p-livestock-registry) with its checked-in
-            // values.yaml used AS-IS -- no separate overlay/draft values
-            // file. That file's own header states its intended CI contract
-            // explicitly: "Only the tag is CI-rewritten in lockstep with
-            // the chart version" -- everything else (global registryVariant,
-            // idgenerator pools, sanity regType/scopes, iamRegister
-            // description, dbSeed loader flags) is registry-correct as
-            // committed and isn't CI's to touch. So this stage overrides
-            // ONLY the two things that are genuinely CI/environment-owned:
-            // the six image refs (repository+tag, via --set, matching this
-            // pipeline's Build & Push stage) and the public hostname (via
-            // --set, since the file's own default,
-            // '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.org',
-            // doesn't resolve to anything real here).
-            //
+ 
             // `helm upgrade --install` (not `--reuse-values`) is used
             // deliberately: every run supplies the full intended value set
             // (checked-in values.yaml + these --set flags) from repo state,
@@ -138,18 +108,8 @@ EOF
             // dependency on a prior release already existing -- unlike the
             // staging stage below, which targets an already-running release
             // built from a DIFFERENT chart lineage and has no in-repo
-            // values file to be declarative from.
-            //
-            // Still assumes (see the development-deployment project doc):
-            // the `live` namespace's shared-services wiring (Secrets cloned
-            // from `far`, ExternalName aliases, Gateway host entry) is
-            // either already in place (the user confirmed the public
-            // hostname is already reachable) or gets set up before this
-            // runs for real. If `kubectl get ns live` / `helm list -n live`
-            // shows nothing, that bring-up still needs doing first --
-            // `--create-namespace` below only creates the bare namespace,
-            // not the Secrets/ExternalName/Gateway prerequisites.
-            //
+            // values file to be declarative from.        
+           
             // Wrapped in catchError so a problem specific to the dev
             // cluster (still new, less battle-tested than staging) does
             // NOT block the staging "Deploy to Live" stage below from
@@ -157,9 +117,6 @@ EOF
             // build) unstable/failed for visibility, but doesn't abort
             // the pipeline before staging's own deploy gets a chance.
             when { branch 'develop' }
-            environment {
-                DEV_HOSTNAME = 'livestock-registry-development.oanstaging.com'
-            }
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
@@ -167,7 +124,7 @@ EOF
                             helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
                             helm repo update ${HELM_CHART_REPO}
                             helm dependency build ./helm/openg2p-livestock-registry
- 
+
                             IMAGE_SET_FLAGS="
                                 --set registry.staffApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-api
                                 --set registry.staffApi.image.tag=${env.IMAGE_TAG}
@@ -183,15 +140,14 @@ EOF
                                 --set registry.staffUi.image.tag=${env.IMAGE_TAG}
                                 --set registry.sanity.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
                                 --set registry.sanity.image.tag=${env.IMAGE_TAG}
-                                --set global.registryHostname=\${DEV_HOSTNAME}
                             "
- 
+
                             # Dry-run audit trail, same reasoning as staging's own dry-run step.
                             helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
                                 \$IMAGE_SET_FLAGS \
                                 > /tmp/dev-rendered-\${BUILD_NUMBER}.yaml
-                            echo "Rendered \$(wc -l < /tmp/dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's own values.yaml plus image/hostname overrides. Archived for audit."
- 
+                            echo "Rendered \$(wc -l < /tmp/dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's own values.yaml plus image overrides only (public hostname untouched -- see header comment). Archived for audit."
+
                             # No --atomic here either, same reasoning as staging: if
                             # id-generator's GitLab-403 ImagePullBackOff is present on
                             # this cluster too (same private-registry credential
@@ -202,7 +158,7 @@ EOF
                                 --create-namespace \
                                 \$IMAGE_SET_FLAGS \
                                 --cleanup-on-fail --timeout 10m
- 
+
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui -n \${HELM_NAMESPACE_DEV} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-partner-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
@@ -212,7 +168,7 @@ EOF
                 }
             }
         }
- 
+
         stage('Deploy to Live') {
             when { branch 'develop' }
             steps {
@@ -220,7 +176,7 @@ EOF
                     sh """
                         helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
                         helm repo update ${HELM_CHART_REPO}
- 
+
                         # Dry-run + diff, kept even without a human gate so there's an
                         # audit trail to look at if a deploy ever needs investigating.
                         #
@@ -240,30 +196,12 @@ EOF
                             -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
                             > /tmp/live-rendered-\${BUILD_NUMBER}.yaml
                         echo "Rendered \$(wc -l < /tmp/live-rendered-\${BUILD_NUMBER}.yaml) lines against the currently-deployed values (image tags only overridden). Archived for audit."
- 
-                        # NOTE (added 2026-09-16, after the first real deploy got stuck twice):
-                        # --atomic (and --wait, which it implies) makes Helm block until
-                        # EVERY Deployment in the release is fully rolled out -- not just
-                        # the ones this overlay touches. `live` has a pre-existing, already
-                        # documented, not-fixable-from-here problem on
-                        # livestock-registry-id-generator (a GitLab container registry
-                        # pull started 403'ing anonymously -- see the outage postmortem's
-                        # "Open -- id-generator GitLab pull failure" section): its current
-                        # ReplicaSet can never finish rolling out, so a --wait'd upgrade
-                        # blocks for the full --timeout on THAT unrelated Deployment, then
-                        # --atomic auto-rolls-back the whole release -- discarding whatever
-                        # real fix this run was trying to land, every single time, until
-                        # id-generator's GitLab access is restored upstream (not an infra
-                        # fix). Confirmed twice manually on 2026-09-16 before this was
-                        # caught. --cleanup-on-fail is kept (it doesn't require --atomic
-                        # and doesn't wait) for some safety net on a genuine hook failure;
-                        # the explicit `kubectl rollout status` checks below already cover
-                        # verifying the three deployments this pipeline actually cares
-                        # about, without id-generator poisoning the wait.
+
+                       
                         helm upgrade \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
                             --reuse-values -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
                             --cleanup-on-fail --timeout 10m
- 
+
                         kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n \${HELM_NAMESPACE} --timeout=180s
                         kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui -n \${HELM_NAMESPACE} --timeout=180s
                         kubectl rollout status deployment/\${HELM_RELEASE}-partner-api -n \${HELM_NAMESPACE} --timeout=180s
@@ -273,7 +211,7 @@ EOF
             }
         }
     }
- 
+
     post {
         success {
             script {
@@ -287,14 +225,14 @@ EOF
                     subject: "✅ Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
 Hi ${committerName},
- 
+
 Livestock Registry build and deploy to live succeeded!
- 
+
 Job:    ${env.JOB_NAME}
 Branch: ${env.GIT_BRANCH}
 Build:  #${env.BUILD_NUMBER}
 URL:    ${env.BUILD_URL}
- 
+
 Regards,
 Jenkins
 """
@@ -313,19 +251,19 @@ Jenkins
                     subject: "❌ Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                     body: """
 Hi ${committerName},
- 
+
 Livestock Registry build or deployment failed. Deploy no longer uses
 --atomic (dropped 2026-09-16 -- it was blocking on the already-broken
 id-generator Deployment and auto-rolling-back every run), so a Deploy
 failure does NOT automatically revert `live`. Check
 `helm history livestock-registry -n live` and `helm status livestock-registry -n live`
 to see exactly what state the release is in before assuming anything.
- 
+
 Job:    ${env.JOB_NAME}
 Branch: ${env.GIT_BRANCH}
 Build:  #${env.BUILD_NUMBER}
 URL:    ${env.BUILD_URL}
- 
+
 Regards,
 Jenkins
 """
@@ -338,4 +276,3 @@ Jenkins
         }
     }
 }
- 
