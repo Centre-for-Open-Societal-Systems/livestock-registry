@@ -1,8 +1,3 @@
-// Livestock-registry CI/CD pipeline.
-
-// RP_VERSION below (0.0.0-develop.296) is carried over from the original
-// draft as-is
-
 pipeline {
     agent { label 'vpn-agent2' }
 
@@ -12,13 +7,19 @@ pipeline {
         RP_VERSION       = '0.0.0-develop.296' // TODO verify — see header note
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
-       
+        // The chart actually running in `live` today — NOT this repo's own
+        // helm/openg2p-livestock-registry. See header comment.
         HELM_CHART_REPO  = 'openg2p'
         HELM_CHART_URL   = 'https://openg2p.github.io/openg2p-helm'
         HELM_CHART_REF   = 'openg2p/openg2p-farmer-registry'
         HELM_CHART_VER   = '1.2.0'
 
-       
+        // Dev-cluster deploy target (see header comment above). Separate
+        // physical cluster from HELM_NAMESPACE/staging-rke2-kubeconfig
+        // above; same chart/release-name convention, different kubeconfig.
+        // Dedicated credential for the dedicated live:livestock-ci
+        // ServiceAccount (ci/k8s/livestock-deploy-rbac.yaml) 
+ 
         HELM_NAMESPACE_DEV       = 'live'
         DEV_KUBECONFIG_CRED_ID   = 'gen2-dev-livestock-kubeconfig'
     }
@@ -60,7 +61,10 @@ pipeline {
         }
 
         stage('Prepare Deploy Values') {
-          
+ 
+            // image-tag overlay file instead of two copies that could drift.
+            // Content is cluster/namespace-agnostic (image repo+tag only) —
+            // safe to reuse verbatim against either kubeconfig.
             when { branch 'develop' }
             steps {
                 sh """
@@ -100,7 +104,26 @@ EOF
         }
 
         stage('Deploy to Development') {
- 
+           
+            // (helm/openg2p-livestock-registry) with its checked-in
+            // values.yaml used AS-IS -- no separate overlay/draft values
+            // file. That file's own header states its intended CI contract
+            // explicitly: "Only the tag is CI-rewritten in lockstep with
+            // the chart version" -- everything else (global registryVariant,
+            // idgenerator pools, sanity regType/scopes, iamRegister
+            // description, dbSeed loader flags) is registry-correct as
+            // committed and isn't CI's to touch. So this stage overrides
+            // ONLY the one thing that's genuinely CI-owned: the six image
+            // refs (repository+tag, via --set, matching this pipeline's
+            // Build & Push stage). `global.registryHostname` is
+            // DELIBERATELY left at the chart's own default -- see the
+            // routing comment in this file's header for why overriding it
+            // to the public hostname would collide with the separate,
+            // hand-applied `pub-staff-portal-ui` VirtualService that
+            // actually owns public routing in `live` today. Cutting the
+            // public hostname over to this release is a separate, manual,
+            // one-time step, not something this stage does.
+            //
             // `helm upgrade --install` (not `--reuse-values`) is used
             // deliberately: every run supplies the full intended value set
             // (checked-in values.yaml + these --set flags) from repo state,
@@ -108,7 +131,14 @@ EOF
             // dependency on a prior release already existing -- unlike the
             // staging stage below, which targets an already-running release
             // built from a DIFFERENT chart lineage and has no in-repo
-            // values file to be declarative from.        
+            // values file to be declarative from.
+            //
+            // `live`'s shared-services layer
+            // (`commons`/`commons-services` releases, own
+            // Keycloak/Postgres/MinIO) is already deployed and healthy --
+            // no bring-up needed. `live` ALSO already has an existing
+            // `farmer-registry` release (STATUS: failed, pods Running)
+            // that this NEW `livestock-registry` release deploys alongside
            
             // Wrapped in catchError so a problem specific to the dev
             // cluster (still new, less battle-tested than staging) does
@@ -143,10 +173,12 @@ EOF
                             "
 
                             # Dry-run audit trail, same reasoning as staging's own dry-run step.
+                            # Written workspace-relative (not /tmp/...) so archiveArtifacts
+                            # below can actually find it -- see header UPDATE note.
                             helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
                                 \$IMAGE_SET_FLAGS \
-                                > /tmp/dev-rendered-\${BUILD_NUMBER}.yaml
-                            echo "Rendered \$(wc -l < /tmp/dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's own values.yaml plus image overrides only (public hostname untouched -- see header comment). Archived for audit."
+                                > dev-rendered-\${BUILD_NUMBER}.yaml
+                            echo "Rendered \$(wc -l < dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's own values.yaml plus image overrides only (public hostname untouched -- see header comment). Archived for audit."
 
                             # No --atomic here either, same reasoning as staging: if
                             # id-generator's GitLab-403 ImagePullBackOff is present on
@@ -154,8 +186,12 @@ EOF
                             # problem, likely cluster-agnostic — not yet independently
                             # confirmed on dev), --wait would block the full timeout
                             # and auto-rollback would discard a good deploy.
+                            #
+                            # livestock-ci's RBAC is
+                            # deliberately namespace-scoped-only (no ClusterRoleBinding),
+                            # so this flag can only fail here
+                            
                             helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
-                                --create-namespace \
                                 \$IMAGE_SET_FLAGS \
                                 --cleanup-on-fail --timeout 10m
 
@@ -163,7 +199,7 @@ EOF
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui -n \${HELM_NAMESPACE_DEV} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-partner-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
                         """
-                        archiveArtifacts artifacts: '/tmp/dev-rendered-*.yaml', allowEmptyArchive: true
+                        archiveArtifacts artifacts: 'dev-rendered-*.yaml', allowEmptyArchive: true
                     }
                 }
             }
@@ -190,14 +226,33 @@ EOF
                         # by explicitly feeding the just-captured live values back in as
                         # a -f file instead -- this is the actual on-disk equivalent of
                         # what --reuse-values does internally on a real upgrade.
-                        helm get values \${HELM_RELEASE} -n \${HELM_NAMESPACE} -a -o yaml > /tmp/live-values-before-\${BUILD_NUMBER}.yaml
+                        # Written workspace-relative (not /tmp/...) so archiveArtifacts
+                        # below can actually find them
+                        helm get values \${HELM_RELEASE} -n \${HELM_NAMESPACE} -a -o yaml > live-values-before-\${BUILD_NUMBER}.yaml
                         helm template \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
-                            -f /tmp/live-values-before-\${BUILD_NUMBER}.yaml \
+                            -f live-values-before-\${BUILD_NUMBER}.yaml \
                             -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
-                            > /tmp/live-rendered-\${BUILD_NUMBER}.yaml
-                        echo "Rendered \$(wc -l < /tmp/live-rendered-\${BUILD_NUMBER}.yaml) lines against the currently-deployed values (image tags only overridden). Archived for audit."
+                            > live-rendered-\${BUILD_NUMBER}.yaml
+                        echo "Rendered \$(wc -l < live-rendered-\${BUILD_NUMBER}.yaml) lines against the currently-deployed values (image tags only overridden). Archived for audit."
 
-                       
+                        # NOTE (added 2026-09-16, after the first real deploy got stuck twice):
+                        # --atomic (and --wait, which it implies) makes Helm block until
+                        # EVERY Deployment in the release is fully rolled out -- not just
+                        # the ones this overlay touches. `live` has a pre-existing, already
+                        # documented, not-fixable-from-here problem on
+                        # livestock-registry-id-generator (a GitLab container registry
+                        # pull started 403'ing anonymously -- see the outage postmortem's
+                        # "Open -- id-generator GitLab pull failure" section): its current
+                        # ReplicaSet can never finish rolling out, so a --wait'd upgrade
+                        # blocks for the full --timeout on THAT unrelated Deployment, then
+                        # --atomic auto-rolls-back the whole release -- discarding whatever
+                        # real fix this run was trying to land, every single time, until
+                        # id-generator's GitLab access is restored upstream (not an infra
+                        # fix). --cleanup-on-fail is kept (it doesn't require --atomic
+                        # and doesn't wait) for some safety net on a genuine hook failure;
+                        # the explicit `kubectl rollout status` checks below already cover
+                        # verifying the three deployments this pipeline actually cares
+                        # about, without id-generator poisoning the wait.
                         helm upgrade \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
                             --reuse-values -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
                             --cleanup-on-fail --timeout 10m
@@ -206,7 +261,7 @@ EOF
                         kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui -n \${HELM_NAMESPACE} --timeout=180s
                         kubectl rollout status deployment/\${HELM_RELEASE}-partner-api -n \${HELM_NAMESPACE} --timeout=180s
                     """
-                    archiveArtifacts artifacts: '/tmp/live-values-before-*.yaml, /tmp/live-rendered-*.yaml', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'live-values-before-*.yaml, live-rendered-*.yaml', allowEmptyArchive: true
                 }
             }
         }
