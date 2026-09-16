@@ -7,16 +7,18 @@
 // RP_VERSION below (0.0.0-develop.296) is carried over from the original
 // draft as-is
 
+
 pipeline {
     agent { label 'vpn-agent2' }
 
     environment {
         AWS_REGION       = 'ap-south-1'
         ECR_PATH         = 'openg2p/livestock-registry'
-        RP_VERSION       = '0.0.0-develop.296' 
+        RP_VERSION       = '0.0.0-develop.296' // TODO verify — see header note
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
-      
+        // The chart actually running in `live` today — NOT this repo's own
+        // helm/openg2p-livestock-registry. See header comment.
         HELM_CHART_REPO  = 'openg2p'
         HELM_CHART_URL   = 'https://openg2p.github.io/openg2p-helm'
         HELM_CHART_REF   = 'openg2p/openg2p-farmer-registry'
@@ -101,9 +103,21 @@ EOF
 
                         # Dry-run + diff, kept even without a human gate so there's an
                         # audit trail to look at if a deploy ever needs investigating.
+                        #
+                        # NOTE: `helm template` has NO --reuse-values flag -- that flag
+                        # only exists on `helm upgrade`/`helm install`, which manage a
+                        # stored release to reuse values from. `helm template` is a pure
+                        # client-side render with no release state, so passing
+                        # --reuse-values here is a hard error ("unknown flag") that
+                        # aborts the whole stage before the real `helm upgrade` below
+                        # ever runs (Jenkins `sh` steps run with `-e` by default). Fixed
+                        # by explicitly feeding the just-captured live values back in as
+                        # a -f file instead -- this is the actual on-disk equivalent of
+                        # what --reuse-values does internally on a real upgrade.
                         helm get values \${HELM_RELEASE} -n \${HELM_NAMESPACE} -a -o yaml > /tmp/live-values-before-\${BUILD_NUMBER}.yaml
                         helm template \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
-                            --reuse-values -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
+                            -f /tmp/live-values-before-\${BUILD_NUMBER}.yaml \
+                            -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
                             > /tmp/live-rendered-\${BUILD_NUMBER}.yaml
                         echo "Rendered \$(wc -l < /tmp/live-rendered-\${BUILD_NUMBER}.yaml) lines against the currently-deployed values (image tags only overridden). Archived for audit."
 
