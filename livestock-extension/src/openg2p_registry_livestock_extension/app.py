@@ -9,17 +9,28 @@ _config = Settings.get_config()
 from openg2p_fastapi_common.app import Initializer as BaseInitializer
 from openg2p_registry_core.app import Initializer as CoreInitializer
 
-# Two tables that docker/staff-api/core-patches/apply_patches.py adds to the
-# base image's openg2p_registry_core at build time. They are core models, not
-# extension models, but nothing in core migrates them — this stack does not use
-# SQLAlchemy create_all(), it migrates an explicit list (see migrate_database
-# below), and core's own list predates these two. Imported here so they can be
-# added to that list; a plain import, deliberately, so that a patch that stops
-# applying fails loudly at startup instead of silently losing the tables again.
-from openg2p_registry_core.models import (
-    G2PAttributeValueSchedule,
-    G2PAttributeValueSpeciesConfig,
-)
+# Two tables that core-patches/apply_patches.py adds to the base image's
+# openg2p_registry_core at build time. They are core models, not extension
+# models, but nothing in core migrates them — this stack does not use SQLAlchemy
+# create_all(), it migrates an explicit list (see migrate_database below), and
+# core's own list predates these two. Imported here so they can be added to it.
+#
+# Guarded, because this package is installed into THREE images and only two of
+# them carry the patch: staff-api and celery apply it (docker/staff-api and
+# docker/celery both ship a core-patches/), partner-api builds on the stock
+# openg2p-registry-partner-api base and does not. A plain import kills
+# partner-api at module import, before gunicorn can boot a worker — which is
+# exactly what it did. partner-api has no use for these tables either: the
+# attribute controller that reads them lives in staff-api, and without the patch
+# the models are not in its image at all, so there is nothing for it to migrate.
+try:
+    from openg2p_registry_core.models import (
+        G2PAttributeValueSchedule,
+        G2PAttributeValueSpeciesConfig,
+    )
+except ImportError:  # unpatched base image — partner-api
+    G2PAttributeValueSchedule = None
+    G2PAttributeValueSpeciesConfig = None
 
 from .register_domain.models import (
     G2PRegisterFarmer, G2PRegisterHistoryFarmer,
@@ -90,8 +101,17 @@ class Initializer(BaseInitializer):
             # staff API answers 500 on POST /api/attributes/values with
             # UndefinedTableError as soon as the intake form loads its
             # dropdowns — the model is in the image, only the table is missing.
-            await G2PAttributeValueSchedule.create_migrate()
-            await G2PAttributeValueSpeciesConfig.create_migrate()
+            #
+            # Skipped in an image without the patch (partner-api), where the
+            # models do not exist and neither does anything that reads them.
+            if G2PAttributeValueSchedule is not None:
+                await G2PAttributeValueSchedule.create_migrate()
+                await G2PAttributeValueSpeciesConfig.create_migrate()
+            else:
+                _logger.info(
+                    "openg2p_registry_core is unpatched in this image; "
+                    "skipping the attribute schedule/species-config tables"
+                )
 
             # Farmer first: the livestock record carries the farmer's identifiers.
             await G2PRegisterFarmer.create_migrate()
