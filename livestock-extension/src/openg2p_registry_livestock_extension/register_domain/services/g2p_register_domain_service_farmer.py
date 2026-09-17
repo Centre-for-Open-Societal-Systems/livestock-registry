@@ -37,6 +37,18 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
                 require_field(record, "farmer_id", "Farmer ID")
             if "fayda_fan_id" in record:
                 require_field(record, "fayda_fan_id", "Fayda FAN ID")
+            # First/Last Name are the farmer's name on this form (the single
+            # "Farmer Name" input was dropped from the section on 2026-09-14);
+            # widget-required in the section JSON only draws the asterisk, so
+            # the blank check has to live here to actually block the save.
+            # NOT guarded by "key present" like the ids above: the portal
+            # omits empty inputs from the payload altogether, so a blank name
+            # arrives as a missing key and a key-present guard would never
+            # fire. Instead the identity section is recognised by the id keys
+            # it always carries (the Farmer Location section carries neither).
+            if "farmer_id" in record or "fayda_fan_id" in record:
+                require_field(record, "first_name", "First Name")
+                require_field(record, "last_name", "Last Name")
             self._validate_farmer_id(record)
             self._validate_fayda_fan_id(record)
             self._validate_mobile_number(record, "mobile_number")
