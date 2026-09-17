@@ -497,3 +497,61 @@ async def event_already_recorded(
             await session.execute(select(exists().where(_same_event(intake_model))))
         ).scalar()
         return bool(in_intake)
+
+
+def resolve_today_default(record: dict, field: str) -> None:
+    """Replace the literal string "today" in a date field with today's date.
+
+    The intake form gives some date widgets `"widget-data-default": "today"`
+    (Animal registration_date, Vaccination vaccination_date). The platform's
+    staff-ui resolves that token for what it displays, but if the user leaves
+    the picker untouched the submitted value is the literal "today", which
+    the database rejects ("invalid input for query argument ... 'today'") and
+    the whole section save fails with UNEXPECTED_ERROR. Resolving it here on
+    save keeps the default meaningful for the UI and for API clients alike.
+    """
+    value = record.get(field)
+    if isinstance(value, str) and value.strip().lower() == "today":
+        record[field] = date.today().isoformat()
+
+
+async def attribute_value_parent(value_id) -> str | None:
+    """parent_value_id of an attribute value (e.g. LIVESTOCK_BREED_BORAN ->
+    LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->
+    LIVESTOCK_SPECIES_CATTLE). None when the value is unknown or has no parent."""
+    if is_blank(value_id):
+        return None
+    from openg2p_fastapi_common.context import dbengine
+    from openg2p_registry_core.models.g2p_attributes import G2PAttributeValue
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+    async with session_maker() as session:
+        parent = (
+            await session.execute(
+                select(G2PAttributeValue.parent_value_id).where(
+                    G2PAttributeValue.value_id == str(value_id).strip()
+                )
+            )
+        ).scalar()
+    return parent or None
+
+
+async def validate_belongs_to_species(value_id, species, kind: str) -> None:
+    """Reject a breed/vaccine whose catalogue parent is a DIFFERENT species
+    than the one on the record. The dialogs show the full breed and vaccine
+    lists on the official staff-ui (no species filter inside a pop-up), so
+    this is what keeps a goat breed off a cattle record. A value without a
+    parent in the catalogue is left alone."""
+    if is_blank(value_id) or is_blank(species):
+        return
+    parent = await attribute_value_parent(value_id)
+    if parent is None or parent == str(species).strip():
+        return
+    value_label = await humanize_attribute_value(value_id)
+    parent_label = await humanize_attribute_value(parent)
+    species_label = await humanize_attribute_value(species)
+    validation_error(
+        f"{kind} '{value_label}' belongs to species '{parent_label}', not '{species_label}'."
+    )

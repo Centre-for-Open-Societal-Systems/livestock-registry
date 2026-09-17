@@ -15,6 +15,8 @@ from .domain_validation_utils import (
     parse_date,
     secondary_identifier_used_by_other_animal,
     validation_error,
+    resolve_today_default,
+    validate_belongs_to_species,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -58,8 +60,14 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
 
     async def validate_domain_attributes(self, records: list[dict]):
         for record in records:
+            # The dialog's Registration Date defaults to the literal string
+            # "today" on the official staff-ui; resolve it before any check.
+            resolve_today_default(record, "registration_date")
             self._validate_required_fields(record)
             requires_ear_tag, is_flock_species = await get_species_config(record.get("species"))
+            # Breed is a plain (unfiltered) list in the dialog; keep a goat breed
+            # off a cattle record here, server-side.
+            await validate_belongs_to_species(record.get("breed"), record.get("species"), "Breed")
             self._validate_identifier_required(record, requires_ear_tag)
             self._validate_ear_tag_id(record)
             self._validate_quantity(record, is_flock_species)
