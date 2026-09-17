@@ -32,6 +32,8 @@ callable directly for a same-day test without any new UI wiring.
 """
 
 import csv
+
+from .g2p_register_domain_service_animal import _EAR_TAG_PATTERN
 import io
 import logging
 import uuid
@@ -63,7 +65,7 @@ def _parse_date(value: str):
         return None
 
 
-async def import_animals_from_csv(file_bytes: bytes, actor: str, session) -> dict:
+async def import_animals_from_csv(file_bytes: bytes, actor: str, session, filename: str | None = None) -> dict:
     """Parse `file_bytes` as CSV and upsert one Animal row per data row.
     Returns {"total": n, "created": n, "updated": n, "failed": n, "errors": [...]}.
     Commits nothing itself — caller controls the transaction (session.commit()),
@@ -88,17 +90,19 @@ async def import_animals_from_csv(file_bytes: bytes, actor: str, session) -> dic
     ).G2PRegisterLivestock
 
     result = {"total": 0, "created": 0, "updated": 0, "failed": 0, "errors": []}
+    per_holding: dict[str, dict] = {}  # livestock internal_record_id -> counters for the ImportBatch audit row
 
     for row_number, row in enumerate(reader, start=2):  # header is row 1
         result["total"] += 1
+        holding = None  # counters of the holding this row resolves to (for the audit row)
         try:
             livestock_ref = (row.get("livestock_functional_record_id") or "").strip()
             ear_tag_id = (row.get("ear_tag_id") or "").strip()
             species = (row.get("species") or "").strip()
             gender = (row.get("gender") or "").strip().upper()
 
-            if not livestock_ref or not ear_tag_id or not species or not gender:
-                raise ValueError("livestock_functional_record_id, ear_tag_id, species and gender are all required")
+            if not livestock_ref:
+                raise ValueError("livestock_functional_record_id is required")
 
             # A savepoint per row: one bad row (a DB-level constraint error,
             # not just a plain validation ValueError above) rolls back only
@@ -114,6 +118,18 @@ async def import_animals_from_csv(file_bytes: bytes, actor: str, session) -> dic
                 ).scalar()
                 if not livestock:
                     raise ValueError(f"No Livestock record found with functional_record_id '{livestock_ref}'")
+                holding = per_holding.setdefault(
+                    livestock.internal_record_id, {"total": 0, "ok": 0, "failed": 0, "errors": []}
+                )
+                holding["total"] += 1
+
+                # Field checks come after the holding is known, so a rejected
+                # row is counted against its holding's audit row too.
+                if not ear_tag_id or not species or not gender:
+                    raise ValueError("ear_tag_id, species and gender are all required")
+                ear_tag_id = ear_tag_id.upper()
+                if not _EAR_TAG_PATTERN.match(ear_tag_id):
+                    raise ValueError(f"ear_tag_id '{ear_tag_id}' must be ET followed by exactly 10 digits, e.g. ET0000000123")
 
                 existing = (
                     await session.execute(
@@ -144,6 +160,7 @@ async def import_animals_from_csv(file_bytes: bytes, actor: str, session) -> dic
                     existing.record_name = animal_service.construct_record_name(existing.to_dict())
                     existing.search_text = animal_service.construct_search_text(existing.to_dict())
                     result["updated"] += 1
+                    holding["ok"] += 1
                 else:
                     internal_id = str(uuid.uuid4())
                     animal = G2PRegisterAnimal(
@@ -168,13 +185,50 @@ async def import_animals_from_csv(file_bytes: bytes, actor: str, session) -> dic
                         )
                     )
                     result["created"] += 1
+                    holding["ok"] += 1
 
                 await session.flush()
         except Exception as error:
             result["failed"] += 1
             result["errors"].append(f"Row {row_number}: {error}")
+            if holding is not None:
+                holding["failed"] += 1
+                holding["errors"].append(f"Row {row_number}: {error}")
             _logger.warning("Bulk animal import row %d failed: %s", row_number, error)
 
+    # One ImportBatch audit row per holding touched, so the upload shows up
+    # under the holding's Imports & Audit tab like the Old System's import log.
+    if per_holding:
+        G2PRegisterImportBatch = importlib.import_module(
+            "openg2p_registry_extensions.register_domain.models"
+        ).G2PRegisterImportBatch
+        stamp = now.strftime("%Y%m%d-%H%M%S")
+        for index, (livestock_internal_id, counters) in enumerate(per_holding.items(), start=1):
+            batch_reference = f"BULK-{stamp}-{index}"
+            batch = G2PRegisterImportBatch(
+                internal_record_id=str(uuid.uuid4()),
+                link_internal_record_id=livestock_internal_id,
+                record_status="ACTIVE",
+                created_by=actor,
+                created_at=now,
+                last_approved_by=actor,
+                last_approved_at=now,
+                batch_reference=batch_reference,
+                source_system="MANUAL",
+                state="COMPLETED" if counters["failed"] == 0 else "FAILED",
+                import_filename=filename or "upload.csv",
+                total_rows=counters["total"],
+                success_count=counters["ok"],
+                failure_count=counters["failed"],
+                conflict_count=0,
+                error_log="\n".join(counters["errors"]) or None,
+                processed_by=actor,
+                processing_date=now,
+            )
+            batch.record_name = batch_reference
+            batch.search_text = f"{batch_reference} {filename or ''} MANUAL".strip()
+            session.add(batch)
+        await session.flush()
     _logger.info(
         "Bulk animal import: %d row(s), %d created, %d updated, %d failed",
         result["total"], result["created"], result["updated"], result["failed"],

@@ -22,6 +22,8 @@ id_generator:
   id_types:
     livestock:
       id_length: 12
+    animal:
+      id_length: 12
     land:
       id_length: 12
     cluster:

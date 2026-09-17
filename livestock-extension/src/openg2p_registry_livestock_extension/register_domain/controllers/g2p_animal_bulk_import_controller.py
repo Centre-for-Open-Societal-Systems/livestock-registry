@@ -75,7 +75,7 @@ class G2PAnimalBulkImportController(BaseController):
 
             session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
             async with session_maker() as session:
-                result = await import_animals_from_csv(file_bytes, actor, session)
+                result = await import_animals_from_csv(file_bytes, actor, session, filename=file.filename)
                 await session.commit()
             return _envelope(result)
         except ValueError as error:

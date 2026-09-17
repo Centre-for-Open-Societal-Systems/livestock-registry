@@ -115,27 +115,42 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         import importlib
 
         from openg2p_fastapi_common.context import dbengine
-        from sqlalchemy import and_
         from sqlalchemy.ext.asyncio import async_sessionmaker
 
         G2PRegisterVaccineSchedule = importlib.import_module(
             "openg2p_registry_extensions.register_domain.models"
         ).G2PRegisterVaccineSchedule
 
+        # The schedule seed is keyed by bare codes (vaccine_name "ANTHRAX_CATTLE",
+        # species "CATTLE") while the form saves attribute value ids
+        # ("VACCINE_TYPE_ANTHRAX_CATTLE", "LIVESTOCK_SPECIES_CATTLE"). Compare
+        # both sides with the catalogue prefixes stripped so either spelling
+        # matches — without this the lookup never matched a real entry and
+        # next_due_date stayed NULL (no overdue flip, no due-soon/overdue mail).
+        def norm(value) -> str:
+            text = str(value or "").strip().upper()
+            for prefix in ("VACCINE_TYPE_", "LIVESTOCK_SPECIES_", "LIVESTOCK_VACCINE_"):
+                if text.startswith(prefix):
+                    text = text[len(prefix):]
+            return text
+
         session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
         async with session_maker() as session:
-            interval_days = (
+            schedules = (
                 await session.execute(
-                    select(G2PRegisterVaccineSchedule.interval_days).where(
-                        and_(
-                            G2PRegisterVaccineSchedule.vaccine_name == vaccine_type,
-                            G2PRegisterVaccineSchedule.species == species,
-                            G2PRegisterVaccineSchedule.is_active.is_not(False),
-                        )
-                    )
+                    select(
+                        G2PRegisterVaccineSchedule.vaccine_name,
+                        G2PRegisterVaccineSchedule.species,
+                        G2PRegisterVaccineSchedule.interval_days,
+                    ).where(G2PRegisterVaccineSchedule.is_active.is_not(False))
                 )
-            ).scalar()
+            ).all()
 
+        interval_days = None
+        for name, schedule_species, days in schedules:
+            if days is not None and norm(name) == norm(vaccine_type) and norm(schedule_species) == norm(species):
+                interval_days = int(days)
+                break
         if interval_days is None:
             return
 

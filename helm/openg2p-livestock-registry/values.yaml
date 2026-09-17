@@ -87,6 +87,8 @@ registry:
         idTypes:
           livestock:
             idLength: 12
+          animal:
+            idLength: 12
           land:
             idLength: 12
           cluster:

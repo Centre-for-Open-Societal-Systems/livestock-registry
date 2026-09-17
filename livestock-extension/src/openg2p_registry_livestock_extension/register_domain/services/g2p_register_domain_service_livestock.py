@@ -197,6 +197,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         if not livestock_row:
             return
         livestock_row.state = new_state.value
+        livestock_row.state_date = date.today()
         await session.flush()
         _logger.info(
             "Submission %s: state -> %s (stage_order=%s, event_type=%s)",

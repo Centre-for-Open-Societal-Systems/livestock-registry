@@ -47,8 +47,25 @@ def find_stuck_records(engine: Engine, stuck_after_days: int = DEFAULT_STUCK_AFT
     cutoff = as_of - timedelta(days=stuck_after_days)
 
     with engine.connect() as conn:
+        # A submission waiting at Kebele/Woreda/Zone only exists in the INTAKE
+        # tables until its final approval ingests it into the register, so the
+        # intake rows are what can be "stuck". Only FINALIZED submissions count
+        # (a draft nobody has sent for approval is not waiting on anyone), and
+        # the clock starts at the last stage change, or at finalization for a
+        # submission still waiting on its first approver. Register rows are
+        # kept for records re-entering approval through a change request.
         rows = conn.execute(
             text("""
+                SELECT l.internal_record_id, l.functional_record_id, l.farmer_name, l.state,
+                       COALESCE(l.state_date, s.finalized_at::date) AS state_date,
+                       l.kebele, l.woreda, l.zone, l.region
+                FROM g2p_intake_form_livestocks l
+                JOIN g2p_intake_form_submissions s ON s.submission_id = l.submission_id
+                WHERE s.approval_status = 'PENDING'
+                  AND s.finalized_at IS NOT NULL
+                  AND l.state IN ('DRAFT', 'KEBELE_APPROVED', 'WOREDA_APPROVED', 'ZONE_APPROVED')
+                  AND COALESCE(l.state_date, s.finalized_at::date) <= :cutoff
+                UNION ALL
                 SELECT internal_record_id, functional_record_id, farmer_name, state, state_date,
                        kebele, woreda, zone, region
                 FROM g2p_register_livestocks
