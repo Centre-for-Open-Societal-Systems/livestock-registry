@@ -13,7 +13,10 @@ survives rebuilds instead of being silently lost.
 Run at Docker build time only (see docker/staff-api/Dockerfile).
 """
 
+import os
+
 BASE = "/usr/local/lib/python3.12/site-packages/openg2p_registry_core"
+STAFF_API_MAIN = "/usr/local/lib/python3.12/site-packages/openg2p_registry_staff_api/main.py"
 
 
 def apply(path, old, new, label):
@@ -1247,16 +1250,22 @@ apply(
 # its own HMAC signature instead). This file lives in openg2p_registry_
 # staff_api, a different installed package from every fix above, so it needs
 # its own BASE.
-apply(
-    "/usr/local/lib/python3.12/site-packages/openg2p_registry_staff_api/main.py",
-    '''    "/registrant-auth/callback",
+# Only the staff-api image ships openg2p_registry_staff_api. This same script
+# also runs in the partner-api image (see docker/partner-api/Dockerfile), where
+# that package is absent; skip rather than fail so every image gets Fixes 1-5.
+if os.path.exists(STAFF_API_MAIN):
+    apply(
+        STAFF_API_MAIN,
+        '''    "/registrant-auth/callback",
     "/awe/webhooks/decision",
 )''',
-    '''    "/registrant-auth/callback",
+        '''    "/registrant-auth/callback",
     "/awe/webhooks/decision",
     "/livestock/approver-resolver",
 )''',
-    "openg2p_registry_staff_api/main.py: CSRF-exempt approver-resolver endpoint",
-)
+        "openg2p_registry_staff_api/main.py: CSRF-exempt approver-resolver endpoint",
+    )
+else:
+    print("SKIP: openg2p_registry_staff_api not installed in this image (partner-api) — Fix 6 not applicable")
 
 print("ALL PATCHES APPLIED")
