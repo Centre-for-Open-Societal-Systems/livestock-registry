@@ -17,6 +17,7 @@ from .domain_validation_utils import (
     validation_error,
     resolve_today_default,
     validate_belongs_to_species,
+    application_references_of,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -175,6 +176,10 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
            submission's own rows so re-saving an animal you already
            registered isn't flagged as a duplicate of itself.
         """
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
         self_ids = {
             str(record["internal_record_id"])
             for record in records
@@ -199,6 +204,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 record.get("species"),
                 record.get("breed"),
                 exclude_internal_record_ids=self_ids,
+                exclude_application_references=self_refs,
             ):
                 validation_error(
                     f"ear_tag_id '{ear_tag_id}' is already registered to a different "
@@ -214,6 +220,10 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         already rejected a missing one for a species that needed it before
         this runs.
         """
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
         self_ids = {
             str(record["internal_record_id"])
             for record in records
@@ -238,6 +248,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 record.get("species"),
                 record.get("breed"),
                 exclude_internal_record_ids=self_ids,
+                exclude_application_references=self_refs,
             ):
                 validation_error(
                     f"secondary_identifier '{secondary_identifier}' is already "

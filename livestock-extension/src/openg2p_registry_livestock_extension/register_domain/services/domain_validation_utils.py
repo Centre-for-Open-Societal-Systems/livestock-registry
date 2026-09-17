@@ -162,6 +162,7 @@ async def ear_tag_used_by_other_animal(
     species,
     breed,
     exclude_internal_record_ids: set[str] | None = None,
+    exclude_application_references: set[str] | None = None,
 ) -> bool:
     """True if `ear_tag_id`, with this same species and breed, already
     belongs to a DIFFERENT animal — either already approved into the
@@ -202,6 +203,14 @@ async def ear_tag_used_by_other_animal(
         ]
         if exclude_internal_record_ids:
             conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        if exclude_application_references and hasattr(model, "application_reference"):
+            # Rows of the submission being edited (intake table only — the
+            # register table has no application_reference). The platform's
+            # intake form resends already-saved dialog rows WITHOUT their
+            # internal_record_id (edit_action ADD) when a draft is reopened,
+            # so the id exclusion above cannot recognise them; every saved row
+            # of a submission carries the same application_reference, which can.
+            conditions.append(model.application_reference.not_in(exclude_application_references))
         return and_(*conditions)
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
@@ -217,12 +226,12 @@ async def ear_tag_used_by_other_animal(
         ).scalar()
         return bool(in_intake)
 
-
 async def secondary_identifier_used_by_other_animal(
     secondary_identifier: str,
     species,
     breed,
     exclude_internal_record_ids: set[str] | None = None,
+    exclude_application_references: set[str] | None = None,
 ) -> bool:
     """Same check as ear_tag_used_by_other_animal, for `secondary_identifier`
     — the leg band/wing tag/hive number an _EAR_TAG_EXEMPT_SPECIES animal
@@ -250,6 +259,14 @@ async def secondary_identifier_used_by_other_animal(
         ]
         if exclude_internal_record_ids:
             conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        if exclude_application_references and hasattr(model, "application_reference"):
+            # Rows of the submission being edited (intake table only — the
+            # register table has no application_reference). The platform's
+            # intake form resends already-saved dialog rows WITHOUT their
+            # internal_record_id (edit_action ADD) when a draft is reopened,
+            # so the id exclusion above cannot recognise them; every saved row
+            # of a submission carries the same application_reference, which can.
+            conditions.append(model.application_reference.not_in(exclude_application_references))
         return and_(*conditions)
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
@@ -264,7 +281,6 @@ async def secondary_identifier_used_by_other_animal(
             await session.execute(select(exists().where(_same_animal_key(G2PIntakeFormAnimal))))
         ).scalar()
         return bool(in_intake)
-
 
 async def get_animal_species(ear_tag_id: str) -> str | None:
     """The species already recorded against ear_tag_id under Livestock
