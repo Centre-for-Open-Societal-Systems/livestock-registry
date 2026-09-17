@@ -190,15 +190,13 @@ registry:
       virtualservice:
         host: "partner-livestock-registry.live.openg2p.test"
 
-  # Both celery pods have been OOMKilled at the chart's own limits since the
-  # first deploy — verified from lastState.terminated (reason=OOMKilled,
-  # exit=137) with 197 and 199 restarts respectively. Raised one step; right-
-  # size with `kubectl top pod` once they have stayed up for a while.
-  celeryWorker:
-    resources:
-      limits:
-        memory: 4Gi        # chart default 2560Mi
-  celeryBeat:
-    resources:
-      limits:
-        memory: 3Gi        # chart default 1536Mi
+  # NOTE: the celery memory bumps that were here (worker 4Gi, beat 3Gi) have
+  # been removed. They treated the symptom. Both pods were OOMKilled because
+  # celery forks one prefork process per CPU core of the NODE — 48 on this box
+  # — not because the work needs the memory; the beat producer went on being
+  # OOMKilled at 3Gi. The concurrency is now pinned in the chart's own
+  # values.yaml, where it belongs (it is wrong on any multi-core host, not just
+  # this one), and the chart's default limits are ample at that setting: the
+  # farmer-registry release on this same node runs concurrency 4 inside the
+  # same defaults and uses 340Mi. Raising limits here again would only hide a
+  # regression in that setting.

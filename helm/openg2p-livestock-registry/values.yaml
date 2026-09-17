@@ -32,14 +32,31 @@ registry:
     image:
       repository: openg2p/openg2p-livestock-registry-partner-api
       tag: 0.0.0-develop
+  # Celery prefork concurrency. Celery's default is one worker process per CPU
+  # core of the HOST, not per the container's CPU limit — so on a 48-core node
+  # both pods fork 48 Python processes and the memory they need has nothing to
+  # do with the work they are actually doing. That is what OOMKilled the beat
+  # producer (exit 137) on every deploy to the dev box, and it gets worse each
+  # time the node is made bigger.
+  #
+  # 4 is not a guess: the farmer-registry release running in the same namespace
+  # on the same node sets exactly this and its two celery pods sit at 340Mi and
+  # 319Mi, against 3162Mi for this chart's worker at concurrency 48. The chart
+  # version this overlay pins (openg2p-registry 0.0.0-develop.296) dropped the
+  # flag from its own defaults; these two lines put it back. Everything else in
+  # each string is the subchart's default, unchanged.
   celeryWorker:
     image:
       repository: openg2p/openg2p-livestock-registry-celery
       tag: 0.0.0-develop
+    envVars:
+      CELERY_OPTS: "worker -Q registry_worker_queue --loglevel=info --concurrency=4"
   celeryBeat:
     image:
       repository: openg2p/openg2p-livestock-registry-celery
       tag: 0.0.0-develop
+    envVars:
+      CELERY_OPTS: "worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db --concurrency=4"
   dbSeed:
     image:
       repository: openg2p/openg2p-livestock-registry-db-seed
