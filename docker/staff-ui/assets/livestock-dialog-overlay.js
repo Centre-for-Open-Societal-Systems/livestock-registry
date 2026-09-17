@@ -11,10 +11,13 @@
  * animal of this submission). This script only restores the guidance on
  * screen; if it fails or is absent nothing breaks.
  *
- *   - Animal dialog: choosing a Species hides the breeds of other species.
- *   - Event dialogs (Health / Vaccination / Vital / Breeding): the typed Ear
- *     Tag gets a suggestion list of this submission's animals; on the
- *     Vaccination dialog the Vaccine list is narrowed to that animal's species.
+ *   - Animal dialog: choosing a Species hides the breeds of other species;
+ *     Age is shown live under Date of Birth as it is typed.
+ *   - Event dialogs (Health / Vaccination / Vital / Breeding): a dropdown of
+ *     this submission's animals sits under the Ear Tag field (typing still
+ *     works, with suggestions); once a tag names one of those animals its
+ *     species / breed / sex / age are shown beside it; on the Vaccination
+ *     dialog the Vaccine list is narrowed to that animal's species.
  *
  * Data comes only from the portal's own endpoints (same-origin, same session):
  *   POST /api/attributes/values               -> every value with parent_value_id
@@ -84,7 +87,10 @@
       // an animal row: has ear_tag_id + breed, and is not an event row
       if (o.ear_tag_id && ("breed" in o) && !("event_type" in o) && !("vaccine_type" in o)) {
         var tag = String(o.ear_tag_id).trim().toUpperCase();
-        if (tag && !seen[tag]) { seen[tag] = true; out.push({ tag: tag, species: o.species || "", breed: o.breed || "" }); }
+        if (tag && !seen[tag]) {
+          seen[tag] = true;
+          out.push({ tag: tag, species: o.species || "", breed: o.breed || "", gender: o.gender || "", dob: o.date_of_birth || "", age: o.age || "" });
+        }
       }
       Object.keys(o).forEach(function (k) { walk(o[k]); });
     })(json);
@@ -98,6 +104,26 @@
       (map[p] = map[p] || {})[v.value_id] = true;
     });
     return map;
+  }
+  function ageFrom(dob) {
+    if (!dob) return "";
+    var d = new Date(dob); if (isNaN(d.getTime())) return "";
+    var now = new Date(); var years = now.getFullYear() - d.getFullYear(); var months = now.getMonth() - d.getMonth();
+    if (now.getDate() < d.getDate()) months -= 1;
+    if (months < 0) { years -= 1; months += 12; }
+    if (years < 0) return "";
+    return years + " year" + (years === 1 ? "" : "s") + ", " + months + " month" + (months === 1 ? "" : "s");
+  }
+  function describe(a) {
+    var parts = [pretty(a.species, "LIVESTOCK_SPECIES_")];
+    if (a.breed) parts.push(pretty(a.breed, "LIVESTOCK_BREED_"));
+    if (a.gender) parts.push(pretty(a.gender, ""));
+    var age = a.age || ageFrom(a.dob); if (age) parts.push("age " + age);
+    return parts.join(" \u00b7 ");
+  }
+  var CONTROL_CLASS = "w-full sm:w-[180px] max-w-full h-[30px] px-3 border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white";
+  function infoLine(id) {
+    var el = document.createElement("div"); el.id = id; el.className = "text-sm text-gray-600 mt-1"; el.style.minHeight = "1.25rem"; return el;
   }
   function pretty(id, prefix) { return String(id || "").replace(prefix, "").replace(/_/g, " ").toLowerCase().replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
 
@@ -136,6 +162,13 @@
   function wireAnimal(dialog) {
     var species = control(dialog, /^Species\b/, "select");
     var breed = control(dialog, /^Breed\b/, "select");
+    var dob = control(dialog, /^Date of Birth\b/, "input");
+    if (dob) {
+      var box = dob.parentElement; while (box && box.parentElement && !/flex-1/.test(box.className)) box = box.parentElement;
+      var out = infoLine("lr-age-live"); (box || dob.parentElement).appendChild(out);
+      var showAge = function () { var a = ageFrom(dob.value); out.textContent = a ? "Age: " + a : ""; };
+      dob.addEventListener("input", showAge); dob.addEventListener("change", showAge); showAge();
+    }
     if (!species || !breed) return;
     attributeValues(BREED_ATTR).then(function (list) {
       var map = byParent(list);
@@ -163,6 +196,24 @@
       ear.setAttribute("list", "lr-ear-tag-suggestions");
       ear.setAttribute("autocomplete", "off");
       if (animals.length && !ear.getAttribute("placeholder")) ear.setAttribute("placeholder", "Pick or type an ear tag of this form");
+
+      // a real dropdown of this form's animals + a description line, under the field
+      var box = ear.parentElement; while (box && box.parentElement && !/flex-1/.test(box.className)) box = box.parentElement;
+      var host = box || ear.parentElement;
+      var pick = document.createElement("select"); pick.className = CONTROL_CLASS + " mt-1"; pick.id = "lr-animal-pick";
+      var ph = document.createElement("option"); ph.value = ""; ph.textContent = animals.length ? "Pick an animal of this form\u2026" : "No animals saved on this form yet"; pick.appendChild(ph);
+      animals.forEach(function (a) { var o = document.createElement("option"); o.value = a.tag; o.textContent = a.tag + " \u2014 " + describe(a); pick.appendChild(o); });
+      var info = infoLine("lr-animal-info");
+      host.appendChild(pick); host.appendChild(info);
+      var find = function () { var t = String(ear.value || "").trim().toUpperCase(); for (var i = 0; i < animals.length; i++) if (animals[i].tag === t) return animals[i]; return null; };
+      var reflect = function () {
+        var a = find(); var t = String(ear.value || "").trim();
+        pick.value = a ? a.tag : "";
+        info.textContent = a ? describe(a) : (t ? "Not an animal of this form \u2014 add it under Livestock Details first" : "");
+        info.style.color = a || !t ? "" : "#b91c1c";
+      };
+      pick.addEventListener("change", function () { if (pick.value) setValue(ear, pick.value); reflect(); });
+      ear.addEventListener("input", reflect); ear.addEventListener("change", reflect); reflect();
 
       var vaccine = control(dialog, /^Vaccine\b/, "select");
       if (!vaccine) return;
