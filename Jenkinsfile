@@ -113,16 +113,31 @@ EOF
             // idgenerator pools, sanity regType/scopes, iamRegister
             // description, dbSeed loader flags) is registry-correct as
             // committed and isn't CI's to touch. So this stage overrides
-            // ONLY the one thing that's genuinely CI-owned: the six image
-            // refs (repository+tag, via --set, matching this pipeline's
-            // Build & Push stage). `global.registryHostname` is
-            // DELIBERATELY left at the chart's own default -- see the
-            // routing comment in this file's header for why overriding it
-            // to the public hostname would collide with the separate,
-            // hand-applied `pub-staff-portal-ui` VirtualService that
-            // actually owns public routing in `live` today. Cutting the
-            // public hostname over to this release is a separate, manual,
-            // one-time step, not something this stage does.
+            // the six image refs that are genuinely CI-owned (repository+tag,
+            // via --set, matching this pipeline's Build & Push stage) and
+            // layers values-dev.yaml on top for everything that belongs to
+            // the DEV CLUSTER rather than to the registry.
+            //
+            // values-dev.yaml was added because deploying values.yaml as-is
+            // did not work: the chart's defaults address the release on
+            // `*.<namespace>.openg2p.org`, a domain that does not exist on
+            // this box. The pods ran, but on hostnames nothing resolved and
+            // no Istio Gateway admitted -- so dev went on serving the August
+            // hand-installed `farmer-registry` release and none of the
+            // September merges were visible on the dev URL. That file also
+            // carries the dev cluster's MinIO endpoint (the placeholder one
+            // failed db-seed, which took the release to `failed`), the moved
+            // GitLab path for id-generator, and memory limits for the two
+            // celery pods, both of which were being OOMKilled at the chart
+            // defaults. Each override is justified in place there.
+            //
+            // It sets `global.registryHostname` to the public dev hostname,
+            // so the release's OWN staff-ui VirtualService owns that URL and
+            // every merge reaches it with no manual step. That replaces the
+            // hand-applied `pub-staff-portal-ui` VirtualService, which has to
+            // be deleted ONCE -- see README-dev.md next to values-dev.yaml.
+            // Until it is, it and this release's VirtualService claim the
+            // same host on the same Gateway, and the older one wins.
             //
             // `helm upgrade --install` (not `--reuse-values`) is used
             // deliberately: every run supplies the full intended value set
@@ -176,9 +191,20 @@ EOF
                             # Written workspace-relative (not /tmp/...) so archiveArtifacts
                             # below can actually find it -- see header UPDATE note.
                             helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
+                                -f ./helm/openg2p-livestock-registry/values-dev.yaml \
                                 \$IMAGE_SET_FLAGS \
                                 > dev-rendered-\${BUILD_NUMBER}.yaml
-                            echo "Rendered \$(wc -l < dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's own values.yaml plus image overrides only (public hostname untouched -- see header comment). Archived for audit."
+                            echo "Rendered \$(wc -l < dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's values.yaml + values-dev.yaml + image overrides. Archived for audit."
+
+                            # Guard against exactly the failure described above: a
+                            # render still carrying the chart's placeholder domain
+                            # means the dev overlay did not take effect, and the
+                            # deploy would land on hostnames nothing resolves.
+                            if grep -q 'openg2p\\.org' dev-rendered-\${BUILD_NUMBER}.yaml; then
+                                echo "FATAL: rendered manifests still reference the placeholder domain openg2p.org:"
+                                grep -n 'openg2p\\.org' dev-rendered-\${BUILD_NUMBER}.yaml | head -20
+                                exit 1
+                            fi
 
                             # No --atomic here either, same reasoning as staging: if
                             # id-generator's GitLab-403 ImagePullBackOff is present on
@@ -192,6 +218,7 @@ EOF
                             # so this flag can only fail here
                             
                             helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
+                                -f ./helm/openg2p-livestock-registry/values-dev.yaml \
                                 \$IMAGE_SET_FLAGS \
                                 --cleanup-on-fail --timeout 10m
 

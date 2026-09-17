@@ -1,0 +1,204 @@
+# values-dev.yaml — the dev cluster (gen2 sandbox box, namespace `live`).
+# Passed with -f by the Jenkinsfile's "Deploy to Development" stage.
+#
+# WHY THIS FILE EXISTS
+# That stage used to deploy the chart's own values.yaml unchanged plus the six
+# CI image refs, on the reasoning that everything else is "registry-correct as
+# committed". It isn't, for this cluster: the chart's defaults are generic
+# placeholders on `*.<namespace>.openg2p.org`, a domain that does not exist
+# here. The release therefore came up addressed to hostnames nothing resolves
+# and no Istio Gateway admits, which is why dev kept serving the August
+# hand-installed `farmer-registry` release instead — the new pods were running
+# but unreachable, so the public URL was never cut over to them.
+#
+# Every key below is an override of a chart DEFAULT, not a preference. Each one
+# is a placeholder that is wrong for this cluster, or a resource limit this
+# workload has been observed to exceed. Nothing else is touched.
+#
+# Evidence for each is in the comment above it, gathered from the live cluster
+# on 2026-09-17 (release `livestock-registry` rev 2, chart 0.0.0-develop,
+# subchart openg2p-registry 0.0.0-develop.296).
+
+# ── Globals ───────────────────────────────────────────────────────────────────
+# The `&global` anchor is re-used under `registry:` (and again under
+# `registry.idgenerator:`) below. Helm does NOT propagate a parent chart's
+# top-level `global:` across an ALIASED dependency boundary, so a global set
+# only here never reaches the openg2p-registry subchart that owns every
+# template that matters. Same workaround, same reason, as values-live.yaml.
+global: &global
+  # The dev URL people actually open, and the only name on this box with a
+  # Let's Encrypt cert for this registry (nginx block
+  # openg2p-public-livestock-dev.conf; A record -> 65.2.237.75).
+  #
+  # THIS IS THE CUTOVER. With it, the release's own staff-ui VirtualService
+  # owns the public dev hostname, so every merge to develop reaches that URL
+  # by itself. Chart default: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.org'
+  # -> "livestock-registry.live.openg2p.org", which resolves nowhere.
+  #
+  # One-time manual step that must accompany the first deploy carrying this
+  # file: delete the hand-applied VirtualService `pub-staff-portal-ui`, which
+  # claims the same host on the same Gateway and points at the old August
+  # deployment. Two VirtualServices on one host+gateway with the same prefix
+  # conflict, and the older one wins — so until it is deleted, this has no
+  # effect. See the README section added alongside this file.
+  registryHostname: "livestock-registry-development.oanstaging.com"
+
+  # id-generator's hostname is a SEPARATE key — it is not derived from
+  # registryHostname (see values-live.yaml fix #2 for the full explanation).
+  # Left at its default it renders "idgenerator-livestock-registry.live.openg2p.org".
+  # The id-generator API is internal-only here: no public DNS, no cert, and
+  # nothing outside the cluster calls it, so it stays on the internal domain
+  # that the `internal` Gateway actually admits (`*.live.openg2p.test`).
+  idGeneratorHostname: "idgenerator-livestock-registry.live.openg2p.test"
+
+  # Browser-facing Keycloak for this environment. Chart default
+  # 'https://keycloak.{{ .Release.Namespace }}.openg2p.org' resolves nowhere;
+  # global.keycloakIssuerUrl and the UI's logout URL both derive from this.
+  # This is the same Keycloak the URL already uses today — confirmed by the
+  # live /api/login redirect from livestock-registry-development.oanstaging.com.
+  keycloakBaseUrl: "https://keycloak-livestock-development.oanstaging.com"
+
+  # Where AWE posts its decision callback. Derived from
+  # 'https://staff-{{ registryHostname }}/...' — which now follows the public
+  # hostname onto "staff-livestock-registry-development.oanstaging.com", a name
+  # that has no DNS. Pinning staffApi.hostname below does NOT cover this: the
+  # callback URL is built from registryHostname directly, not from the API's own
+  # hostname. Points at the staff API's real internal host instead.
+  aweDefaultCallbackUrl: "https://staff-livestock-registry.live.openg2p.test/awe/webhooks/decision"
+
+  # AWE's hostname is another independent key, also defaulted to a dead
+  # '.openg2p.org' placeholder (global.aweBaseUrl derives from it). Server-side
+  # only — staff-api calls it in-cluster and the db-seed AWE callback URL is
+  # built from it. Pre-existing breakage inherited by the old release too; one
+  # line to fix, drop it if AWE in `live` is meant to stay off.
+  aweHostname: "awe.live.openg2p.test"
+
+  # MinIO. The chart default 'minio-api.{{ .Release.Namespace }}.openg2p.org'
+  # is what the failed db-seed job was given (verified in the job's env:
+  # MINIO_ENDPOINT=minio-api.live.openg2p.org, MINIO_SECURE=true) — an
+  # unresolvable host, so every upload in the seed fails and takes the
+  # post-upgrade hook, and with it the whole release, to `failed`.
+  #
+  # Pointing it at the in-cluster Service instead of the external Istio host is
+  # the same combination already proven in `far`: the external host presents
+  # the box's self-signed CA, which the seed's S3 client rejects outright
+  # (CERTIFICATE_VERIFY_FAILED). The documented cost is that pre-signed
+  # document URLs are then in-cluster addresses a browser cannot follow — but
+  # that is already true on this box, where MinIO has no public nginx block at
+  # all, so this is not a regression. CSP_SRC_IMG is pinned below so the
+  # browser policy still names the browser-facing host.
+  minioHost: "commons-minio:9000"
+  minioSecure: false
+
+# ── openg2p-registry subchart ─────────────────────────────────────────────────
+registry:
+  global: *global
+
+  idgenerator:
+    # Third chart layer (openg2p-livestock-registry -> registry -> idgenerator),
+    # so the globals need repeating at this boundary too.
+    global: *global
+    idGenerator:
+      image:
+        # GitLab moved its OpenG2P projects under platform-services/ and the old
+        # paths now refuse anonymous pulls, which is why this Deployment has sat
+        # in ImagePullBackOff since the first deploy. Verified against the
+        # registry on 2026-09-17: the old path answers 401/403 to an anonymous
+        # token request, the path below answers 200 for this same tag. Identical
+        # image, current location; the tag stays at the chart default.
+        repository: registry.gitlab.com/openg2p/platform-services/id-generator/openg2p-id-generator
+
+  staffUi:
+    # The `internal` Gateway admits only `live.openg2p.test` and
+    # `*.live.openg2p.test`, so a VirtualService carrying the public hostname
+    # above would bind to it and match nothing. `public-oanstaging` is the
+    # Gateway that already terminates the three public dev names.
+    istio:
+      virtualservice:
+        gateway: "public-oanstaging"
+
+    # Browser-facing IAM. Chart default is the '.openg2p.org' placeholder; this
+    # is the host the working public login flow uses today, served by the
+    # commons-services-iam-staff-portal-api-pub Deployment.
+    iamPublicUrl: "https://staff-iam-livestock-development.oanstaging.com"
+
+    # Derived from registryHostname by default, which would now make it
+    # "partner-livestock-registry-development.oanstaging.com" — a name with no
+    # DNS and no cert. The partner API stays internal (see partnerApi below).
+    partnerIngestUrl: "https://partner-livestock-registry.live.openg2p.test/partner/ingest_data?data_model=dcivc"
+
+    envVars:
+      # Session cookie must cover the public hostname; the default is
+      # '.{{ .Release.Namespace }}.openg2p.org'. A mismatch here is the classic
+      # login redirect loop.
+      COOKIE_DOMAIN: ".oanstaging.com"
+
+      # Which row of IAM's `login_providers` table the UI hands to IAM. Row 1 is
+      # the internal .test issuer; row 2 is the public one. Value taken from the
+      # deployment serving this URL today (farmer-registry-staff-portal-ui-pub),
+      # not guessed — the login_providers table itself was not read.
+      LOGIN_PROVIDER_ID: "2"
+
+      # Also carried over from that deployment. Not a key this chart version
+      # templates, and not referenced anywhere in this repo — it belongs to the
+      # base staff-ui image. Harmless if the current base ignores it.
+      COMMON_AUTH_DEFAULT_ISSUERS: '["https://keycloak-livestock-development.oanstaging.com/realms/staff"]'
+
+      # Derived from global.minioHost by default, which is now the in-cluster
+      # Service. Pinned to the browser-facing MinIO host so the Content-Security-
+      # Policy keeps naming the same origin it names today. (Images still are not
+      # reachable from a public browser on this box — pre-existing, unchanged.)
+      CSP_SRC_IMG: "self blob: data: https://minio-api.live.openg2p.test"
+
+      # Node ships its own CA bundle and ignores the OS trust store, so any
+      # server-side fetch from this Next.js app to a '.test' host fails with
+      # SELF_SIGNED_CERT_IN_CHAIN and surfaces as a 500 on /api/login. The public
+      # hostnames above carry real Let's Encrypt certs and do not need this, but
+      # the deployment serving this URL today mounts it, so it is kept for parity
+      # rather than discovered missing later. NODE_EXTRA_CA_CERTS APPENDS to
+      # Node's built-ins — public TLS is unaffected.
+      NODE_EXTRA_CA_CERTS: /openg2p-ca/ca.crt
+
+    # The CA the variable above points at. `openg2p-ca-cert` is created in every
+    # environment namespace by the box's own infra automation.
+    #
+    # These MUST sit under the component key, not at `registry.` root: each
+    # component template rebinds `.Values` to its own sub-tree, so a root-level
+    # extraVolumes is silently ignored — no error, and the release still reports
+    # deployed. (The August release has exactly that mistake.)
+    extraVolumes:
+      - name: openg2p-ca
+        configMap:
+          name: openg2p-ca-cert
+    extraVolumeMounts:
+      - name: openg2p-ca
+        mountPath: /openg2p-ca
+        readOnly: true
+
+  # Staff and partner APIs keep the internal hostnames they have today. Both
+  # derive from registryHostname by default, so without these they would follow
+  # it onto the public domain, where they have neither DNS nor a certificate —
+  # and the `internal` Gateway would stop admitting them.
+  staffApi:
+    hostname: "staff-livestock-registry.live.openg2p.test"
+    istio:
+      virtualservice:
+        host: "staff-livestock-registry.live.openg2p.test"
+  partnerApi:
+    hostname: "partner-livestock-registry.live.openg2p.test"
+    istio:
+      virtualservice:
+        host: "partner-livestock-registry.live.openg2p.test"
+
+  # Both celery pods have been OOMKilled at the chart's own limits since the
+  # first deploy — verified from lastState.terminated (reason=OOMKilled,
+  # exit=137) with 197 and 199 restarts respectively. Raised one step; right-
+  # size with `kubectl top pod` once they have stayed up for a while.
+  celeryWorker:
+    resources:
+      limits:
+        memory: 4Gi        # chart default 2560Mi
+  celeryBeat:
+    resources:
+      limits:
+        memory: 3Gi        # chart default 1536Mi
