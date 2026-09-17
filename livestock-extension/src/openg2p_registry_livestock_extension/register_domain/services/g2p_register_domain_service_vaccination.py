@@ -9,6 +9,11 @@ from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
+    fill_species_from_animal,
+    first_application_reference,
+    resolve_today_default,
+    validate_belongs_to_species,
+    ensure_ear_tags_belong_to_submission,
 )
 
 # Kept as its own import line rather than folded into the block above: the
@@ -41,9 +46,21 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        # The platform hands us this section's rows with no submission context;
+        # rows it has already saved carry their application_reference, which
+        # scopes the ear-tag check to this submission's own animals.
+        batch_reference = first_application_reference(records)
         for record in records:
+            # Ear tag is typed (no animal picker inside dialogs on the official
+            # staff-ui): check the tag itself first so a typo is reported as a
+            # typo, then derive the read-only Species from that animal.
+            await self._validate_ear_tag_exists(record, batch_reference)
+            await fill_species_from_animal(record)
+            resolve_today_default(record, "vaccination_date")
             self._validate_required_fields(record)
-            await self._validate_ear_tag_exists(record)
+            # Vaccine is a plain (unfiltered) list in the dialog; keep a goat vaccine
+            # off a cattle animal here, server-side.
+            await validate_belongs_to_species(record.get("vaccine_type"), record.get("species"), "Vaccine")
             await validate_species_matches(record)
             self._validate_not_in_future(record, "vaccination_date")
             await self._populate_next_due_date(record)
@@ -55,11 +72,11 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             if is_blank(record.get(field)):
                 validation_error(f"Please provide the {label} before saving the record.")
 
-    async def _validate_ear_tag_exists(self, record: dict) -> None:
+    async def _validate_ear_tag_exists(self, record: dict, application_reference: str | None = None) -> None:
         value = record.get("ear_tag_id")
         if value is None or str(value).strip() == "":
             return
-        if not await ear_tag_exists(str(value).strip()):
+        if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
             validation_error(
                 "ear_tag_id does not match any registered or drafted animal. "
                 "Add it under Livestock Details first, or check for a typo."
@@ -291,3 +308,8 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
                     f"Vaccine '{vaccine_label}' for ear tag '{ear_tag_id}' on {on} "
                     "is already recorded."
                 )
+
+    async def post_intake_upsert(self, rows: list, session) -> None:
+        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission):
+        only here do the rows carry the submission reference."""
+        await ensure_ear_tags_belong_to_submission(rows)
