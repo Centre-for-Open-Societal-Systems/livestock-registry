@@ -9,6 +9,18 @@ _config = Settings.get_config()
 from openg2p_fastapi_common.app import Initializer as BaseInitializer
 from openg2p_registry_core.app import Initializer as CoreInitializer
 
+# Two tables that docker/staff-api/core-patches/apply_patches.py adds to the
+# base image's openg2p_registry_core at build time. They are core models, not
+# extension models, but nothing in core migrates them — this stack does not use
+# SQLAlchemy create_all(), it migrates an explicit list (see migrate_database
+# below), and core's own list predates these two. Imported here so they can be
+# added to that list; a plain import, deliberately, so that a patch that stops
+# applying fails loudly at startup instead of silently losing the tables again.
+from openg2p_registry_core.models import (
+    G2PAttributeValueSchedule,
+    G2PAttributeValueSpeciesConfig,
+)
+
 from .register_domain.models import (
     G2PRegisterFarmer, G2PRegisterHistoryFarmer,
     G2PRegisterLivestock, G2PRegisterHistoryLivestock,
@@ -71,6 +83,15 @@ class Initializer(BaseInitializer):
 
         async def migrate():
             _logger.info("Migrating extensions database")
+
+            # The two tables the core patches add (see the import above). No
+            # foreign keys point at them and they hold per-attribute-value
+            # config, so they come first and stand alone. Without these the
+            # staff API answers 500 on POST /api/attributes/values with
+            # UndefinedTableError as soon as the intake form loads its
+            # dropdowns — the model is in the image, only the table is missing.
+            await G2PAttributeValueSchedule.create_migrate()
+            await G2PAttributeValueSpeciesConfig.create_migrate()
 
             # Farmer first: the livestock record carries the farmer's identifiers.
             await G2PRegisterFarmer.create_migrate()
