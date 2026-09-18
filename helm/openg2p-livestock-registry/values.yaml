@@ -85,6 +85,8 @@ registry:
     idGenerator:
       appConfig:
         idTypes:
+          farmer:
+            idLength: 10
           livestock:
             idLength: 12
           animal:
