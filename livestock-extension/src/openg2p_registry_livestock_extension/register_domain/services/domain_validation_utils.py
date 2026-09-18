@@ -282,17 +282,44 @@ async def secondary_identifier_used_by_other_animal(
         ).scalar()
         return bool(in_intake)
 
+def format_age(birth_date: date | None) -> str | None:
+    """The Age display string for a date of birth ("2 years, 8 months"), the
+    same way `g2p.livestock.registry.line._compute_age` did in the Odoo
+    module. One implementation for the Animal row and for the event rows that
+    copy the animal's age, so the two can never drift apart."""
+    if birth_date is None:
+        return None
+    today = date.today()
+    years = today.year - birth_date.year
+    months = today.month - birth_date.month
+    if today.day < birth_date.day:
+        months -= 1
+    if months < 0:
+        years -= 1
+        months += 12
+    if years < 0:
+        return None
+    return f"{years} years, {months} months"
+
+
 async def get_animal_species(ear_tag_id: str) -> str | None:
     """The species already recorded against ear_tag_id under Livestock
-    Details, or None if the ear tag isn't known anywhere. Checks the
-    approved register first (authoritative), then falls back to any
-    in-progress intake draft.
+    Details, or None if the ear tag isn't known anywhere."""
+    species, _ = await get_animal_species_and_birth_date(ear_tag_id)
+    return species
+
+
+async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None, date | None]:
+    """The (species, date_of_birth) already recorded against ear_tag_id under
+    Livestock Details, or (None, None) if the ear tag isn't known anywhere.
+    Checks the approved register first (authoritative), then falls back to
+    any in-progress intake draft.
 
     Same scoping caveat as ear_tag_exists: this is a global lookup by ear
     tag, not scoped to the farmer/record currently being edited.
     """
     if is_blank(ear_tag_id):
-        return None
+        return None, None
 
     from openg2p_fastapi_common.context import dbengine
     from sqlalchemy import and_, select
@@ -311,25 +338,18 @@ async def get_animal_species(ear_tag_id: str) -> str | None:
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
-        species = (
-            await session.execute(
-                select(G2PRegisterAnimal.species)
-                .where(_has_species(G2PRegisterAnimal))
-                .order_by(G2PRegisterAnimal.created_at.desc())
-                .limit(1)
-            )
-        ).scalar()
-        if species:
-            return species
-        species = (
-            await session.execute(
-                select(G2PIntakeFormAnimal.species)
-                .where(_has_species(G2PIntakeFormAnimal))
-                .order_by(G2PIntakeFormAnimal.created_at.desc())
-                .limit(1)
-            )
-        ).scalar()
-        return species
+        for model in (G2PRegisterAnimal, G2PIntakeFormAnimal):
+            row = (
+                await session.execute(
+                    select(model.species, model.date_of_birth)
+                    .where(_has_species(model))
+                    .order_by(model.created_at.desc())
+                    .limit(1)
+                )
+            ).first()
+            if row and row[0]:
+                return row[0], parse_date(row[1])
+        return None, None
 
 
 async def humanize_attribute_value(value_id: str | None) -> str:
@@ -478,6 +498,7 @@ async def event_already_recorded(
     match: dict,
     exclude_internal_record_ids: set[str] | None = None,
     within_days: tuple | None = None,
+    exclude_application_references: set[str] | None = None,
 ) -> bool:
     """True if an event with these same field values already exists for
     this section — approved into the register, or drafted under any intake
@@ -494,6 +515,13 @@ async def event_already_recorded(
     ear_tag_used_by_other_animal: editing an already-approved event
     resubmits its unchanged key fields, and without excluding its own row it
     would always be found "already recorded" against itself.
+
+    `exclude_application_references` covers the case the id exclusion cannot:
+    on a reopened draft the platform resends already-saved dialog rows
+    WITHOUT their internal_record_id (edit_action ADD), so pass the
+    submission's own application_reference(s) as well — every saved row of a
+    submission carries it (intake table only; the register table has none).
+    Same two-part exclusion as ear_tag_used_by_other_animal.
     """
     from datetime import timedelta
 
@@ -515,6 +543,8 @@ async def event_already_recorded(
             conditions.append(attribute.between(on - timedelta(days=days), on + timedelta(days=days)))
         if exclude_internal_record_ids:
             conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        if exclude_application_references and hasattr(model, "application_reference"):
+            conditions.append(model.application_reference.not_in(exclude_application_references))
         return and_(*conditions)
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
@@ -609,22 +639,26 @@ def application_references_of(records: list[dict]) -> set[str]:
     }
 
 
-async def fill_species_from_animal(record: dict) -> None:
-    """When an event row names an ear tag but no species, copy the species
-    recorded for that animal (register or intake draft) onto the row.
+async def fill_species_and_age_from_animal(record: dict) -> None:
+    """Copy the animal's species (when the row has none) and its current age
+    onto an event row that names an ear tag.
 
-    The event dialogs show species as a read-only field that the original
-    ear-tag dropdown filled in from the selected Animal row; with the ear tag
-    typed in as text on the official staff-ui nothing fills it, and the
-    required-field check would reject every event. The value is derived, so
-    filling it here is authoritative; validate_species_matches still rejects
-    an explicit mismatch.
+    The event dialogs show Species and Age as read-only fields that the
+    original ear-tag dropdown filled in from the selected Animal row; with
+    the ear tag typed in as text on the official staff-ui nothing fills them,
+    so species would fail the required-field check and age would stay blank
+    in the section table and the register. Both values are derived from the
+    animal, so filling them here is authoritative; validate_species_matches
+    still rejects an explicit species mismatch. Age is always recomputed
+    (it is a display value as of today, not independent input).
     """
-    if not is_blank(record.get("species")) or is_blank(record.get("ear_tag_id")):
+    if is_blank(record.get("ear_tag_id")):
         return
-    animal_species = await get_animal_species(str(record["ear_tag_id"]).strip())
-    if animal_species:
+    animal_species, birth_date = await get_animal_species_and_birth_date(str(record["ear_tag_id"]).strip())
+    if animal_species and is_blank(record.get("species")):
         record["species"] = animal_species
+    if birth_date is not None:
+        record["age"] = format_age(birth_date)
 
 
 async def ensure_ear_tags_belong_to_submission(rows: list) -> None:

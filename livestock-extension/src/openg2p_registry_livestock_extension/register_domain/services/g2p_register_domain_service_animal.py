@@ -10,6 +10,7 @@ from .domain_validation_utils import (
     as_float,
     as_int,
     ear_tag_used_by_other_animal,
+    format_age,
     get_species_config,
     is_blank,
     parse_date,
@@ -266,29 +267,12 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             validation_error("weight must be greater than zero")
 
     def _populate_age_from_date_of_birth(self, record: dict) -> None:
-        """Derive the stored Age display string from date_of_birth, the same
-        way `g2p.livestock.registry.line._compute_age` did in the Odoo module.
-        Overwrites whatever was submitted for "age" — it is a display value
-        derived from date_of_birth, not independent input.
+        """Derive the stored Age display string from date_of_birth (shared
+        format_age, same as the event rows). Overwrites whatever was submitted
+        for "age" — it is a display value derived from date_of_birth, not
+        independent input.
         """
-        birth_date = parse_date(record.get("date_of_birth"))
-        if birth_date is None:
-            record["age"] = None
-            return
-        years, months = self._calculate_age_years_months(birth_date)
-        record["age"] = f"{years} years, {months} months"
-
-    @staticmethod
-    def _calculate_age_years_months(birth_date: date) -> tuple[int, int]:
-        today = date.today()
-        years = today.year - birth_date.year
-        months = today.month - birth_date.month
-        if today.day < birth_date.day:
-            months -= 1
-        if months < 0:
-            years -= 1
-            months += 12
-        return years, months
+        record["age"] = format_age(parse_date(record.get("date_of_birth")))
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for animal record")
