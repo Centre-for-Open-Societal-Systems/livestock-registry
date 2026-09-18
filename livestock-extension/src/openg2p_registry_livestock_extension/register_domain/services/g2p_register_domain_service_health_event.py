@@ -9,8 +9,9 @@ from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
-    fill_species_from_animal,
+    fill_species_and_age_from_animal,
     first_application_reference,
+    application_references_of,
     ensure_ear_tags_belong_to_submission,
 )
 
@@ -68,7 +69,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
-            await fill_species_from_animal(record)
+            await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
             await validate_species_matches(record)
@@ -276,6 +277,10 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             for record in records
             if record.get("internal_record_id")
         }
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
         for record in records:
             key = key_of(record)
             if key is None:
@@ -290,6 +295,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
                     "date_onset": onset,
                 },
                 exclude_internal_record_ids=self_ids,
+                exclude_application_references=self_refs,
             ):
                 validation_error(
                     f"A {event_type} health event for ear tag '{ear_tag_id}' on {onset} "

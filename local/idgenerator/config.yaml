@@ -20,7 +20,11 @@ id_generator:
   exhaustion_max_attempts: 1000
   sub_batch_size: 10000
   id_types:
+    farmer:
+      id_length: 10
     livestock:
+      id_length: 12
+    animal:
       id_length: 12
     land:
       id_length: 12

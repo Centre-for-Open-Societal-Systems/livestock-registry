@@ -8,8 +8,9 @@ from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
     ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
-    fill_species_from_animal,
+    fill_species_and_age_from_animal,
     first_application_reference,
+    application_references_of,
     ensure_ear_tags_belong_to_submission,
 )
 
@@ -43,7 +44,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
-            await fill_species_from_animal(record)
+            await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             await validate_species_matches(record)
             self._validate_not_in_future(record, "breeding_date")
@@ -114,6 +115,10 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             for record in records
             if record.get("internal_record_id")
         }
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
 
         seen: list[tuple[str, str, date]] = []
         for record in records:
@@ -135,7 +140,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             seen.append((ear_tag_id, event_type, breeding_date))
 
             if await self._breeding_conflict_exists(
-                ear_tag_id, event_type, breeding_date, self_ids
+                ear_tag_id, event_type, breeding_date, self_ids, self_refs
             ):
                 self._raise_duplicate_breeding_error(event_type)
 
@@ -152,6 +157,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         event_type: str,
         breeding_date: date,
         exclude_internal_record_ids: set[str],
+        exclude_application_references: set[str] | None = None,
     ) -> bool:
         from openg2p_fastapi_common.context import dbengine
         from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -170,6 +176,8 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             ]
             if exclude_internal_record_ids:
                 conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+            if exclude_application_references and hasattr(model, "application_reference"):
+                conditions.append(model.application_reference.not_in(exclude_application_references))
             return and_(*conditions)
 
         session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)

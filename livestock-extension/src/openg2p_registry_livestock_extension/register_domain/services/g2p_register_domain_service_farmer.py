@@ -6,7 +6,14 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 
 from .audit_snapshot import AuditSnapshotMixin
 
-from .domain_validation_utils import parse_date, require_field, validation_error
+from .domain_validation_utils import (
+    compose_farmer_name,
+    is_blank,
+    parse_date,
+    require_field,
+    sync_farmer_identity_to_livestock,
+    validation_error,
+)
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -37,11 +44,33 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
                 require_field(record, "farmer_id", "Farmer ID")
             if "fayda_fan_id" in record:
                 require_field(record, "fayda_fan_id", "Fayda FAN ID")
+            self._fill_farmer_name(record)
             self._validate_farmer_id(record)
             self._validate_fayda_fan_id(record)
             self._validate_mobile_number(record, "mobile_number")
             self._validate_not_in_future(record, "date_of_birth")
             self._validate_not_in_future(record, "registration_date")
+
+    def _fill_farmer_name(self, record: dict) -> None:
+        """Compose farmer_name from First / Middle / Last Name when the payload
+        carries name parts but no farmer_name of its own. The intake form has
+        no farmer_name field, so without this the Farmer register row keeps
+        farmer_name NULL, record_name falls back to the bare FR- id, and the
+        Livestock record's approval-time mirror copies that NULL over the name
+        it had at intake (see G2PRegisterDomainServiceLivestock
+        ._sync_farmer_identity). When the payload carries name parts they are
+        the source of truth (a name corrected on a reopened draft must not
+        keep the old composed value); a payload with no name parts at all
+        (API / migration sending farmer_name only) is left alone."""
+        if not any(key in record for key in ("first_name", "middle_name", "last_name")):
+            return
+        composed = compose_farmer_name(
+            record.get("first_name"), record.get("middle_name"), record.get("last_name")
+        )
+        if composed:
+            record["farmer_name"] = composed
+        elif is_blank(record.get("farmer_name")):
+            record["farmer_name"] = None
 
     def _validate_farmer_id(self, record: dict) -> None:
         value = record.get("farmer_id")
@@ -120,3 +149,14 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
         )
 
         return " ".join(record_name).strip()
+
+    async def post_intake_upsert(self, rows: list, session) -> None:
+        """Right after the Farmer section is saved: copy the farmer's identity
+        onto this submission's Livestock intake row(s) so the deduplication
+        engine (which scores the Livestock register only) has farmer_id /
+        fayda_fan_id / farmer_name at intake — see
+        sync_farmer_identity_to_livestock."""
+        for row in rows:
+            await sync_farmer_identity_to_livestock(
+                session, getattr(row, "application_reference", None), farmer=row
+            )

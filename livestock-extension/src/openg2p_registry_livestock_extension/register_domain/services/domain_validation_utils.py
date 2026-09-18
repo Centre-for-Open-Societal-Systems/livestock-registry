@@ -282,17 +282,44 @@ async def secondary_identifier_used_by_other_animal(
         ).scalar()
         return bool(in_intake)
 
+def format_age(birth_date: date | None) -> str | None:
+    """The Age display string for a date of birth ("2 years, 8 months"), the
+    same way `g2p.livestock.registry.line._compute_age` did in the Odoo
+    module. One implementation for the Animal row and for the event rows that
+    copy the animal's age, so the two can never drift apart."""
+    if birth_date is None:
+        return None
+    today = date.today()
+    years = today.year - birth_date.year
+    months = today.month - birth_date.month
+    if today.day < birth_date.day:
+        months -= 1
+    if months < 0:
+        years -= 1
+        months += 12
+    if years < 0:
+        return None
+    return f"{years} years, {months} months"
+
+
 async def get_animal_species(ear_tag_id: str) -> str | None:
     """The species already recorded against ear_tag_id under Livestock
-    Details, or None if the ear tag isn't known anywhere. Checks the
-    approved register first (authoritative), then falls back to any
-    in-progress intake draft.
+    Details, or None if the ear tag isn't known anywhere."""
+    species, _ = await get_animal_species_and_birth_date(ear_tag_id)
+    return species
+
+
+async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None, date | None]:
+    """The (species, date_of_birth) already recorded against ear_tag_id under
+    Livestock Details, or (None, None) if the ear tag isn't known anywhere.
+    Checks the approved register first (authoritative), then falls back to
+    any in-progress intake draft.
 
     Same scoping caveat as ear_tag_exists: this is a global lookup by ear
     tag, not scoped to the farmer/record currently being edited.
     """
     if is_blank(ear_tag_id):
-        return None
+        return None, None
 
     from openg2p_fastapi_common.context import dbengine
     from sqlalchemy import and_, select
@@ -311,25 +338,18 @@ async def get_animal_species(ear_tag_id: str) -> str | None:
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
-        species = (
-            await session.execute(
-                select(G2PRegisterAnimal.species)
-                .where(_has_species(G2PRegisterAnimal))
-                .order_by(G2PRegisterAnimal.created_at.desc())
-                .limit(1)
-            )
-        ).scalar()
-        if species:
-            return species
-        species = (
-            await session.execute(
-                select(G2PIntakeFormAnimal.species)
-                .where(_has_species(G2PIntakeFormAnimal))
-                .order_by(G2PIntakeFormAnimal.created_at.desc())
-                .limit(1)
-            )
-        ).scalar()
-        return species
+        for model in (G2PRegisterAnimal, G2PIntakeFormAnimal):
+            row = (
+                await session.execute(
+                    select(model.species, model.date_of_birth)
+                    .where(_has_species(model))
+                    .order_by(model.created_at.desc())
+                    .limit(1)
+                )
+            ).first()
+            if row and row[0]:
+                return row[0], parse_date(row[1])
+        return None, None
 
 
 async def humanize_attribute_value(value_id: str | None) -> str:
@@ -478,6 +498,7 @@ async def event_already_recorded(
     match: dict,
     exclude_internal_record_ids: set[str] | None = None,
     within_days: tuple | None = None,
+    exclude_application_references: set[str] | None = None,
 ) -> bool:
     """True if an event with these same field values already exists for
     this section — approved into the register, or drafted under any intake
@@ -494,6 +515,13 @@ async def event_already_recorded(
     ear_tag_used_by_other_animal: editing an already-approved event
     resubmits its unchanged key fields, and without excluding its own row it
     would always be found "already recorded" against itself.
+
+    `exclude_application_references` covers the case the id exclusion cannot:
+    on a reopened draft the platform resends already-saved dialog rows
+    WITHOUT their internal_record_id (edit_action ADD), so pass the
+    submission's own application_reference(s) as well — every saved row of a
+    submission carries it (intake table only; the register table has none).
+    Same two-part exclusion as ear_tag_used_by_other_animal.
     """
     from datetime import timedelta
 
@@ -515,6 +543,8 @@ async def event_already_recorded(
             conditions.append(attribute.between(on - timedelta(days=days), on + timedelta(days=days)))
         if exclude_internal_record_ids:
             conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        if exclude_application_references and hasattr(model, "application_reference"):
+            conditions.append(model.application_reference.not_in(exclude_application_references))
         return and_(*conditions)
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
@@ -609,22 +639,26 @@ def application_references_of(records: list[dict]) -> set[str]:
     }
 
 
-async def fill_species_from_animal(record: dict) -> None:
-    """When an event row names an ear tag but no species, copy the species
-    recorded for that animal (register or intake draft) onto the row.
+async def fill_species_and_age_from_animal(record: dict) -> None:
+    """Copy the animal's species (when the row has none) and its current age
+    onto an event row that names an ear tag.
 
-    The event dialogs show species as a read-only field that the original
-    ear-tag dropdown filled in from the selected Animal row; with the ear tag
-    typed in as text on the official staff-ui nothing fills it, and the
-    required-field check would reject every event. The value is derived, so
-    filling it here is authoritative; validate_species_matches still rejects
-    an explicit mismatch.
+    The event dialogs show Species and Age as read-only fields that the
+    original ear-tag dropdown filled in from the selected Animal row; with
+    the ear tag typed in as text on the official staff-ui nothing fills them,
+    so species would fail the required-field check and age would stay blank
+    in the section table and the register. Both values are derived from the
+    animal, so filling them here is authoritative; validate_species_matches
+    still rejects an explicit species mismatch. Age is always recomputed
+    (it is a display value as of today, not independent input).
     """
-    if not is_blank(record.get("species")) or is_blank(record.get("ear_tag_id")):
+    if is_blank(record.get("ear_tag_id")):
         return
-    animal_species = await get_animal_species(str(record["ear_tag_id"]).strip())
-    if animal_species:
+    animal_species, birth_date = await get_animal_species_and_birth_date(str(record["ear_tag_id"]).strip())
+    if animal_species and is_blank(record.get("species")):
         record["species"] = animal_species
+    if birth_date is not None:
+        record["age"] = format_age(birth_date)
 
 
 async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
@@ -646,3 +680,79 @@ async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
                 f"Ear tag '{str(ear_tag_id).strip()}' is not an animal of this submission. "
                 "Add the animal under Livestock Details first, or check the tag."
             )
+
+
+def compose_farmer_name(first=None, middle=None, last=None) -> str | None:
+    """The farmer's display name from the parts the form collects (First /
+    Middle / Last Name), or None when all three are blank. farmer_name is the
+    Farmer register's display name, a dedup field, and what the Livestock
+    record mirrors, yet nothing composed it once the intake form stopped
+    carrying a farmer_name field of its own."""
+    parts = [str(p).strip() for p in (first, middle, last) if not is_blank(p)]
+    return " ".join(parts) or None
+
+
+async def sync_farmer_identity_to_livestock(session, application_reference, *, farmer=None, livestock_rows=None) -> int:
+    """Mirror the farmer's identity (farmer_id, fayda_fan_id, farmer_name) from
+    the submission's Farmer intake row onto its Livestock intake row(s),
+    overwriting whatever they hold. Returns how many livestock rows changed.
+
+    Overwrite, not fill-blank-only: on a reopened draft the operator may
+    correct the Farmer ID / name in the Farmer section, and the Livestock row
+    must follow or the engine scores the wrong farmer. That is safe because
+    no section of the intake form edits these three fields on the Livestock
+    row any more (the old "Farmer Details" section survives only on the
+    register's view tab), and it matches the approval-time copy in
+    G2PRegisterDomainServiceLivestock._sync_farmer_identity, which also
+    overwrites unconditionally.
+
+    Why: the deduplication engine scores only the main (Livestock) register —
+    the Farmer section embedded in the Livestock intake form is never scored —
+    and the Livestock dedup schema is farmer_id / fayda_fan_id / farmer_name /
+    woreda. Until 2026-09-14 the intake form's "Farmer Details" section wrote
+    those three fields onto the Livestock row; it was removed as redundant for
+    the operator, after which the Livestock row carried only woreda at intake
+    (score ~10 of a 55 threshold) and no duplicate was ever flagged until the
+    identity was copied at approval. Doing that copy at intake restores the
+    engine's input without bringing the section back.
+
+    Called from post_intake_upsert of BOTH domain services, so the copy happens
+    whichever section is saved first: the Farmer section (farmer row given,
+    livestock rows looked up) or a Livestock-register section (livestock rows
+    given, farmer row looked up). Runs inside the section-save transaction.
+    """
+    import importlib
+
+    from sqlalchemy import select
+
+    if is_blank(application_reference):
+        return 0
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    Farmer, Livestock = models.G2PIntakeFormFarmer, models.G2PIntakeFormLivestock
+    if farmer is None:
+        farmer = (
+            await session.execute(select(Farmer).where(Farmer.application_reference == application_reference))
+        ).scalars().first()
+    if farmer is None:
+        return 0
+    if livestock_rows is None:
+        livestock_rows = (
+            await session.execute(select(Livestock).where(Livestock.application_reference == application_reference))
+        ).scalars().all()
+    full_name = farmer.farmer_name
+    if is_blank(full_name):
+        full_name = compose_farmer_name(farmer.first_name, farmer.middle_name, farmer.last_name)
+    changed = 0
+    for row in livestock_rows:
+        touched = False
+        for field, value in (("farmer_id", farmer.farmer_id), ("fayda_fan_id", farmer.fayda_fan_id), ("farmer_name", full_name)):
+            new = None if is_blank(value) else str(value).strip()
+            current = getattr(row, field, None)
+            current = None if is_blank(current) else str(current).strip()
+            if current != new:
+                setattr(row, field, new)
+                touched = True
+        changed += int(touched)
+    if changed:
+        await session.flush()
+    return changed

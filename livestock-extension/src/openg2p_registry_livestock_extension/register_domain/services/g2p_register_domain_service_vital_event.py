@@ -20,8 +20,9 @@ from .domain_validation_utils import (
     parse_date,
     validate_species_matches,
     validation_error,
-    fill_species_from_animal,
+    fill_species_and_age_from_animal,
     first_application_reference,
+    application_references_of,
     ensure_ear_tags_belong_to_submission,
 )
 
@@ -61,7 +62,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
-            await fill_species_from_animal(record)
+            await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
             await validate_species_matches(record)
@@ -166,6 +167,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             for record in records
             if record.get("internal_record_id")
         }
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
 
         seen_ear_tags: set[str] = set()
         for record in records:
@@ -180,11 +185,14 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 validation_error("A Mortality event already exists for this animal.")
             seen_ear_tags.add(ear_tag_id)
 
-            if await self._mortality_exists(ear_tag_id, self_ids):
+            if await self._mortality_exists(ear_tag_id, self_ids, self_refs):
                 validation_error("A Mortality event already exists for this animal.")
 
     async def _mortality_exists(
-        self, ear_tag_id: str, exclude_internal_record_ids: set[str]
+        self,
+        ear_tag_id: str,
+        exclude_internal_record_ids: set[str],
+        exclude_application_references: set[str] | None = None,
     ) -> bool:
         from openg2p_fastapi_common.context import dbengine
         from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -195,6 +203,8 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             conditions = [model.ear_tag_id == ear_tag_id, model.event_type == "MORTALITY"]
             if exclude_internal_record_ids:
                 conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+            if exclude_application_references and hasattr(model, "application_reference"):
+                conditions.append(model.application_reference.not_in(exclude_application_references))
             return and_(*conditions)
 
         session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
@@ -223,6 +233,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             for record in records
             if record.get("internal_record_id")
         }
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
 
         seen: set[tuple] = set()
         for record in records:
@@ -246,14 +260,15 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 )
             seen.add(key)
 
-            if await self._disease_case_exists(ear_tag_id, disease_type, onset, self_ids):
+            if await self._disease_case_exists(ear_tag_id, disease_type, onset, self_ids, self_refs):
                 validation_error(
                     "A Disease event with the same disease and date of onset already "
                     "exists for this animal."
                 )
 
     async def _disease_case_exists(
-        self, ear_tag_id: str, disease_type: str, onset, exclude_internal_record_ids: set[str]
+        self, ear_tag_id: str, disease_type: str, onset, exclude_internal_record_ids: set[str],
+        exclude_application_references: set[str] | None = None,
     ) -> bool:
         from openg2p_fastapi_common.context import dbengine
         from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -270,6 +285,8 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             ]
             if exclude_internal_record_ids:
                 conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+            if exclude_application_references and hasattr(model, "application_reference"):
+                conditions.append(model.application_reference.not_in(exclude_application_references))
             return and_(*conditions)
 
         session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)

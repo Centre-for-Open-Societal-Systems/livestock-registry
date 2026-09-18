@@ -8,7 +8,13 @@ from sqlalchemy import select
 
 from .audit_snapshot import AuditSnapshotMixin
 
-from .domain_validation_utils import parse_date, validation_error
+from .domain_validation_utils import (
+    compose_farmer_name,
+    is_blank,
+    parse_date,
+    sync_farmer_identity_to_livestock,
+    validation_error,
+)
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -130,6 +136,20 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         if value is not None and value > date.today():
             validation_error(f"{field} must not be in the future")
 
+    async def post_intake_upsert(self, rows: list, session) -> None:
+        """Right after a Livestock-register section (Survey Personnel, Location)
+        is saved: if the Farmer section was saved earlier, copy the farmer's
+        identity onto these Livestock intake row(s) — the mirror of the Farmer
+        service's hook, so the copy happens whichever section comes first. See
+        sync_farmer_identity_to_livestock."""
+        by_ref: dict[str, list] = {}
+        for row in rows:
+            ref = getattr(row, "application_reference", None)
+            if ref:
+                by_ref.setdefault(str(ref), []).append(row)
+        for ref, group in by_ref.items():
+            await sync_farmer_identity_to_livestock(session, ref, livestock_rows=group)
+
     async def post_approve(self, change_request: G2PRegisterChangeRequest, session) -> None:
         """Copy the linked Farmer's identity onto this Livestock record —
         see validate_domain_attributes' comment above: farmer_id/fayda_fan_id/
@@ -197,6 +217,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         if not livestock_row:
             return
         livestock_row.state = new_state.value
+        livestock_row.state_date = date.today()
         await session.flush()
         _logger.info(
             "Submission %s: state -> %s (stage_order=%s, event_type=%s)",
@@ -237,7 +258,14 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         livestock.farmer_uuid = farmer_internal_id
         livestock.farmer_id = farmer.farmer_id
         livestock.fayda_fan_id = farmer.fayda_fan_id
-        livestock.farmer_name = farmer.farmer_name
+        # Farmer rows registered before farmer_name was composed at intake
+        # (see G2PRegisterDomainServiceFarmer._fill_farmer_name) still carry
+        # NULL there; compose from the name parts rather than mirror the NULL.
+        livestock.farmer_name = (
+            farmer.farmer_name
+            if not is_blank(farmer.farmer_name)
+            else compose_farmer_name(farmer.first_name, farmer.middle_name, farmer.last_name)
+        )
         # Mirrors the Fayda FAN into link_foundational_id — see G2PLivestock's
         # own module docstring and G2PFarmer's identical comment on this field.
         livestock.link_foundational_id = farmer.fayda_fan_id
