@@ -15,6 +15,9 @@ from .domain_validation_utils import (
     parse_date,
     secondary_identifier_used_by_other_animal,
     validation_error,
+    resolve_today_default,
+    validate_belongs_to_species,
+    application_references_of,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -58,8 +61,14 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
 
     async def validate_domain_attributes(self, records: list[dict]):
         for record in records:
+            # The dialog's Registration Date defaults to the literal string
+            # "today" on the official staff-ui; resolve it before any check.
+            resolve_today_default(record, "registration_date")
             self._validate_required_fields(record)
             requires_ear_tag, is_flock_species = await get_species_config(record.get("species"))
+            # Breed is a plain (unfiltered) list in the dialog; keep a goat breed
+            # off a cattle record here, server-side.
+            await validate_belongs_to_species(record.get("breed"), record.get("species"), "Breed")
             self._validate_identifier_required(record, requires_ear_tag)
             self._validate_ear_tag_id(record)
             self._validate_quantity(record, is_flock_species)
@@ -167,6 +176,10 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
            submission's own rows so re-saving an animal you already
            registered isn't flagged as a duplicate of itself.
         """
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
         self_ids = {
             str(record["internal_record_id"])
             for record in records
@@ -191,6 +204,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 record.get("species"),
                 record.get("breed"),
                 exclude_internal_record_ids=self_ids,
+                exclude_application_references=self_refs,
             ):
                 validation_error(
                     f"ear_tag_id '{ear_tag_id}' is already registered to a different "
@@ -206,6 +220,10 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         already rejected a missing one for a species that needed it before
         this runs.
         """
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
         self_ids = {
             str(record["internal_record_id"])
             for record in records
@@ -230,6 +248,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 record.get("species"),
                 record.get("breed"),
                 exclude_internal_record_ids=self_ids,
+                exclude_application_references=self_refs,
             ):
                 validation_error(
                     f"secondary_identifier '{secondary_identifier}' is already "

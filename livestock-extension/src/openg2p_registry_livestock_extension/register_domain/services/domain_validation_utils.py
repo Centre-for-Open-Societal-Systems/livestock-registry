@@ -107,20 +107,24 @@ def _animal_models():
     return models.G2PRegisterAnimal, models.G2PIntakeFormAnimal
 
 
-async def ear_tag_exists(ear_tag_id: str) -> bool:
-    """True if ear_tag_id belongs to a real animal — already approved into the
-    register, or drafted under some in-progress intake submission.
+async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = None) -> bool:
+    """True if `ear_tag_id` names a real animal — already approved into the
+    register, or drafted under an in-progress intake submission.
 
-    This is a global existence check only, NOT scoped to the farmer/record
-    being edited: validate_domain_attributes (the caller) is only handed this
-    section's own rows by the platform, with no link back to which
-    submission or register record they belong to. So a real ear tag typed
-    from a *different* farmer's animals will still pass. It still catches
-    typos and made-up tags, which is the bulk of the risk a free-text field
-    carries.
+    With `application_reference` (the intake submission's reference, present on
+    every row the platform has already saved) the check is SCOPED to that
+    submission: the animal must be drafted in the same submission, or already
+    approved from it. That is the Old System's rule (an event's animal is
+    picked from the holding's own line_ids) and what keeps a typed ear tag
+    from attaching an event to another farmer's animal. Without a reference
+    (first save of a brand-new row) only global existence can be checked —
+    the platform hands validate_domain_attributes this section's rows alone,
+    with no submission context.
     """
     if is_blank(ear_tag_id):
         return False
+
+    import importlib
 
     from openg2p_fastapi_common.context import dbengine
     from sqlalchemy import exists, select
@@ -128,24 +132,37 @@ async def ear_tag_exists(ear_tag_id: str) -> bool:
 
     G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
 
+    register_cond = G2PRegisterAnimal.ear_tag_id == ear_tag_id
+    intake_cond = G2PIntakeFormAnimal.ear_tag_id == ear_tag_id
+    if application_reference:
+        # Intake rows carry the submission's reference directly. Register rows
+        # do not, but they hang off the holding (link_internal_record_id), and
+        # the holding keeps its internal_record_id from intake to register —
+        # so "approved from this submission" = linked to this submission's
+        # Livestock record.
+        G2PIntakeFormLivestock = importlib.import_module(
+            "openg2p_registry_extensions.register_domain.models"
+        ).G2PIntakeFormLivestock
+        holdings_of_submission = select(G2PIntakeFormLivestock.internal_record_id).where(
+            G2PIntakeFormLivestock.application_reference == application_reference
+        )
+        register_cond = register_cond & G2PRegisterAnimal.link_internal_record_id.in_(holdings_of_submission)
+        intake_cond = intake_cond & (G2PIntakeFormAnimal.application_reference == application_reference)
+
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
-        in_register = (
-            await session.execute(select(exists().where(G2PRegisterAnimal.ear_tag_id == ear_tag_id)))
-        ).scalar()
+        in_register = (await session.execute(select(exists().where(register_cond)))).scalar()
         if in_register:
             return True
-        in_intake = (
-            await session.execute(select(exists().where(G2PIntakeFormAnimal.ear_tag_id == ear_tag_id)))
-        ).scalar()
+        in_intake = (await session.execute(select(exists().where(intake_cond)))).scalar()
         return bool(in_intake)
-
 
 async def ear_tag_used_by_other_animal(
     ear_tag_id: str,
     species,
     breed,
     exclude_internal_record_ids: set[str] | None = None,
+    exclude_application_references: set[str] | None = None,
 ) -> bool:
     """True if `ear_tag_id`, with this same species and breed, already
     belongs to a DIFFERENT animal — either already approved into the
@@ -186,6 +203,14 @@ async def ear_tag_used_by_other_animal(
         ]
         if exclude_internal_record_ids:
             conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        if exclude_application_references and hasattr(model, "application_reference"):
+            # Rows of the submission being edited (intake table only — the
+            # register table has no application_reference). The platform's
+            # intake form resends already-saved dialog rows WITHOUT their
+            # internal_record_id (edit_action ADD) when a draft is reopened,
+            # so the id exclusion above cannot recognise them; every saved row
+            # of a submission carries the same application_reference, which can.
+            conditions.append(model.application_reference.not_in(exclude_application_references))
         return and_(*conditions)
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
@@ -201,12 +226,12 @@ async def ear_tag_used_by_other_animal(
         ).scalar()
         return bool(in_intake)
 
-
 async def secondary_identifier_used_by_other_animal(
     secondary_identifier: str,
     species,
     breed,
     exclude_internal_record_ids: set[str] | None = None,
+    exclude_application_references: set[str] | None = None,
 ) -> bool:
     """Same check as ear_tag_used_by_other_animal, for `secondary_identifier`
     — the leg band/wing tag/hive number an _EAR_TAG_EXEMPT_SPECIES animal
@@ -234,6 +259,14 @@ async def secondary_identifier_used_by_other_animal(
         ]
         if exclude_internal_record_ids:
             conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+        if exclude_application_references and hasattr(model, "application_reference"):
+            # Rows of the submission being edited (intake table only — the
+            # register table has no application_reference). The platform's
+            # intake form resends already-saved dialog rows WITHOUT their
+            # internal_record_id (edit_action ADD) when a draft is reopened,
+            # so the id exclusion above cannot recognise them; every saved row
+            # of a submission carries the same application_reference, which can.
+            conditions.append(model.application_reference.not_in(exclude_application_references))
         return and_(*conditions)
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
@@ -248,7 +281,6 @@ async def secondary_identifier_used_by_other_animal(
             await session.execute(select(exists().where(_same_animal_key(G2PIntakeFormAnimal))))
         ).scalar()
         return bool(in_intake)
-
 
 async def get_animal_species(ear_tag_id: str) -> str | None:
     """The species already recorded against ear_tag_id under Livestock
@@ -497,3 +529,120 @@ async def event_already_recorded(
             await session.execute(select(exists().where(_same_event(intake_model))))
         ).scalar()
         return bool(in_intake)
+
+
+def resolve_today_default(record: dict, field: str) -> None:
+    """Replace the literal string "today" in a date field with today's date.
+
+    The intake form gives some date widgets `"widget-data-default": "today"`
+    (Animal registration_date, Vaccination vaccination_date). The platform's
+    staff-ui resolves that token for what it displays, but if the user leaves
+    the picker untouched the submitted value is the literal "today", which
+    the database rejects ("invalid input for query argument ... 'today'") and
+    the whole section save fails with UNEXPECTED_ERROR. Resolving it here on
+    save keeps the default meaningful for the UI and for API clients alike.
+    """
+    value = record.get(field)
+    if isinstance(value, str) and value.strip().lower() == "today":
+        record[field] = date.today().isoformat()
+
+
+async def attribute_value_parent(value_id) -> str | None:
+    """parent_value_id of an attribute value (e.g. LIVESTOCK_BREED_BORAN ->
+    LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->
+    LIVESTOCK_SPECIES_CATTLE). None when the value is unknown or has no parent."""
+    if is_blank(value_id):
+        return None
+    from openg2p_fastapi_common.context import dbengine
+    from openg2p_registry_core.models.g2p_attributes import G2PAttributeValue
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+    async with session_maker() as session:
+        parent = (
+            await session.execute(
+                select(G2PAttributeValue.parent_value_id).where(
+                    G2PAttributeValue.value_id == str(value_id).strip()
+                )
+            )
+        ).scalar()
+    return parent or None
+
+
+async def validate_belongs_to_species(value_id, species, kind: str) -> None:
+    """Reject a breed/vaccine whose catalogue parent is a DIFFERENT species
+    than the one on the record. The dialogs show the full breed and vaccine
+    lists on the official staff-ui (no species filter inside a pop-up), so
+    this is what keeps a goat breed off a cattle record. A value without a
+    parent in the catalogue is left alone."""
+    if is_blank(value_id) or is_blank(species):
+        return
+    parent = await attribute_value_parent(value_id)
+    if parent is None or parent == str(species).strip():
+        return
+    value_label = await humanize_attribute_value(value_id)
+    parent_label = await humanize_attribute_value(parent)
+    species_label = await humanize_attribute_value(species)
+    validation_error(
+        f"{kind} '{value_label}' belongs to species '{parent_label}', not '{species_label}'."
+    )
+
+
+def first_application_reference(records: list[dict]) -> str | None:
+    """The submission reference shared by this save's already-saved rows, if
+    any. Rows the platform has stored once carry `application_reference`
+    (one per submission); brand-new rows don't. Used to scope ear-tag checks
+    to the submission being edited."""
+    for record in records:
+        value = record.get("application_reference")
+        if not is_blank(value):
+            return str(value).strip()
+    return None
+
+
+def application_references_of(records: list[dict]) -> set[str]:
+    return {
+        str(record["application_reference"]).strip()
+        for record in records
+        if not is_blank(record.get("application_reference"))
+    }
+
+
+async def fill_species_from_animal(record: dict) -> None:
+    """When an event row names an ear tag but no species, copy the species
+    recorded for that animal (register or intake draft) onto the row.
+
+    The event dialogs show species as a read-only field that the original
+    ear-tag dropdown filled in from the selected Animal row; with the ear tag
+    typed in as text on the official staff-ui nothing fills it, and the
+    required-field check would reject every event. The value is derived, so
+    filling it here is authoritative; validate_species_matches still rejects
+    an explicit mismatch.
+    """
+    if not is_blank(record.get("species")) or is_blank(record.get("ear_tag_id")):
+        return
+    animal_species = await get_animal_species(str(record["ear_tag_id"]).strip())
+    if animal_species:
+        record["species"] = animal_species
+
+
+async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
+    """post_intake_upsert companion to ear_tag_exists(): the platform hands
+    validate_domain_attributes a brand-new row with NO submission context, so
+    that check can only be global there — a real ear tag from a *different*
+    farmer's animals passes it. Right after the upsert the same rows are ORM
+    objects carrying the submission's application_reference, so here the check
+    can finally be scoped: every event row's animal must be drafted in, or
+    already approved from, this very submission. Raising here returns 400 and
+    rolls the section save back (the platform commits later)."""
+    for row in rows:
+        ear_tag_id = getattr(row, "ear_tag_id", None)
+        reference = getattr(row, "application_reference", None)
+        if is_blank(ear_tag_id) or is_blank(reference):
+            continue
+        if not await ear_tag_exists(str(ear_tag_id).strip(), application_reference=str(reference)):
+            validation_error(
+                f"Ear tag '{str(ear_tag_id).strip()}' is not an animal of this submission. "
+                "Add the animal under Livestock Details first, or check the tag."
+            )
