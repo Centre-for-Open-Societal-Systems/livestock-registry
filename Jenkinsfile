@@ -1,5 +1,9 @@
 pipeline {
     agent { label 'vpn-agent2' }
+    // One run at a time: merging several PRs back to back queued overlapping
+    // runs whose helm upgrades collided ("another operation in progress"),
+    // which is what showed up as a failed db-seed on dev on 2026-09-18.
+    options { disableConcurrentBuilds() }
 
     environment {
         AWS_REGION       = 'ap-south-1'
