@@ -62,15 +62,25 @@ async def _admin_token(client: httpx.AsyncClient) -> str:
     return resp.json()["access_token"]
 
 
-async def resolve_approvers(level: str, location_value: str) -> list[str]:
+async def resolve_approvers(level: str, location_value: str | None) -> list[str]:
     """Return the username(s) of the approver(s) for this level+location.
     Empty list (not an error) if the role, the client, or a matching user
     doesn't exist — the caller (the resolver controller) reports that back
     to AWE as `{"user_ids": []}`, which AWE's own `on_empty='block'` stage
-    config then correctly stalls on, same as any other unresolved stage."""
+    config then correctly stalls on, same as any other unresolved stage.
+
+    A record with NO location at this level (blank kebele/woreda/zone/region)
+    resolves to EVERY holder of the level's role — the Old System's rule
+    (`livestock_record_rules.xml`: `'|', (kebele_id, '=', False),
+    (kebele_id, '=', user.partner_id.kebele.id)`, and `_check_approver` only
+    refusing when BOTH sides carry a location that differs). Without this,
+    an unscoped record — every Gen1 holding whose farmer had no location,
+    for one — resolves to nobody and AWE terminates it as rejected within a
+    second, with no task for anyone and no reason shown."""
     role_name = _LEVEL_TO_ROLE.get(level)
-    if not role_name or not location_value:
+    if not role_name:
         return []
+    location_value = (location_value or "").strip() or None
 
     base = _keycloak_base_url()
     realm = _keycloak_realm()
@@ -107,6 +117,10 @@ async def resolve_approvers(level: str, location_value: str) -> list[str]:
         for candidate in candidates:
             username = candidate.get("username")
             if not username:
+                continue
+            if location_value is None:
+                # Unscoped record: any holder of the role may approve (Gen1 rule).
+                matched.append(username)
                 continue
             # The role-members listing may not include attributes inline —
             # fetch the full user representation to check reliably.

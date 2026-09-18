@@ -71,10 +71,11 @@ class G2PApproverResolverController(BaseController):
         context = (body or {}).get("context") or {}
         location_value = context.get(level)
         if not location_value:
-            _logger.info("approver-resolver: no '%s' value in context, returning no approvers", level)
-            return JSONResponse({"user_ids": []})
+            # Blank location at this level -> every holder of the level's role
+            # (Gen1 parity, see resolve_approvers); never "nobody".
+            _logger.info("approver-resolver: no '%s' value in context, resolving to all %s approvers", level, level)
 
-        user_ids = await resolve_approvers(level, str(location_value))
+        user_ids = await resolve_approvers(level, str(location_value) if location_value else None)
         _logger.info(
             "approver-resolver: level=%s location=%r -> %s", level, location_value, user_ids
         )
