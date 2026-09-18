@@ -91,12 +91,25 @@ def _keycloak_config() -> dict | None:
 
 def _roles_client_id() -> str:
     """The Keycloak client that carries the approver roles (and that
-    scripts/keycloak_livestock_test_users.py creates them on)."""
-    return (
-        os.environ.get("APPROVER_ROLES_CLIENT_ID")
-        or os.environ.get("AUTH_CLIENT_ID")
-        or "livestock-staff-portal"
-    )
+    scripts/keycloak_livestock_test_users.py creates them on).
+
+    The client is named after the deployment: livestock-staff-portal on the
+    compose stack, <release>-staff-portal on a cluster (the chart derives it
+    from the release name, e.g. livestock-registry-staff-portal on dev), so a
+    fixed name resolves to nobody there. Explicit APPROVER_ROLES_CLIENT_ID or
+    AUTH_CLIENT_ID first, then the registry's own keycloak_client_id setting,
+    which the chart always sets to the deployment's client.
+    """
+    explicit = os.environ.get("APPROVER_ROLES_CLIENT_ID") or os.environ.get("AUTH_CLIENT_ID")
+    if explicit:
+        return explicit
+    try:
+        from openg2p_registry_core.config import Settings
+
+        configured = getattr(Settings.get_config(strict=False), "keycloak_client_id", None)
+    except Exception:  # pragma: no cover - only when core is absent
+        configured = None
+    return configured or "livestock-staff-portal"
 
 
 async def _admin_token(client: httpx.AsyncClient, cfg: dict) -> str:
