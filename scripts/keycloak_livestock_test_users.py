@@ -18,6 +18,12 @@ Usage (Keycloak master-realm admin, standard library only):
 Optional: KC_REALM (staff), KC_CLIENT_ID (livestock-staff-portal),
 USERS_PASSWORD (test1234), USER_SUFFIX (.test), KC_ADMIN_REALM (master),
 KC_INSECURE=1 to skip TLS verification.
+
+KC_CLIENT_ID must be the staff-portal client of THAT deployment: the chart
+names it after the release (<release>-staff-portal, e.g.
+livestock-registry-staff-portal on dev); only the compose stack uses
+livestock-staff-portal. The resolver looks the roles up on the same client
+(registry setting keycloak_client_id), so the two must agree.
 """
 import json
 import os
@@ -92,7 +98,9 @@ def login():
 def client_uuid():
     st, d = call("GET", f"/admin/realms/{REALM}/clients?clientId={urllib.parse.quote(CLIENT_ID)}")
     if st != 200 or not d:
-        sys.exit(f"client {CLIENT_ID!r} not found in realm {REALM!r} ({st}): {d}")
+        sys.exit(f"client {CLIENT_ID!r} not found in realm {REALM!r} ({st}): {d}\n"
+                 f"Set KC_CLIENT_ID to this deployment's staff-portal client "
+                 f"(the chart names it <release>-staff-portal, e.g. livestock-registry-staff-portal).")
     return d[0]["id"]
 
 
