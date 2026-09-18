@@ -9,8 +9,9 @@ from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
-    fill_species_from_animal,
+    fill_species_and_age_from_animal,
     first_application_reference,
+    application_references_of,
     resolve_today_default,
     validate_belongs_to_species,
     ensure_ear_tags_belong_to_submission,
@@ -55,7 +56,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
-            await fill_species_from_animal(record)
+            await fill_species_and_age_from_animal(record)
             resolve_today_default(record, "vaccination_date")
             self._validate_required_fields(record)
             # Vaccine is a plain (unfiltered) list in the dialog; keep a goat vaccine
@@ -308,6 +309,10 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             for record in records
             if record.get("internal_record_id")
         }
+        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
+        # (edit_action ADD); the submission's own application_reference still
+        # identifies them, so exclude those rows from the duplicate search too.
+        self_refs = application_references_of(records)
         for record in records:
             key = key_of(record)
             if key is None:
@@ -317,6 +322,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
                 "Vaccination",
                 {"ear_tag_id": ear_tag_id, "vaccine_type": vaccine_type, "vaccination_date": on},
                 exclude_internal_record_ids=self_ids,
+                exclude_application_references=self_refs,
             ):
                 vaccine_label = await humanize_attribute_value(vaccine_type)
                 validation_error(
