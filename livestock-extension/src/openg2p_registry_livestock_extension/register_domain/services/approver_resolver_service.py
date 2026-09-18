@@ -33,29 +33,81 @@ _LEVEL_TO_ROLE = {
 _LOCATION_ATTR = "approver_location_value"
 
 
-def _keycloak_base_url() -> str:
-    host = os.environ.get("KEYCLOAK_HOST", "keycloak")
-    port = os.environ.get("KEYCLOAK_PORT", "8080")
-    return f"http://{host}:{port}"
+def _keycloak_config() -> dict | None:
+    """Where and how to talk to Keycloak.
+
+    Compose (local): KEYCLOAK_HOST/KEYCLOAK_PORT (or a full KEYCLOAK_BASE_URL),
+    KEYCLOAK_REALM and AUTH_CLIENT_ID/AUTH_CLIENT_SECRET — the portal client's
+    own service account, granted view-users/query-users/view-clients on
+    realm-management in realm-staff.json specifically for this lookup.
+
+    Cluster: none of those variables exist on the staff-api pod, so fall back
+    to the platform's own Keycloak admin settings (registry core Settings:
+    keycloak_admin_url, keycloak_admin_realm, keycloak_admin_client_id /
+    _secret, keycloak_realm) — the ones data_policy_keycloak_helper already
+    uses for its role sync, which the chart provides. Explicit environment
+    always wins, so a deployment can still point the resolver elsewhere
+    (e.g. an in-cluster http Keycloak address) without touching the platform
+    settings. Returns None, after a warning, when neither is configured.
+    """
+    base = os.environ.get("KEYCLOAK_BASE_URL", "").strip().rstrip("/")
+    host = os.environ.get("KEYCLOAK_HOST", "").strip()
+    if not base and host:
+        base = f"http://{host}:{os.environ.get('KEYCLOAK_PORT', '8080').strip() or '8080'}"
+    if base:
+        realm = os.environ.get("KEYCLOAK_REALM", "staff").strip() or "staff"
+        return {
+            "base": base,
+            "token_realm": realm,
+            "users_realm": realm,
+            "client_id": os.environ.get("AUTH_CLIENT_ID", "livestock-staff-portal"),
+            "client_secret": os.environ.get("AUTH_CLIENT_SECRET", ""),
+        }
+    try:
+        from openg2p_registry_core.config import Settings
+
+        cfg = Settings.get_config(strict=False)
+    except Exception as exc:  # pragma: no cover - only when core is absent
+        _logger.warning("approver-resolver: registry settings unavailable: %s", exc)
+        return None
+    url = (getattr(cfg, "keycloak_admin_url", None) or "").rstrip("/")
+    client_id = getattr(cfg, "keycloak_admin_client_id", None)
+    client_secret = getattr(cfg, "keycloak_admin_client_secret", None)
+    if not (url and client_id and client_secret):
+        _logger.warning(
+            "approver-resolver: Keycloak not configured — set KEYCLOAK_BASE_URL (or "
+            "KEYCLOAK_HOST/KEYCLOAK_PORT), KEYCLOAK_REALM, AUTH_CLIENT_ID and "
+            "AUTH_CLIENT_SECRET on staff-api, or the registry keycloak_admin_* settings"
+        )
+        return None
+    return {
+        "base": url,
+        "token_realm": getattr(cfg, "keycloak_admin_realm", None) or "master",
+        "users_realm": getattr(cfg, "keycloak_realm", None) or "staff",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
 
 
-def _keycloak_realm() -> str:
-    return os.environ.get("KEYCLOAK_REALM", "staff")
+def _roles_client_id() -> str:
+    """The Keycloak client that carries the approver roles (and that
+    scripts/keycloak_livestock_test_users.py creates them on)."""
+    return (
+        os.environ.get("APPROVER_ROLES_CLIENT_ID")
+        or os.environ.get("AUTH_CLIENT_ID")
+        or "livestock-staff-portal"
+    )
 
 
-async def _admin_token(client: httpx.AsyncClient) -> str:
-    """Client-credentials token for `livestock-staff-portal`'s own service
-    account — granted view-users/query-users/view-clients/query-clients on
-    realm-management in realm-staff.json specifically for this lookup (see
-    that file's `service-account-livestock-staff-portal` entry)."""
-    client_id = os.environ.get("AUTH_CLIENT_ID", "livestock-staff-portal")
-    client_secret = os.environ.get("AUTH_CLIENT_SECRET", "")
+async def _admin_token(client: httpx.AsyncClient, cfg: dict) -> str:
+    """Client-credentials token able to read users of the staff realm — see
+    _keycloak_config for which client that is in each environment."""
     resp = await client.post(
-        f"{_keycloak_base_url()}/realms/{_keycloak_realm()}/protocol/openid-connect/token",
+        f"{cfg['base']}/realms/{cfg['token_realm']}/protocol/openid-connect/token",
         data={
             "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
+            "client_id": cfg["client_id"],
+            "client_secret": cfg["client_secret"],
         },
     )
     resp.raise_for_status()
@@ -82,11 +134,14 @@ async def resolve_approvers(level: str, location_value: str | None) -> list[str]
         return []
     location_value = (location_value or "").strip() or None
 
-    base = _keycloak_base_url()
-    realm = _keycloak_realm()
+    cfg = _keycloak_config()
+    if cfg is None:
+        return []
+    base = cfg["base"]
+    realm = cfg["users_realm"]
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            token = await _admin_token(client)
+            token = await _admin_token(client, cfg)
         except httpx.HTTPError as exc:
             _logger.warning("approver-resolver: could not get Keycloak admin token: %s", exc)
             return []
@@ -95,7 +150,7 @@ async def resolve_approvers(level: str, location_value: str | None) -> list[str]
         client_lookup = await client.get(
             f"{base}/admin/realms/{realm}/clients",
             headers=headers,
-            params={"clientId": "livestock-staff-portal"},
+            params={"clientId": _roles_client_id()},
         )
         client_lookup.raise_for_status()
         found = client_lookup.json()
