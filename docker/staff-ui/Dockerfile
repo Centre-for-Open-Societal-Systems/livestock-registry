@@ -89,6 +89,19 @@ COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-dashboard-nav.js /tmp/pa
 RUN DASHBOARD_URL="${DASHBOARD_URL}" DASHBOARD_LABEL="${DASHBOARD_LABEL}" \
     node /tmp/patch-dashboard-nav.js
 
+# ── Dialog overlay: Species->Breed filtering, ear-tag suggestions, Vaccine by species ──
+# The official staff-ui cannot cascade or cross-reference columns inside
+# dialog-table pop-ups, so the livestock metadata ships plain lists + a typed
+# ear tag and the server enforces every rule. This small browser script (see
+# assets/livestock-dialog-overlay.js) restores the on-screen guidance using the
+# portal's own endpoints; it is convenience only — without it nothing breaks.
+# Served from /public and loaded by a <script defer> injected into the header
+# bundles (assets/patch-dialog-overlay.js, same mechanism as the Dashboard
+# button above; fails the build if the header layout changed).
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock-dialog-overlay.js /app/public/livestock-dialog-overlay.js
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-dialog-overlay.js /tmp/patch-dialog-overlay.js
+RUN node /tmp/patch-dialog-overlay.js && rm /tmp/patch-dialog-overlay.js
+
 # ── Rename the attribute-value "Sort Order" field label to "Display Order" ──
 # Configuration -> Attributes (and Configuration -> Registry -> Languages,
 # which shares the same i18n key) label the g2p_attribute_values.sort_order

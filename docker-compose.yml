@@ -313,7 +313,7 @@ services:
   # Loads the real Ethiopia region/zone/woreda/kebele hierarchy into master-data's
   # geo tables (g2p_geo_levels/g2p_geo_level_values). Without this they're empty
   # and the Location section's Region/Zone/Woreda/Kebele dropdowns have nothing
-  # to show — see docker/local-dev/geo-seed/ for the seed SQL and its own
+  # to show — see docker/db-seed/geo/ (same file the db-seed image ships) and its own
   # comments (this dev image's geo tables key level_value_mnemonic as globally
   # UNIQUE, so ~2,080 of the 21,053 real rows — duplicate-named kebeles/woredas
   # elsewhere in the country — are skipped on import; the remaining 18,973
@@ -334,7 +334,7 @@ services:
       PGUSER: ${MASTER_DATA_DB_USER}
       PGPASSWORD: ${MASTER_DATA_DB_PASSWORD}
     volumes:
-      - ./docker/local-dev/geo-seed/ethiopia_geo_seed.sql.gz:/opt/ethiopia_geo_seed.sql.gz:ro
+      - ./docker/db-seed/geo/ethiopia_geo_seed.sql.gz:/opt/ethiopia_geo_seed.sql.gz:ro
     entrypoint: ["sh", "-c", "gunzip -c /opt/ethiopia_geo_seed.sql.gz | psql -v ON_ERROR_STOP=1"]
     restart: "no"
 
