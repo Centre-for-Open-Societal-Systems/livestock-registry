@@ -624,6 +624,12 @@ services:
       AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
       AWE_CALLBACK_HMAC_SECRET: ${AWE_CALLBACK_HMAC_SECRET}
       AWE_CALLBACK_CALLER_SERVICE: registry
+      # Where AWE must call our approver resolver (see docker/db-seed/
+      # livestock-entrypoint.sh): the compose service name here; the chart
+      # derives it from the webhook URL instead. The secret must equal
+      # staff-api's APPROVER_RESOLVER_SECRET.
+      APPROVER_RESOLVER_BASE_URL: http://staff-api:8000
+      APPROVER_RESOLVER_SECRET: ${APPROVER_RESOLVER_SECRET}
     depends_on:
       staff-api:
         condition: service_healthy
