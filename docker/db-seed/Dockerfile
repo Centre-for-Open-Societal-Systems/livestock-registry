@@ -21,3 +21,11 @@ COPY livestock-extension/src/openg2p_registry_livestock_extension/meta_data/    
 COPY livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/ /seed/awe_meta_data/
 COPY livestock-extension/src/openg2p_registry_livestock_extension/templates/     /seed/templates/
 COPY docker/db-seed/sample-data/                                               /seed/sample-data/
+
+# Real Ethiopia geo hierarchy + the wrapper entrypoint that loads it into
+# master_data after the platform seed (see livestock-entrypoint.sh for why the
+# chart's LOAD_GEO_DATA stays off).
+COPY docker/db-seed/geo/ethiopia_geo_seed.sql.gz /seed/geo/ethiopia_geo_seed.sql.gz
+COPY docker/db-seed/livestock-entrypoint.sh      /seed/livestock-entrypoint.sh
+RUN chmod +x /seed/livestock-entrypoint.sh
+ENTRYPOINT ["/seed/livestock-entrypoint.sh"]

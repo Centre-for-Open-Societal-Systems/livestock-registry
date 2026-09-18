@@ -66,7 +66,11 @@ registry:
     # (farmer) registry's tables, so it cannot load livestock records. The livestock
     # sown sample set ships as SQL at /seed/sample-data in the db-seed image and
     # is applied explicitly (see local/docker-compose.yml), never by this flag.
-    loadGeoData: true
+    # The platform's generic sample geo (country..village, l0..l4) does not match
+    # the level ids this registry's Location section uses (level-region ..
+    # level-kebele); it left the dropdowns empty on dev. The db-seed image now
+    # loads the real Ethiopia hierarchy itself (docker/db-seed/livestock-entrypoint.sh).
+    loadGeoData: false
     loadSampleData: false
     loadImages: true
     loadTemplates: true
