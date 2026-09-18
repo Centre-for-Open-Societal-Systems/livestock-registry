@@ -400,6 +400,13 @@ services:
       REGISTRY_STAFF_PORTAL_API_AWE_DEFAULT_CALLBACK_URL: http://staff-api:8000/awe/webhooks/decision
       REGISTRY_STAFF_PORTAL_API_AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
       REGISTRY_STAFF_PORTAL_API_AWE_CALLBACK_HMAC_SECRET: ${AWE_CALLBACK_HMAC_SECRET}
+      # Application reference (the "2026SEP18-27264x" id on every submission):
+      # the platform default is date + seconds-of-day + ONE random digit, so
+      # two submissions in the same second collide 1 in 10 and the second one
+      # fails with "Unexpected error" (unique index). Five random digits keep
+      # the same shape and make that 1 in 100,000. Each app reads it under its
+      # own settings prefix (staff-api / partner-api), not the core one.
+      REGISTRY_STAFF_PORTAL_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
       # For the livestock extension's approver-resolver controller/service
       # (g2p_approver_resolver_controller.py, approver_resolver_service.py) —
       # read directly via os.environ, not through the platform's own
@@ -443,6 +450,7 @@ services:
     image: openg2p/openg2p-livestock-registry-partner-api:${RP_VERSION}
     <<: *amd64
     environment:
+      REGISTRY_PARTNER_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
       PARTNER_NO_OF_WORKERS: '1'
       REGISTRY_PARTNER_API_DB_HOSTNAME: postgres
       REGISTRY_PARTNER_API_DB_PORT: 5432

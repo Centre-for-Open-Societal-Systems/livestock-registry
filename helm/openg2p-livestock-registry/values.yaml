@@ -28,10 +28,17 @@ registry:
     image:
       repository: openg2p/openg2p-livestock-registry-staff-api
       tag: 0.0.0-develop
+    envVars:
+      # Platform default is date + seconds-of-day + ONE random digit, so two
+      # submissions in the same second collide 1 in 10 ("Unexpected error").
+      # Five random digits keep the same shape; see docker-compose.yml.
+      REGISTRY_STAFF_PORTAL_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
   partnerApi:
     image:
       repository: openg2p/openg2p-livestock-registry-partner-api
       tag: 0.0.0-develop
+    envVars:
+      REGISTRY_PARTNER_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
   # Celery prefork concurrency. Celery's default is one worker process per CPU
   # core of the HOST, not per the container's CPU limit — so on a 48-core node
   # both pods fork 48 Python processes and the memory they need has nothing to
