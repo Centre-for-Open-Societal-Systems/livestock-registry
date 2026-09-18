@@ -646,3 +646,71 @@ async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
                 f"Ear tag '{str(ear_tag_id).strip()}' is not an animal of this submission. "
                 "Add the animal under Livestock Details first, or check the tag."
             )
+
+
+async def sync_farmer_identity_to_livestock(session, application_reference, *, farmer=None, livestock_rows=None) -> int:
+    """Mirror the farmer's identity (farmer_id, fayda_fan_id, farmer_name) from
+    the submission's Farmer intake row onto its Livestock intake row(s),
+    overwriting whatever they hold. Returns how many livestock rows changed.
+
+    Overwrite, not fill-blank-only: on a reopened draft the operator may
+    correct the Farmer ID / name in the Farmer section, and the Livestock row
+    must follow or the engine scores the wrong farmer. That is safe because
+    no section of the intake form edits these three fields on the Livestock
+    row any more (the old "Farmer Details" section survives only on the
+    register's view tab), and it matches the approval-time copy in
+    G2PRegisterDomainServiceLivestock._sync_farmer_identity, which also
+    overwrites unconditionally.
+
+    Why: the deduplication engine scores only the main (Livestock) register —
+    the Farmer section embedded in the Livestock intake form is never scored —
+    and the Livestock dedup schema is farmer_id / fayda_fan_id / farmer_name /
+    woreda. Until 2026-09-14 the intake form's "Farmer Details" section wrote
+    those three fields onto the Livestock row; it was removed as redundant for
+    the operator, after which the Livestock row carried only woreda at intake
+    (score ~10 of a 55 threshold) and no duplicate was ever flagged until the
+    identity was copied at approval. Doing that copy at intake restores the
+    engine's input without bringing the section back.
+
+    Called from post_intake_upsert of BOTH domain services, so the copy happens
+    whichever section is saved first: the Farmer section (farmer row given,
+    livestock rows looked up) or a Livestock-register section (livestock rows
+    given, farmer row looked up). Runs inside the section-save transaction.
+    """
+    import importlib
+
+    from sqlalchemy import select
+
+    if is_blank(application_reference):
+        return 0
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    Farmer, Livestock = models.G2PIntakeFormFarmer, models.G2PIntakeFormLivestock
+    if farmer is None:
+        farmer = (
+            await session.execute(select(Farmer).where(Farmer.application_reference == application_reference))
+        ).scalars().first()
+    if farmer is None:
+        return 0
+    if livestock_rows is None:
+        livestock_rows = (
+            await session.execute(select(Livestock).where(Livestock.application_reference == application_reference))
+        ).scalars().all()
+    full_name = farmer.farmer_name
+    if is_blank(full_name):
+        full_name = " ".join(
+            str(p).strip() for p in (farmer.first_name, farmer.middle_name, farmer.last_name) if not is_blank(p)
+        ).strip()
+    changed = 0
+    for row in livestock_rows:
+        touched = False
+        for field, value in (("farmer_id", farmer.farmer_id), ("fayda_fan_id", farmer.fayda_fan_id), ("farmer_name", full_name)):
+            new = None if is_blank(value) else str(value).strip()
+            current = getattr(row, field, None)
+            current = None if is_blank(current) else str(current).strip()
+            if current != new:
+                setattr(row, field, new)
+                touched = True
+        changed += int(touched)
+    if changed:
+        await session.flush()
+    return changed

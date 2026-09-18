@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from .audit_snapshot import AuditSnapshotMixin
 
-from .domain_validation_utils import parse_date, validation_error
+from .domain_validation_utils import parse_date, sync_farmer_identity_to_livestock, validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -129,6 +129,20 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         value = parse_date(record.get(field))
         if value is not None and value > date.today():
             validation_error(f"{field} must not be in the future")
+
+    async def post_intake_upsert(self, rows: list, session) -> None:
+        """Right after a Livestock-register section (Survey Personnel, Location)
+        is saved: if the Farmer section was saved earlier, copy the farmer's
+        identity onto these Livestock intake row(s) — the mirror of the Farmer
+        service's hook, so the copy happens whichever section comes first. See
+        sync_farmer_identity_to_livestock."""
+        by_ref: dict[str, list] = {}
+        for row in rows:
+            ref = getattr(row, "application_reference", None)
+            if ref:
+                by_ref.setdefault(str(ref), []).append(row)
+        for ref, group in by_ref.items():
+            await sync_farmer_identity_to_livestock(session, ref, livestock_rows=group)
 
     async def post_approve(self, change_request: G2PRegisterChangeRequest, session) -> None:
         """Copy the linked Farmer's identity onto this Livestock record —

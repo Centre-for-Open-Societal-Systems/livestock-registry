@@ -6,7 +6,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 
 from .audit_snapshot import AuditSnapshotMixin
 
-from .domain_validation_utils import parse_date, require_field, validation_error
+from .domain_validation_utils import parse_date, require_field, validation_error, sync_farmer_identity_to_livestock
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -120,3 +120,14 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
         )
 
         return " ".join(record_name).strip()
+
+    async def post_intake_upsert(self, rows: list, session) -> None:
+        """Right after the Farmer section is saved: copy the farmer's identity
+        onto this submission's Livestock intake row(s) so the deduplication
+        engine (which scores the Livestock register only) has farmer_id /
+        fayda_fan_id / farmer_name at intake — see
+        sync_farmer_identity_to_livestock."""
+        for row in rows:
+            await sync_farmer_identity_to_livestock(
+                session, getattr(row, "application_reference", None), farmer=row
+            )
