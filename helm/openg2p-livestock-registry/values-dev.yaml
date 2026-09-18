@@ -64,7 +64,13 @@ global: &global
   # that has no DNS. Pinning staffApi.hostname below does NOT cover this: the
   # callback URL is built from registryHostname directly, not from the API's own
   # hostname. Points at the staff API's real internal host instead.
-  aweDefaultCallbackUrl: "https://staff-livestock-registry.live.openg2p.test/awe/webhooks/decision"
+  # In-cluster, over plain http, exactly as far does it
+  # (http://farmer-registry-staff-portal-api/awe/webhooks/decision). AWE runs in
+  # this same namespace, so it can reach the Service directly; sending it at the
+  # external https host instead would make AWE's own client hairpin out through
+  # nginx and then fail the same self-signed-CA check described under staffApi
+  # below. This previously pointed at the .test host and that was wrong.
+  aweDefaultCallbackUrl: "http://livestock-registry-staff-portal-api/awe/webhooks/decision"
 
   # AWE's hostname is another independent key, also defaulted to a dead
   # '.openg2p.org' placeholder (global.aweBaseUrl derives from it). Server-side
@@ -184,6 +190,38 @@ registry:
     istio:
       virtualservice:
         host: "staff-livestock-registry.live.openg2p.test"
+
+    # Trust the box's own CA, so server-side https calls from this API succeed.
+    #
+    # Finalising a submission calls AWE at global.aweBaseUrl, which is
+    # https://awe.live.openg2p.test — an Istio host fronted by nginx presenting
+    # the local OpenG2P CA. Python's client rejects it, so the call dies with
+    #   [SSL: CERTIFICATE_VERIFY_FAILED] self-signed certificate in certificate chain
+    # and the portal reports that it cannot reach AWE. AWE itself is fine: from
+    # this pod the same URL returns 200 with verification off, and the
+    # in-cluster http://commons-services-awe/v1/awe/health returns 200 outright.
+    # Only the trust store is missing.
+    #
+    # This is exactly how far is configured — farmer-registry-staff-portal-api
+    # mounts configmap far-ca-bundle at /etc/ssl/local-ca and sets SSL_CERT_FILE
+    # to it. The same configmap exists here as live-ca-bundle, with the same
+    # ca-bundle.pem key; it was simply never mounted. Setting SSL_CERT_FILE
+    # REPLACES Python's default bundle rather than appending to it (unlike
+    # Node's NODE_EXTRA_CA_CERTS), which is why the file is a full bundle.
+    #
+    # These keys must sit under staffApi, not at registry root: each component
+    # template rebinds .Values to its own sub-tree, so a root-level extraVolumes
+    # is silently ignored and the release still reports deployed.
+    envVars:
+      SSL_CERT_FILE: /etc/ssl/local-ca/ca-bundle.pem
+    extraVolumes:
+      - name: live-ca-bundle
+        configMap:
+          name: live-ca-bundle
+    extraVolumeMounts:
+      - name: live-ca-bundle
+        mountPath: /etc/ssl/local-ca
+        readOnly: true
   partnerApi:
     hostname: "partner-livestock-registry.live.openg2p.test"
     istio:
