@@ -8,7 +8,13 @@ from sqlalchemy import select
 
 from .audit_snapshot import AuditSnapshotMixin
 
-from .domain_validation_utils import parse_date, sync_farmer_identity_to_livestock, validation_error
+from .domain_validation_utils import (
+    compose_farmer_name,
+    is_blank,
+    parse_date,
+    sync_farmer_identity_to_livestock,
+    validation_error,
+)
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -252,7 +258,14 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         livestock.farmer_uuid = farmer_internal_id
         livestock.farmer_id = farmer.farmer_id
         livestock.fayda_fan_id = farmer.fayda_fan_id
-        livestock.farmer_name = farmer.farmer_name
+        # Farmer rows registered before farmer_name was composed at intake
+        # (see G2PRegisterDomainServiceFarmer._fill_farmer_name) still carry
+        # NULL there; compose from the name parts rather than mirror the NULL.
+        livestock.farmer_name = (
+            farmer.farmer_name
+            if not is_blank(farmer.farmer_name)
+            else compose_farmer_name(farmer.first_name, farmer.middle_name, farmer.last_name)
+        )
         # Mirrors the Fayda FAN into link_foundational_id — see G2PLivestock's
         # own module docstring and G2PFarmer's identical comment on this field.
         livestock.link_foundational_id = farmer.fayda_fan_id

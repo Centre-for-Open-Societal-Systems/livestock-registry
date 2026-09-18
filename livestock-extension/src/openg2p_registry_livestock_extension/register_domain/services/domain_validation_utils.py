@@ -648,6 +648,16 @@ async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
             )
 
 
+def compose_farmer_name(first=None, middle=None, last=None) -> str | None:
+    """The farmer's display name from the parts the form collects (First /
+    Middle / Last Name), or None when all three are blank. farmer_name is the
+    Farmer register's display name, a dedup field, and what the Livestock
+    record mirrors, yet nothing composed it once the intake form stopped
+    carrying a farmer_name field of its own."""
+    parts = [str(p).strip() for p in (first, middle, last) if not is_blank(p)]
+    return " ".join(parts) or None
+
+
 async def sync_farmer_identity_to_livestock(session, application_reference, *, farmer=None, livestock_rows=None) -> int:
     """Mirror the farmer's identity (farmer_id, fayda_fan_id, farmer_name) from
     the submission's Farmer intake row onto its Livestock intake row(s),
@@ -697,9 +707,7 @@ async def sync_farmer_identity_to_livestock(session, application_reference, *, f
         ).scalars().all()
     full_name = farmer.farmer_name
     if is_blank(full_name):
-        full_name = " ".join(
-            str(p).strip() for p in (farmer.first_name, farmer.middle_name, farmer.last_name) if not is_blank(p)
-        ).strip()
+        full_name = compose_farmer_name(farmer.first_name, farmer.middle_name, farmer.last_name)
     changed = 0
     for row in livestock_rows:
         touched = False
