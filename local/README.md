@@ -70,15 +70,45 @@ does not resolve — see the bottom of `local/.env`.
 
 | Integration | Flag |
 |---|---|
-| AWE (approval workflow) | `AWE_ENABLED=false` |
 | Audit manager | `AUDIT_ENABLED=false` |
 | Partner signature validation | `PARTNER_SIGNATURE_VALIDATION_ENABLED=false` |
 | Consent manager | `CONSENT_ENFORCEMENT_ENABLED=false` |
 | Keymanager auth | `KEYMANAGER_AUTH_ENABLED=false` |
 
-The Kebele → Woreda → Zone → Region approval ladder, partner-signed DCI calls and
-consent enforcement therefore do not work locally. Everything else — records,
-registers, the intake forms, the geo widget and the DCI templates — does.
+Partner-signed DCI calls and consent enforcement therefore do not work locally.
+Everything else — records, registers, the intake forms, the geo widget, the DCI
+templates and the approval ladder — does.
+
+## AWE (approval workflow) — switch it on
+
+Submit (finalize) sends every intake submission to AWE, and the Kebele → Woreda
+→ Zone → Region ladder runs there, so run the stack with AWE. In `local/.env`:
+
+```
+AWE_ENABLED=true
+COMPOSE_PROFILES=awe
+AWE_CALLBACK_SECRET_ID=local-registry
+AWE_CALLBACK_HMAC_SECRET=local-awe-hmac-secret
+APPROVER_RESOLVER_SECRET=livestock-approver-resolver-secret
+LOAD_SAMPLE_DATA=false
+```
+
+Then `docker compose --env-file local/.env up -d` (starts `awe` and `awe-ui`)
+and run `db-seed` once more so the approval policy, stages, approver rules and
+callback secret land in the `awe` database. A fresh Postgres volume gets that
+database from `local/postgres/init.sql`; a volume created before this file did
+needs it once by hand:
+
+```sh
+docker compose --env-file local/.env exec postgres psql -U postgres -c "CREATE DATABASE awe;"
+docker compose --env-file local/.env exec postgres psql -U postgres -d awe -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+```
+
+With `AWE_ENABLED=false` every Submit fails with "UNEXPECTED_ERROR" (staff-api
+cannot reach AWE), so leave it on. The approver test users
+(`kebele.approver.test` … `region.approver.test`, password `test1234`) come from
+`local/keycloak/realm-staff.json`; `LOAD_SAMPLE_DATA=false` matters because the
+platform seed aborts before its AWE step when sample data is on.
 
 ## Notes and limitations
 

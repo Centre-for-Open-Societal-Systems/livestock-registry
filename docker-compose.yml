@@ -181,15 +181,15 @@ services:
     # (init.sql creates the empty database; AWE migrates it on first boot) and
     # its own Keycloak client (awe-admin-resolver) to resolve users/roles.
     #
-    # Gated behind the "awe" profile: the image lives on a private GitLab
-    # registry (registry.gitlab.com/openg2p/awe/...) that needs `docker login`,
-    # so a plain `docker compose up` must not require it. It only actually
-    # starts with `--profile awe` (or COMPOSE_PROFILES=awe). AWE_ENABLED=false
-    # (the documented local default — see local/README.md) already disables the
-    # feature at the app level; staff-api and db-seed no longer wait on this
-    # container (see their depends_on) so the two stay independent.
+    # Gated behind the "awe" profile so a plain `docker compose up` does not
+    # need it: it only starts with `--profile awe` (or COMPOSE_PROFILES=awe)
+    # together with AWE_ENABLED=true — the setup local/README.md describes,
+    # since the approval ladder does not work without it. staff-api and
+    # db-seed do not wait on this container (see their depends_on) so the two
+    # stay independent. Images come from Docker Hub: the old GitLab path
+    # (registry.gitlab.com/openg2p/awe/...) refuses anonymous pulls now.
     profiles: ['awe']
-    image: ${AWE_API_IMAGE:-registry.gitlab.com/openg2p/awe/openg2p-awe:0.0.0-develop.67}
+    image: ${AWE_API_IMAGE:-openg2p/openg2p-awe:1.2.2}
     <<: *amd64
     environment:
       UVICORN_HOST: '0.0.0.0'
@@ -223,7 +223,7 @@ services:
     # Livestock portal, reached directly at http://localhost:8031.
     # Same "awe" profile gate as the awe service above — see its comment.
     profiles: ['awe']
-    image: ${AWE_UI_IMAGE:-registry.gitlab.com/openg2p/awe/openg2p-awe-ui:0.0.0-develop.67}
+    image: ${AWE_UI_IMAGE:-openg2p/openg2p-awe-ui:1.2.2}
     depends_on:
       awe:
         condition: service_healthy
@@ -624,6 +624,12 @@ services:
       AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
       AWE_CALLBACK_HMAC_SECRET: ${AWE_CALLBACK_HMAC_SECRET}
       AWE_CALLBACK_CALLER_SERVICE: registry
+      # Where AWE must call our approver resolver (see docker/db-seed/
+      # livestock-entrypoint.sh): the compose service name here; the chart
+      # derives it from the webhook URL instead. The secret must equal
+      # staff-api's APPROVER_RESOLVER_SECRET.
+      APPROVER_RESOLVER_BASE_URL: http://staff-api:8000
+      APPROVER_RESOLVER_SECRET: ${APPROVER_RESOLVER_SECRET}
     depends_on:
       staff-api:
         condition: service_healthy

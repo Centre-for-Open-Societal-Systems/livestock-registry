@@ -51,3 +51,10 @@ GRANT ALL ON SCHEMA public TO iam_user;
 
 \connect livestock_idgenerator
 GRANT ALL ON SCHEMA public TO livestock_idgenerator_user;
+
+-- Approval Workflow Engine (compose service `awe`, profile "awe"): owns this
+-- database and creates its own tables on first boot; it only needs the
+-- database to exist. Same superuser as the compose service uses (DB_USER).
+CREATE DATABASE awe;
+\connect awe
+CREATE EXTENSION IF NOT EXISTS pg_trgm;

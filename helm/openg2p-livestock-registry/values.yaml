@@ -33,6 +33,11 @@ registry:
       # submissions in the same second collide 1 in 10 ("Unexpected error").
       # Five random digits keep the same shape; see docker-compose.yml.
       REGISTRY_STAFF_PORTAL_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
+      # Shared secret AWE presents when it asks /livestock/approver-resolver
+      # who approves a stage (g2p_approver_resolver_controller.py). The seed
+      # writes the same value into the AWE rule URLs (dbSeed.envVars below);
+      # override both together or neither.
+      APPROVER_RESOLVER_SECRET: "livestock-approver-resolver-secret"
   partnerApi:
     image:
       repository: openg2p/openg2p-livestock-registry-partner-api
@@ -81,6 +86,12 @@ registry:
     loadSampleData: false
     loadImages: true
     loadTemplates: true
+    envVars:
+      # See staffApi.envVars.APPROVER_RESOLVER_SECRET. The resolver's base URL
+      # is derived from the AWE webhook URL (global.aweDefaultCallbackUrl:
+      # same staff-api host); set APPROVER_RESOLVER_BASE_URL here only if the
+      # resolver must be reached at a different address.
+      APPROVER_RESOLVER_SECRET: "livestock-approver-resolver-secret"
 
   # Name of this registry's tile in IAM. The roles/permissions catalog itself is
   # registry-agnostic and comes from the subchart.
