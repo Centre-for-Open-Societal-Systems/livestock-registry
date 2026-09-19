@@ -1,0 +1,115 @@
+# Release overlay for a NEW environment - category A, the part that belongs in git.
+#
+# Copy to helm/openg2p-livestock-registry/values-<env>.yaml, replace the four
+# placeholders, and pass it with -f from the deploy stage. Everything here is an
+# override of a chart DEFAULT that is wrong for a real cluster, not a preference.
+#
+#   <PORTAL_HOST>    public hostname of the staff portal
+#   <IAM_HOST>       public hostname of IAM
+#   <KEYCLOAK_HOST>  public hostname of Keycloak
+#   <NS>             namespace (also the CA configmap prefix: <NS>-ca-bundle)
+#   <RELEASE>        helm release name
+#   <GATEWAY>        Istio Gateway that lists <PORTAL_HOST> in spec.hosts
+#   <INTERNAL_DOMAIN>  e.g. <NS>.openg2p.test - what the `internal` Gateway admits
+
+# The anchor is re-used under `registry:` and again under `registry.idgenerator:`.
+# Helm does NOT propagate a parent's `global:` across an ALIASED dependency, so a
+# global set only at the top level never reaches the subchart that owns every
+# template that matters.
+global: &global
+  # THE CUTOVER. Chart default is '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.org',
+  # a domain that does not exist - the release comes up on hostnames nothing
+  # resolves and no Gateway admits, so deploys have no visible effect.
+  registryHostname: "<PORTAL_HOST>"
+
+  # Independent keys. Neither follows registryHostname; both default to the same
+  # dead placeholder domain.
+  idGeneratorHostname: "idgenerator-<RELEASE>.<INTERNAL_DOMAIN>"
+  aweHostname: "awe.<INTERNAL_DOMAIN>"
+
+  # Built as 'https://staff-{{ registryHostname }}/...', so pinning staffApi.hostname
+  # does NOT cover it. AWE is in-namespace: use the Service over plain http, or AWE's
+  # own client hairpins out through nginx and fails the local-CA check in reverse.
+  aweDefaultCallbackUrl: "http://<RELEASE>-staff-portal-api/awe/webhooks/decision"
+
+  keycloakBaseUrl: "https://<KEYCLOAK_HOST>"
+
+  # The external MinIO host presents the local CA, which the seed's S3 client
+  # rejects outright (CERTIFICATE_VERIFY_FAILED) - the seed then fails and takes
+  # the release to `failed`. Cost: pre-signed document URLs are in-cluster
+  # addresses a browser cannot follow, until MinIO has a public hostname.
+  minioHost: "commons-minio:9000"
+  minioSecure: false
+
+registry:
+  global: *global
+  idgenerator:
+    global: *global            # third chart layer - the gap repeats at this boundary
+    idGenerator:
+      image:
+        repository: registry.gitlab.com/openg2p/platform-services/id-generator/openg2p-id-generator
+
+  staffUi:
+    istio:
+      virtualservice:
+        gateway: "<GATEWAY>"   # `internal` admits only *.<INTERNAL_DOMAIN>
+    iamPublicUrl: "https://<IAM_HOST>"
+    partnerIngestUrl: "https://partner-<RELEASE>.<INTERNAL_DOMAIN>/partner/ingest_data?data_model=dcivc"
+    envVars:
+      COOKIE_DOMAIN: ".<PUBLIC_DOMAIN>"    # must cover PORTAL_HOST or login loops
+      LOGIN_PROVIDER_ID: "2"               # the IAM login_providers row for the PUBLIC issuer
+      COMMON_AUTH_DEFAULT_ISSUERS: '["https://<KEYCLOAK_HOST>/realms/staff"]'
+      CSP_SRC_IMG: "self blob: data: https://minio-api.<INTERNAL_DOMAIN>"
+      # Node ships its own CA bundle and ignores the OS trust store.
+      # NODE_EXTRA_CA_CERTS APPENDS, so public TLS still works.
+      NODE_EXTRA_CA_CERTS: /openg2p-ca/ca.crt
+    extraVolumes:
+      - name: openg2p-ca
+        configMap: { name: openg2p-ca-cert }
+    extraVolumeMounts:
+      - name: openg2p-ca
+        mountPath: /openg2p-ca
+        readOnly: true
+
+  staffApi:
+    hostname: "staff-<RELEASE>.<INTERNAL_DOMAIN>"
+    istio:
+      virtualservice:
+        host: "staff-<RELEASE>.<INTERNAL_DOMAIN>"
+    envVars:
+      # Python: SSL_CERT_FILE REPLACES the bundle (unlike Node's APPEND above), so
+      # this must be a full bundle - <NS>-ca-bundle is one. Without it every
+      # server-side https call to a .test host dies CERTIFICATE_VERIFY_FAILED and
+      # the portal reports it cannot reach AWE.
+      SSL_CERT_FILE: /etc/ssl/local-ca/ca-bundle.pem
+      # The approver-resolver reads BARE names straight from os.environ, not the
+      # registry_staff_portal_api_ prefixed settings. Its only fallback is the
+      # keycloak_admin_* settings, which the chart does not set.
+      KEYCLOAK_BASE_URL: "https://<KEYCLOAK_HOST>"
+      KEYCLOAK_REALM: "staff"
+      AUTH_CLIENT_ID: "<RELEASE>-staff-portal"   # default is the compose-stack name
+      # AUTH_CLIENT_SECRET: set from secret/<RELEASE>-staff-portal key client_secret
+    extraVolumes:
+      - name: ca-bundle
+        configMap: { name: <NS>-ca-bundle }
+    extraVolumeMounts:
+      - name: ca-bundle
+        mountPath: /etc/ssl/local-ca
+        readOnly: true
+
+  partnerApi:
+    hostname: "partner-<RELEASE>.<INTERNAL_DOMAIN>"
+    istio:
+      virtualservice:
+        host: "partner-<RELEASE>.<INTERNAL_DOMAIN>"
+
+  # Celery's prefork pool defaults to one process per CPU of the NODE, not of the
+  # container. On a 48-core box both pods are OOMKilled at the chart's limits and
+  # raising the limits does not help. A reference deployment at concurrency 4 uses
+  # 340Mi against 3162Mi at 48.
+  celeryWorker:
+    envVars:
+      CELERY_OPTS: "worker -Q registry_worker_queue --loglevel=info --concurrency=4"
+  celeryBeat:
+    envVars:
+      CELERY_OPTS: "worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db --concurrency=4"
