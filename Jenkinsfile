@@ -1,9 +1,14 @@
+
 pipeline {
     agent { label 'vpn-agent2' }
-    // One run at a time: merging several PRs back to back queued overlapping
-    // runs whose helm upgrades collided ("another operation in progress"),
-    // which is what showed up as a failed db-seed on dev on 2026-09-18.
-    options { disableConcurrentBuilds() }
+
+    options {
+        // One run at a time: merging several PRs back to back queued
+        // overlapping runs whose helm upgrades collided ("another
+        // operation in progress"), which is what showed up as a failed
+        // db-seed on dev on 2026-09-18.
+        disableConcurrentBuilds()
+    }
 
     environment {
         AWS_REGION       = 'ap-south-1'
@@ -11,8 +16,8 @@ pipeline {
         RP_VERSION       = '0.0.0-develop.296' // TODO verify — see header note
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
-        // The chart actually running in `live` today — NOT this repo's own
-        // helm/openg2p-livestock-registry. See header comment.
+        // The chart actually running in staging's `live` today — NOT this
+        // repo's own helm/openg2p-livestock-registry. See header comment.
         HELM_CHART_REPO  = 'openg2p'
         HELM_CHART_URL   = 'https://openg2p.github.io/openg2p-helm'
         HELM_CHART_REF   = 'openg2p/openg2p-farmer-registry'
@@ -22,8 +27,9 @@ pipeline {
         // physical cluster from HELM_NAMESPACE/staging-rke2-kubeconfig
         // above; same chart/release-name convention, different kubeconfig.
         // Dedicated credential for the dedicated live:livestock-ci
-        // ServiceAccount (ci/k8s/livestock-deploy-rbac.yaml) 
- 
+        // ServiceAccount (ci/k8s/livestock-deploy-rbac.yaml) — NOT
+        // gen2-dev-kubeconfig, which is farmer-ci's own token scoped to
+        // `far` only and is untouched by this pipeline.
         HELM_NAMESPACE_DEV       = 'live'
         DEV_KUBECONFIG_CRED_ID   = 'gen2-dev-livestock-kubeconfig'
     }
@@ -65,11 +71,16 @@ pipeline {
         }
 
         stage('Prepare Deploy Values') {
- 
+            // Split out 2026-09-16 so both deploy targets (dev cluster and
+            // staging cluster's `live` namespace) share the exact same
             // image-tag overlay file instead of two copies that could drift.
             // Content is cluster/namespace-agnostic (image repo+tag only) —
             // safe to reuse verbatim against either kubeconfig.
-            when { branch 'develop' }
+            //
+            // Gated on the SAME branch as "Deploy to Live" below (not
+            // 'develop' anymore) — this stage exists solely to feed that
+            // one. See the branch-gating header note above.
+            when { branch 'main' } // ASSUMPTION — confirm the real staging branch name
             steps {
                 sh """
                     cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
@@ -108,63 +119,34 @@ EOF
         }
 
         stage('Deploy to Development') {
-           
-            // (helm/openg2p-livestock-registry) with its checked-in
-            // values.yaml used AS-IS -- no separate overlay/draft values
-            // file. That file's own header states its intended CI contract
-            // explicitly: "Only the tag is CI-rewritten in lockstep with
-            // the chart version" -- everything else (global registryVariant,
-            // idgenerator pools, sanity regType/scopes, iamRegister
-            // description, dbSeed loader flags) is registry-correct as
-            // committed and isn't CI's to touch. So this stage overrides
-            // the six image refs that are genuinely CI-owned (repository+tag,
-            // via --set, matching this pipeline's Build & Push stage) and
-            // layers values-dev.yaml on top for everything that belongs to
-            // the DEV CLUSTER rather than to the registry.
+            // Unchanged by the branch-gating edit — still runs on every
+            // `develop` push, which is correct per the user (this is the
+            // stage that should keep working exactly as it does today).
             //
-            // values-dev.yaml was added because deploying values.yaml as-is
-            // did not work: the chart's defaults address the release on
-            // `*.<namespace>.openg2p.org`, a domain that does not exist on
-            // this box. The pods ran, but on hostnames nothing resolved and
-            // no Istio Gateway admitted -- so dev went on serving the August
-            // hand-installed `farmer-registry` release and none of the
-            // September merges were visible on the dev URL. That file also
-            // carries the dev cluster's MinIO endpoint (the placeholder one
-            // failed db-seed, which took the release to `failed`), the moved
-            // GitLab path for id-generator, and memory limits for the two
-            // celery pods, both of which were being OOMKilled at the chart
-            // defaults. Each override is justified in place there.
-            //
-            // It sets `global.registryHostname` to the public dev hostname,
-            // so the release's OWN staff-ui VirtualService owns that URL and
-            // every merge reaches it with no manual step. That replaces the
-            // hand-applied `pub-staff-portal-ui` VirtualService, which has to
-            // be deleted ONCE -- see README-dev.md next to values-dev.yaml.
-            // Until it is, it and this release's VirtualService claim the
-            // same host on the same Gateway, and the older one wins.
+            // Uses THIS repo's own chart (helm/openg2p-livestock-registry)
+            // with its checked-in values.yaml PLUS a dev-specific overlay,
+            // values-dev.yaml (hostname/MinIO/id-generator GitLab path/
+            // celery memory — see header UPDATE note for the full
+            // rationale and the one-time manual VirtualService cleanup
+            // documented in README-dev.md). Only the six image refs are
+            // still overridden via --set, matching the Build & Push stage.
             //
             // `helm upgrade --install` (not `--reuse-values`) is used
             // deliberately: every run supplies the full intended value set
-            // (checked-in values.yaml + these --set flags) from repo state,
-            // so there's nothing to drift out of sync with and no
-            // dependency on a prior release already existing -- unlike the
-            // staging stage below, which targets an already-running release
-            // built from a DIFFERENT chart lineage and has no in-repo
-            // values file to be declarative from.
+            // (values.yaml + values-dev.yaml + these --set flags) from repo
+            // state, so there's nothing to drift out of sync with and no
+            // dependency on a prior release already existing.
             //
-            // `live`'s shared-services layer
-            // (`commons`/`commons-services` releases, own
-            // Keycloak/Postgres/MinIO) is already deployed and healthy --
-            // no bring-up needed. `live` ALSO already has an existing
-            // `farmer-registry` release (STATUS: failed, pods Running)
-            // that this NEW `livestock-registry` release deploys alongside
-           
+            // The `grep -q openg2p\\.org` check below is a regression
+            // guard: if values-dev.yaml's hostname override somehow didn't
+            // take effect, the release would silently go back to being
+            // unreachable (see header UPDATE note) — this fails the build
+            // loudly, before any real cluster mutation, instead of
+            // deploying something broken again.
+            //
             // Wrapped in catchError so a problem specific to the dev
-            // cluster (still new, less battle-tested than staging) does
-            // NOT block the staging "Deploy to Live" stage below from
-            // running. A dev-deploy failure marks this stage (and the
-            // build) unstable/failed for visibility, but doesn't abort
-            // the pipeline before staging's own deploy gets a chance.
+            // cluster does NOT block the staging "Deploy to Live" stage
+            // below from running.
             when { branch 'develop' }
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -191,36 +173,18 @@ EOF
                                 --set registry.sanity.image.tag=${env.IMAGE_TAG}
                             "
 
-                            # Dry-run audit trail, same reasoning as staging's own dry-run step.
-                            # Written workspace-relative (not /tmp/...) so archiveArtifacts
-                            # below can actually find it -- see header UPDATE note.
                             helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
                                 -f ./helm/openg2p-livestock-registry/values-dev.yaml \
                                 \$IMAGE_SET_FLAGS \
                                 > dev-rendered-\${BUILD_NUMBER}.yaml
                             echo "Rendered \$(wc -l < dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's values.yaml + values-dev.yaml + image overrides. Archived for audit."
 
-                            # Guard against exactly the failure described above: a
-                            # render still carrying the chart's placeholder domain
-                            # means the dev overlay did not take effect, and the
-                            # deploy would land on hostnames nothing resolves.
                             if grep -q 'openg2p\\.org' dev-rendered-\${BUILD_NUMBER}.yaml; then
                                 echo "FATAL: rendered manifests still reference the placeholder domain openg2p.org:"
                                 grep -n 'openg2p\\.org' dev-rendered-\${BUILD_NUMBER}.yaml | head -20
                                 exit 1
                             fi
 
-                            # No --atomic here either, same reasoning as staging: if
-                            # id-generator's GitLab-403 ImagePullBackOff is present on
-                            # this cluster too (same private-registry credential
-                            # problem, likely cluster-agnostic — not yet independently
-                            # confirmed on dev), --wait would block the full timeout
-                            # and auto-rollback would discard a good deploy.
-                            #
-                            # livestock-ci's RBAC is
-                            # deliberately namespace-scoped-only (no ClusterRoleBinding),
-                            # so this flag can only fail here
-                            
                             helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
                                 -f ./helm/openg2p-livestock-registry/values-dev.yaml \
                                 \$IMAGE_SET_FLAGS \
@@ -237,7 +201,14 @@ EOF
         }
 
         stage('Deploy to Live') {
-            when { branch 'develop' }
+            // CHANGED 2026-09-22: was `when { branch 'develop' }`. The user
+            // confirmed develop pushes should only touch the dev cluster —
+            // this stage (staging) now only runs on pushes to
+            // '<STAGING_BRANCH>' (placeholder: 'main', NOT yet confirmed by
+            // name — see the header note at the top of this file). Note
+            // this doesn't fix the build #41 db-seed BackoffLimitExceeded
+            // failure; it just stops it from being triggered by develop.
+            when { branch 'main' } // ASSUMPTION — confirm the real staging branch name
             steps {
                 withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
                     sh """
@@ -249,16 +220,10 @@ EOF
                         #
                         # NOTE: `helm template` has NO --reuse-values flag -- that flag
                         # only exists on `helm upgrade`/`helm install`, which manage a
-                        # stored release to reuse values from. `helm template` is a pure
-                        # client-side render with no release state, so passing
-                        # --reuse-values here is a hard error ("unknown flag") that
-                        # aborts the whole stage before the real `helm upgrade` below
-                        # ever runs (Jenkins `sh` steps run with `-e` by default). Fixed
-                        # by explicitly feeding the just-captured live values back in as
-                        # a -f file instead -- this is the actual on-disk equivalent of
-                        # what --reuse-values does internally on a real upgrade.
-                        # Written workspace-relative (not /tmp/...) so archiveArtifacts
-                        # below can actually find them
+                        # stored release to reuse values from. Fixed by explicitly
+                        # feeding the just-captured live values back in as a -f file
+                        # instead -- this is the actual on-disk equivalent of what
+                        # --reuse-values does internally on a real upgrade.
                         helm get values \${HELM_RELEASE} -n \${HELM_NAMESPACE} -a -o yaml > live-values-before-\${BUILD_NUMBER}.yaml
                         helm template \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
                             -f live-values-before-\${BUILD_NUMBER}.yaml \
@@ -266,24 +231,14 @@ EOF
                             > live-rendered-\${BUILD_NUMBER}.yaml
                         echo "Rendered \$(wc -l < live-rendered-\${BUILD_NUMBER}.yaml) lines against the currently-deployed values (image tags only overridden). Archived for audit."
 
-                        # NOTE (added 2026-09-16, after the first real deploy got stuck twice):
-                        # --atomic (and --wait, which it implies) makes Helm block until
-                        # EVERY Deployment in the release is fully rolled out -- not just
-                        # the ones this overlay touches. `live` has a pre-existing, already
-                        # documented, not-fixable-from-here problem on
-                        # livestock-registry-id-generator (a GitLab container registry
-                        # pull started 403'ing anonymously -- see the outage postmortem's
-                        # "Open -- id-generator GitLab pull failure" section): its current
-                        # ReplicaSet can never finish rolling out, so a --wait'd upgrade
-                        # blocks for the full --timeout on THAT unrelated Deployment, then
-                        # --atomic auto-rolls-back the whole release -- discarding whatever
-                        # real fix this run was trying to land, every single time, until
-                        # id-generator's GitLab access is restored upstream (not an infra
-                        # fix). --cleanup-on-fail is kept (it doesn't require --atomic
-                        # and doesn't wait) for some safety net on a genuine hook failure;
-                        # the explicit `kubectl rollout status` checks below already cover
-                        # verifying the three deployments this pipeline actually cares
-                        # about, without id-generator poisoning the wait.
+                        # No --atomic/--wait: `live`'s pre-existing, not-fixable-from-here
+                        # id-generator GitLab-403 pull failure means its ReplicaSet can
+                        # never finish rolling out, so a --wait'd upgrade would block for
+                        # the full --timeout and --atomic would auto-roll-back every run.
+                        # --cleanup-on-fail is kept for some safety net on a genuine hook
+                        # failure; the explicit `kubectl rollout status` checks below are
+                        # the real verification step, scoped to the three deployments
+                        # this pipeline actually cares about.
                         helm upgrade \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
                             --reuse-values -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
                             --cleanup-on-fail --timeout 10m
@@ -312,7 +267,7 @@ EOF
                     body: """
 Hi ${committerName},
 
-Livestock Registry build and deploy to live succeeded!
+Livestock Registry build/deploy succeeded!
 
 Job:    ${env.JOB_NAME}
 Branch: ${env.GIT_BRANCH}
