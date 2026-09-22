@@ -20,7 +20,7 @@ Expected CSV columns (header row, order doesn't matter):
     ear_tag_id       (required) — e.g. "ET0000100001". Matches an existing
         Animal row under that livestock -> UPDATE; no match -> CREATE.
     species          (required) — LIVESTOCK_SPECIES attribute value id.
-    gender           (required) — MALE / FEMALE / MIXED.
+    gender           (required) — MALE / FEMALE, or MIXED for a species without an ear tag.
     breed, date_of_birth (YYYY-MM-DD), weight, health_status,
     vaccination_status, secondary_identifier — all optional; a blank cell
     leaves an existing animal's value untouched (does not blank it out) and

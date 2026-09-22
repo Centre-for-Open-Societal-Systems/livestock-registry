@@ -7,7 +7,7 @@ from sqlalchemy import and_, exists, select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
-    ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
+    ear_tag_exists, get_animal_gender, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
     application_references_of,
@@ -46,6 +46,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             await self._validate_ear_tag_exists(record, batch_reference)
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
+            await self._validate_female_only(record)
             await validate_species_matches(record)
             self._validate_not_in_future(record, "breeding_date")
             self._validate_not_in_future(record, "pregnancy_confirmation_date")
@@ -68,6 +69,22 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             validation_error(
                 "ear_tag_id does not match any registered or drafted animal. "
                 "Add it under Livestock Details first, or check for a typo."
+            )
+
+    async def _validate_female_only(self, record: dict) -> None:
+        """Breeding is logged against the dam -- only a Female animal can be
+        pregnant. The Ear Tag dropdown only lists Female animals of this
+        submission (livestock-dialog-overlay.js), but the tag itself is still
+        typed text the server must check on its own, same reasoning as every
+        other ear-tag rule here (see _validate_ear_tag_exists)."""
+        ear_tag_id = record.get("ear_tag_id")
+        if is_blank(ear_tag_id):
+            return
+        gender = await get_animal_gender(str(ear_tag_id).strip())
+        if gender and str(gender).upper() != "FEMALE":
+            validation_error(
+                "Breeding can only be logged against a Female animal "
+                f"(ear tag '{str(ear_tag_id).strip()}' is on file as {str(gender).title()})."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:

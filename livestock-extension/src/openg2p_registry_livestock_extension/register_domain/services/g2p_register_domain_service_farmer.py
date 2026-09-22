@@ -11,6 +11,7 @@ from .domain_validation_utils import (
     is_blank,
     parse_date,
     require_field,
+    resolve_today_default,
     sync_farmer_identity_to_livestock,
     validation_error,
 )
@@ -21,9 +22,10 @@ _logger = logging.getLogger("g2p-register-domain-service")
 # FR- followed by exactly 10 digits, as enforced by _check_farmer_id_format in
 # g2p_livestock_registry/models/livestock_registry.py.
 _FARMER_ID_PATTERN = re.compile(r"^FR-\d{10}$")
-# FAN- followed by exactly 16 digits, as enforced by _check_fayda_fan_id_format in
+# Exactly 16 digits (the Fayda FAN carries no letter prefix), as enforced by
+# _check_fayda_fan_id_format in
 # g2p_livestock_registry/models/livestock_registry.py.
-_FAYDA_FAN_ID_PATTERN = re.compile(r"^FAN-\d{16}$")
+_FAYDA_FAN_ID_PATTERN = re.compile(r"^\d{16}$")
 # Ethiopian mobile numbers only, matching _check_mobile_numbers in gen1's
 # g2p_crop_registry/model/crop_registry.py: +251 or a leading 0, followed by
 # 7 or 9 (the only leading digits Ethiopian mobile numbers use) and 8 more
@@ -40,6 +42,9 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
             # section, whose payload never carries farmer_id/fayda_fan_id at
             # all. Requiring them outright would reject that section's save
             # outright since the keys are simply absent, not blank.
+            # Registration Date defaults to the literal "today" on the intake form;
+            # resolve it before any check (see resolve_today_default).
+            resolve_today_default(record, "registration_date")
             if "farmer_id" in record:
                 require_field(record, "farmer_id", "Farmer ID")
             if "fayda_fan_id" in record:
@@ -85,9 +90,9 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
         value = record.get("fayda_fan_id")
         if value is None or str(value).strip() == "":
             return
-        if not _FAYDA_FAN_ID_PATTERN.match(str(value).strip().upper()):
+        if not _FAYDA_FAN_ID_PATTERN.match(str(value).strip()):
             validation_error(
-                "fayda_fan_id must be FAN- followed by exactly 16 digits, e.g. FAN-1234567890123456"
+                "fayda_fan_id must be exactly 16 digits, e.g. 1234567890123456"
             )
 
     def _validate_mobile_number(self, record: dict, field: str) -> None:

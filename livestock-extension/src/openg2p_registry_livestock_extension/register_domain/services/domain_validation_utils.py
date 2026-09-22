@@ -661,6 +661,43 @@ async def fill_species_and_age_from_animal(record: dict) -> None:
         record["age"] = format_age(birth_date)
 
 
+async def get_animal_gender(ear_tag_id: str) -> str | None:
+    """The gender already recorded against ear_tag_id under Livestock
+    Details, or None if the ear tag isn't known anywhere or has no gender on
+    file yet. Same lookup shape as get_animal_species_and_birth_date (register
+    first, then any in-progress intake draft; same "same ear tag, different
+    answer between calls" ordering guard) -- used by Breeding to reject
+    logging a breeding event against a male animal (see
+    G2PRegisterDomainServiceBreeding._validate_female_only).
+    """
+    if is_blank(ear_tag_id):
+        return None
+
+    from openg2p_fastapi_common.context import dbengine
+    from sqlalchemy import and_, select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
+
+    def _has_gender(model):
+        return and_(model.ear_tag_id == ear_tag_id, model.gender.is_not(None), model.gender != "")
+
+    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+    async with session_maker() as session:
+        for model in (G2PRegisterAnimal, G2PIntakeFormAnimal):
+            row = (
+                await session.execute(
+                    select(model.gender)
+                    .where(_has_gender(model))
+                    .order_by(model.created_at.desc())
+                    .limit(1)
+                )
+            ).first()
+            if row and row[0]:
+                return row[0]
+        return None
+
+
 async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
     """post_intake_upsert companion to ear_tag_exists(): the platform hands
     validate_domain_attributes a brand-new row with NO submission context, so

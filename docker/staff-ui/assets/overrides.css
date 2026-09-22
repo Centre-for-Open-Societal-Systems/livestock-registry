@@ -16,8 +16,8 @@
       left + a divider on the value block) — right for columns 2 and 3, wrong
       for the field that starts a new row: the 4th (Woreda) sat indented with
       a stray divider.
-   2. A 20-character Fayda FAN ID ("FAN-3100000000000004") never fit and
-      always showed as "FAN-31000000…".
+   2. A long Fayda FAN ID (16 digits, e.g. "3100000000000004") never fit and
+      was cut short with an ellipsis.
 
    Two columns instead of three gives every value ~240px, enough for a FAN ID
    on one line, and lines the 4 fields up as a clean 2x2. The "first in row"

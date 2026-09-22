@@ -102,6 +102,13 @@ COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock-dialog-overlay.js /a
 COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-dialog-overlay.js /tmp/patch-dialog-overlay.js
 RUN node /tmp/patch-dialog-overlay.js && rm /tmp/patch-dialog-overlay.js
 
+# ── Attribute Values: forward Interval / Active / Notes to the backend ──
+# The portal's create/update-attribute-value routes rebuild the request from a
+# fixed field list and drop everything else, so the fields the overlay adds to
+# the Add/Edit dialog would never be saved. See the script's header.
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-attribute-value-routes.js /tmp/patch-attribute-value-routes.js
+RUN node /tmp/patch-attribute-value-routes.js && rm /tmp/patch-attribute-value-routes.js
+
 # ── Rename the attribute-value "Sort Order" field label to "Display Order" ──
 # Configuration -> Attributes (and Configuration -> Registry -> Languages,
 # which shares the same i18n key) label the g2p_attribute_values.sort_order

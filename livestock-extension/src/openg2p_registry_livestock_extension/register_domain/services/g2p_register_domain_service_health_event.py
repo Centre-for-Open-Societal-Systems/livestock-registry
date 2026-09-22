@@ -72,6 +72,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
+            self._validate_event_dates_required(record)
             await validate_species_matches(record)
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
@@ -81,6 +82,24 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         for field, label in _REQUIRED_FIELDS.items():
             if is_blank(record.get(field)):
                 validation_error(f"Please provide the {label} before saving the record.")
+
+    def _validate_event_dates_required(self, record: dict) -> None:
+        """Date of Onset / Date of Resolution are mandatory exactly when the
+        Health Event Details dialog shows them for the chosen event_type
+        (see patch_ls_health_event_details_sync_ui_schema.sql):
+            DISEASE    onset + resolution required
+            INJURY     onset + resolution required
+            TREATMENT  onset required (the form hides resolution)
+            RECOVERY   resolution required (the form hides onset)
+        Mirrors _validate_disease_type below -- the form's conditional
+        "require" action alone can't be trusted for API / bulk-import
+        clients that bypass it.
+        """
+        event_type = str(record.get("event_type") or "").upper()
+        if event_type != "RECOVERY" and is_blank(record.get("date_onset")):
+            validation_error("Please provide the date of onset before saving the record.")
+        if event_type != "TREATMENT" and is_blank(record.get("date_resolution")):
+            validation_error("Please provide the date of resolution before saving the record.")
 
     def _validate_disease_type(self, record: dict) -> None:
         # Only a DISEASE event carries a disease — the form hides disease_type

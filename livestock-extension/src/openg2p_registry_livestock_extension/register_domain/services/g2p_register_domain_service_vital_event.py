@@ -18,6 +18,7 @@ from .domain_validation_utils import (
     ear_tag_exists,
     is_blank,
     parse_date,
+    resolve_today_default,
     validate_species_matches,
     validation_error,
     fill_species_and_age_from_animal,
@@ -61,6 +62,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             # Ear tag is typed (no animal picker inside dialogs on the official
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
+            # Event Date defaults to the literal "today" on the intake form; resolve
+            # it before any check (see resolve_today_default). Only shown once an
+            # Event Type is picked, same as the required check right after it.
+            resolve_today_default(record, "event_date")
             await self._validate_ear_tag_exists(record, batch_reference)
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)

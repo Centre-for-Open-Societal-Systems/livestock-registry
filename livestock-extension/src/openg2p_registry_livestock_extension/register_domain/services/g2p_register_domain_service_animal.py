@@ -71,6 +71,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             # off a cattle record here, server-side.
             await validate_belongs_to_species(record.get("breed"), record.get("species"), "Breed")
             self._validate_identifier_required(record, requires_ear_tag)
+            self._validate_gender_for_species(record, requires_ear_tag)
             self._validate_ear_tag_id(record)
             self._validate_quantity(record, is_flock_species)
             self._validate_date_of_birth_required(record, is_flock_species)
@@ -110,6 +111,20 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 "Please provide a secondary identifier (leg band, wing tag, "
                 "hive number, etc.) before saving the record — this species "
                 "has no ear to attach an ear tag to."
+            )
+
+    def _validate_gender_for_species(self, record: dict, requires_ear_tag: bool) -> None:
+        """Sex is Male or Female for every ear-tagged species; "Mixed / Not
+        Applicable" (GenderEnum.MIXED) exists for the species that have no ear
+        tag (poultry, beehive, ...), where one record stands for a whole
+        flock/hive. The Livestock Details dialog only offers Mixed for those
+        species (livestock-dialog-overlay.js); this is the same rule for API
+        and bulk-import clients."""
+        gender = str(record.get("gender") or "").strip().upper()
+        if gender == "MIXED" and requires_ear_tag:
+            validation_error(
+                "Sex 'Mixed / Not Applicable' is only for species without an ear tag "
+                "(poultry, beehive, ...) — choose Male or Female for this species."
             )
 
     def _validate_quantity(self, record: dict, is_flock_species: bool) -> None:
