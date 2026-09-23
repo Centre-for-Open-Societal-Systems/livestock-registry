@@ -11,8 +11,10 @@ from .domain_validation_utils import (
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
-    application_references_of,
     ensure_ear_tags_belong_to_submission,
+    intake_rows_as_records,
+    tables_for,
+    submission_ids_of,
 )
 
 # Kept as its own import line rather than folded into the block above: the
@@ -260,7 +262,13 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
 
         return " ".join(record_name).strip()
 
-    async def _validate_no_duplicate_events(self, records: list[dict]) -> None:
+    async def _validate_no_duplicate_events(
+        self,
+        records: list[dict],
+        *,
+        search: tuple[str, ...] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+    ) -> None:
         """The same health event must not be recorded twice for one animal:
         same ear tag, same event type, same disease and same onset date —
         the Old System's _check_duplicate_health_event. Two layers, like
@@ -269,6 +277,12 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         (excluding this save's own rows, so editing an already-approved
         event isn't flagged against itself). A row without an onset date is
         left alone here — there is nothing to say it is the same event.
+
+        `search` / `exclude_submission_ids`: which tables to look in and which
+        submission to ignore — see exists_in_tables in domain_validation_utils.
+        Left unset (validate_domain_attributes) each row picks its own tables
+        through tables_for(); post_intake_upsert passes the intake half with
+        the submission itself excluded.
         """
 
         def key_of(record: dict):
@@ -296,10 +310,6 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             for record in records
             if record.get("internal_record_id")
         }
-        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
-        # (edit_action ADD); the submission's own application_reference still
-        # identifies them, so exclude those rows from the duplicate search too.
-        self_refs = application_references_of(records)
         for record in records:
             key = key_of(record)
             if key is None:
@@ -314,7 +324,8 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
                     "date_onset": onset,
                 },
                 exclude_internal_record_ids=self_ids,
-                exclude_application_references=self_refs,
+                exclude_submission_ids=exclude_submission_ids,
+                search=search or tables_for(record),
             ):
                 validation_error(
                     f"A {event_type} health event for ear tag '{ear_tag_id}' on {onset} "
@@ -322,6 +333,10 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
                 )
 
     async def post_intake_upsert(self, rows: list, session) -> None:
-        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission):
-        only here do the rows carry the submission reference."""
+        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission)
+        and the intake-side duplicate check: only here do the rows carry the
+        submission they belong to, which the search must leave out."""
         await ensure_ear_tags_belong_to_submission(rows)
+        await self._validate_no_duplicate_events(
+            intake_rows_as_records(rows), search=("intake",), exclude_submission_ids=submission_ids_of(rows)
+        )

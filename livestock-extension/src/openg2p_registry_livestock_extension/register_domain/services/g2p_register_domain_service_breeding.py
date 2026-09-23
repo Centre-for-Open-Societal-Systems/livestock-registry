@@ -2,7 +2,7 @@ import logging
 from datetime import date, timedelta
 
 from openg2p_registry_core.services import G2PRegisterDomainService
-from sqlalchemy import and_, exists, select
+from sqlalchemy import and_
 
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -10,8 +10,12 @@ from .domain_validation_utils import (
     ear_tag_exists, get_animal_gender, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
-    application_references_of,
     ensure_ear_tags_belong_to_submission,
+    exclude_own_rows,
+    exists_in_tables,
+    intake_rows_as_records,
+    tables_for,
+    submission_ids_of,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -112,7 +116,13 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         )
         return models.G2PRegisterBreeding, models.G2PIntakeFormBreeding
 
-    async def _validate_no_duplicate_breeding(self, records: list[dict]) -> None:
+    async def _validate_no_duplicate_breeding(
+        self,
+        records: list[dict],
+        *,
+        search: tuple[str, ...] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+    ) -> None:
         """Block logging the same breeding cycle twice — mirrors the Old
         System's "Another {AI/Natural Breeding} event already exists for
         this animal within the same breeding cycle" check
@@ -126,16 +136,18 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         saved anywhere — approved register or still-pending intake draft —
         excluding this save's own rows so re-saving an existing Breeding
         event's other fields isn't flagged against itself.
+
+        `search` / `exclude_submission_ids`: which tables to look in and which
+        submission to ignore — see exists_in_tables in domain_validation_utils.
+        Left unset (validate_domain_attributes) each row picks its own tables
+        through tables_for(); post_intake_upsert passes the intake half with
+        the submission itself excluded.
         """
         self_ids = {
             str(record["internal_record_id"])
             for record in records
             if record.get("internal_record_id")
         }
-        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
-        # (edit_action ADD); the submission's own application_reference still
-        # identifies them, so exclude those rows from the duplicate search too.
-        self_refs = application_references_of(records)
 
         seen: list[tuple[str, str, date]] = []
         for record in records:
@@ -157,7 +169,8 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             seen.append((ear_tag_id, event_type, breeding_date))
 
             if await self._breeding_conflict_exists(
-                ear_tag_id, event_type, breeding_date, self_ids, self_refs
+                ear_tag_id, event_type, breeding_date, self_ids, exclude_submission_ids,
+                search or tables_for(record),
             ):
                 self._raise_duplicate_breeding_error(event_type)
 
@@ -174,11 +187,9 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         event_type: str,
         breeding_date: date,
         exclude_internal_record_ids: set[str],
-        exclude_application_references: set[str] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+        search: tuple[str, ...] = ("register", "intake"),
     ) -> bool:
-        from openg2p_fastapi_common.context import dbengine
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
         G2PRegisterBreeding, G2PIntakeFormBreeding = self._breeding_models()
 
         window_start = breeding_date - timedelta(days=_CYCLE_WINDOW_DAYS)
@@ -191,23 +202,10 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
                 model.breeding_date >= window_start,
                 model.breeding_date <= window_end,
             ]
-            if exclude_internal_record_ids:
-                conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
-            if exclude_application_references and hasattr(model, "application_reference"):
-                conditions.append(model.application_reference.not_in(exclude_application_references))
+            exclude_own_rows(model, conditions, exclude_internal_record_ids, exclude_submission_ids)
             return and_(*conditions)
 
-        session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-        async with session_maker() as session:
-            in_register = (
-                await session.execute(select(exists().where(_condition(G2PRegisterBreeding))))
-            ).scalar()
-            if in_register:
-                return True
-            in_intake = (
-                await session.execute(select(exists().where(_condition(G2PIntakeFormBreeding))))
-            ).scalar()
-            return bool(in_intake)
+        return await exists_in_tables(G2PRegisterBreeding, G2PIntakeFormBreeding, _condition, search)
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for breeding record")
@@ -252,6 +250,10 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         return " ".join(record_name).strip()
 
     async def post_intake_upsert(self, rows: list, session) -> None:
-        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission):
-        only here do the rows carry the submission reference."""
+        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission)
+        and the intake-side duplicate check: only here do the rows carry the
+        submission they belong to, which the search must leave out."""
         await ensure_ear_tags_belong_to_submission(rows)
+        await self._validate_no_duplicate_breeding(
+            intake_rows_as_records(rows), search=("intake",), exclude_submission_ids=submission_ids_of(rows)
+        )

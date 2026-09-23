@@ -8,7 +8,7 @@ from openg2p_registry_core.models import (
     G2PRegisterChangeRequest,
 )
 from openg2p_registry_core.services import G2PRegisterDomainService
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import and_, func, select
 
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -23,8 +23,12 @@ from .domain_validation_utils import (
     validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
-    application_references_of,
     ensure_ear_tags_belong_to_submission,
+    exclude_own_rows,
+    exists_in_tables,
+    intake_rows_as_records,
+    tables_for,
+    submission_ids_of,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -155,7 +159,13 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         )
         return models.G2PRegisterVitalEvent, models.G2PIntakeFormVitalEvent
 
-    async def _validate_no_duplicate_mortality(self, records: list[dict]) -> None:
+    async def _validate_no_duplicate_mortality(
+        self,
+        records: list[dict],
+        *,
+        search: tuple[str, ...] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+    ) -> None:
         """An animal can only die once — mirrors the Old System's "A
         Mortality event already exists for this animal" check
         (g2p_livestock_registry/models/livestock_event.py
@@ -166,16 +176,18 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         register or still-pending intake draft — excluding this save's own
         rows so re-saving an existing Mortality event's other fields isn't
         flagged against itself.
+
+        `search` / `exclude_submission_ids`: which tables to look in and which
+        submission to ignore — see exists_in_tables in domain_validation_utils.
+        Left unset (validate_domain_attributes) each row picks its own tables
+        through tables_for(); post_intake_upsert passes the intake half with
+        the submission itself excluded.
         """
         self_ids = {
             str(record["internal_record_id"])
             for record in records
             if record.get("internal_record_id")
         }
-        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
-        # (edit_action ADD); the submission's own application_reference still
-        # identifies them, so exclude those rows from the duplicate search too.
-        self_refs = application_references_of(records)
 
         seen_ear_tags: set[str] = set()
         for record in records:
@@ -190,41 +202,34 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 validation_error("A Mortality event already exists for this animal.")
             seen_ear_tags.add(ear_tag_id)
 
-            if await self._mortality_exists(ear_tag_id, self_ids, self_refs):
+            if await self._mortality_exists(
+                ear_tag_id, self_ids, exclude_submission_ids, search or tables_for(record)
+            ):
                 validation_error("A Mortality event already exists for this animal.")
 
     async def _mortality_exists(
         self,
         ear_tag_id: str,
         exclude_internal_record_ids: set[str],
-        exclude_application_references: set[str] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+        search: tuple[str, ...] = ("register", "intake"),
     ) -> bool:
-        from openg2p_fastapi_common.context import dbengine
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
         G2PRegisterVitalEvent, G2PIntakeFormVitalEvent = self._vital_event_models()
 
         def _condition(model):
             conditions = [model.ear_tag_id == ear_tag_id, model.event_type == "MORTALITY"]
-            if exclude_internal_record_ids:
-                conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
-            if exclude_application_references and hasattr(model, "application_reference"):
-                conditions.append(model.application_reference.not_in(exclude_application_references))
+            exclude_own_rows(model, conditions, exclude_internal_record_ids, exclude_submission_ids)
             return and_(*conditions)
 
-        session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-        async with session_maker() as session:
-            in_register = (
-                await session.execute(select(exists().where(_condition(G2PRegisterVitalEvent))))
-            ).scalar()
-            if in_register:
-                return True
-            in_intake = (
-                await session.execute(select(exists().where(_condition(G2PIntakeFormVitalEvent))))
-            ).scalar()
-            return bool(in_intake)
+        return await exists_in_tables(G2PRegisterVitalEvent, G2PIntakeFormVitalEvent, _condition, search)
 
-    async def _validate_no_duplicate_disease(self, records: list[dict]) -> None:
+    async def _validate_no_duplicate_disease(
+        self,
+        records: list[dict],
+        *,
+        search: tuple[str, ...] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+    ) -> None:
         """Block re-logging the same disease case twice for the same
         animal — mirrors the Old System's duplicate check on (line_id,
         disease_type, effective date of onset), which Gen2 had no
@@ -232,16 +237,18 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         event_date — same fallback the Old System used, and safe here since
         _validate_required_fields already guarantees event_date is filled
         in for any record that reaches this point.
+
+        `search` / `exclude_submission_ids`: which tables to look in and which
+        submission to ignore — see exists_in_tables in domain_validation_utils.
+        Left unset (validate_domain_attributes) each row picks its own tables
+        through tables_for(); post_intake_upsert passes the intake half with
+        the submission itself excluded.
         """
         self_ids = {
             str(record["internal_record_id"])
             for record in records
             if record.get("internal_record_id")
         }
-        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
-        # (edit_action ADD); the submission's own application_reference still
-        # identifies them, so exclude those rows from the duplicate search too.
-        self_refs = application_references_of(records)
 
         seen: set[tuple] = set()
         for record in records:
@@ -265,7 +272,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 )
             seen.add(key)
 
-            if await self._disease_case_exists(ear_tag_id, disease_type, onset, self_ids, self_refs):
+            if await self._disease_case_exists(
+                ear_tag_id, disease_type, onset, self_ids, exclude_submission_ids,
+                search or tables_for(record),
+            ):
                 validation_error(
                     "A Disease event with the same disease and date of onset already "
                     "exists for this animal."
@@ -273,11 +283,9 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
 
     async def _disease_case_exists(
         self, ear_tag_id: str, disease_type: str, onset, exclude_internal_record_ids: set[str],
-        exclude_application_references: set[str] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+        search: tuple[str, ...] = ("register", "intake"),
     ) -> bool:
-        from openg2p_fastapi_common.context import dbengine
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
         G2PRegisterVitalEvent, G2PIntakeFormVitalEvent = self._vital_event_models()
 
         def _condition(model):
@@ -288,23 +296,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 func.lower(model.disease_type) == disease_type,
                 effective_onset == onset,
             ]
-            if exclude_internal_record_ids:
-                conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
-            if exclude_application_references and hasattr(model, "application_reference"):
-                conditions.append(model.application_reference.not_in(exclude_application_references))
+            exclude_own_rows(model, conditions, exclude_internal_record_ids, exclude_submission_ids)
             return and_(*conditions)
 
-        session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-        async with session_maker() as session:
-            in_register = (
-                await session.execute(select(exists().where(_condition(G2PRegisterVitalEvent))))
-            ).scalar()
-            if in_register:
-                return True
-            in_intake = (
-                await session.execute(select(exists().where(_condition(G2PIntakeFormVitalEvent))))
-            ).scalar()
-            return bool(in_intake)
+        return await exists_in_tables(G2PRegisterVitalEvent, G2PIntakeFormVitalEvent, _condition, search)
 
     async def post_approve(self, change_request: G2PRegisterChangeRequest, session) -> None:
         """BIRTH event -> auto-create the newborn Animal profile(s) under
@@ -438,6 +433,12 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         to), so actual creation stays deferred to post_approve/post_ingest.
         """
         await ensure_ear_tags_belong_to_submission(rows)
+        # Intake-side duplicate checks: only here do the rows carry the
+        # submission they belong to, which the search must leave out.
+        records = intake_rows_as_records(rows)
+        own = submission_ids_of(rows)
+        await self._validate_no_duplicate_mortality(records, search=("intake",), exclude_submission_ids=own)
+        await self._validate_no_duplicate_disease(records, search=("intake",), exclude_submission_ids=own)
         for row in rows:
             if str(getattr(row, "event_type", "") or "").upper() != "BIRTH":
                 continue
