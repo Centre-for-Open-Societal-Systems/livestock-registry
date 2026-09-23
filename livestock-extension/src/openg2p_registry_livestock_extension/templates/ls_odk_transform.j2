@@ -1,0 +1,388 @@
+{#
+  OpenG2P Gen 2 Livestock Registry Transformation Template
+  Transforms ODK survey submissions into OpenG2P Livestock Registry domain & intake section payloads.
+#}
+{% set d = expanded if expanded is defined else {} %}
+
+{% set f = d.get('farmer', {}) or {} %}
+{% set fl = d.get('farmer_location', {}) or {} %}
+{% set loc = d.get('location', {}) or {} %}
+{% set sp = d.get('survey_personnel', {}) or {} %}
+{% set sys = d.get('__system', {}) or {} %}
+
+{% set raw_region = d.get('region_id') or fl.get('region_id') or loc.get('region_name_id') or d.get('region') or '' %}
+{% set region_map = {
+  'central_ethiopia': 'Central Ethiopia',
+  'amhara': 'Amhara',
+  'dire': 'Dire Dawa',
+  'dire_dawa': 'Dire Dawa',
+  'oromia': 'Oromia',
+  'benishangul': 'Benishangul-Gumuz',
+  'ethiopia_somali': 'Somali',
+  'somali': 'Somali',
+  'tigray': 'Tigray',
+  'afar': 'Afar',
+  'sidama': 'Sidama',
+  'south_ethiopian': 'South Ethiopian',
+  'south_west_ethiopia': 'South West Ethiopia',
+  'gambela': 'Gambela',
+  'harari': 'Harari',
+  'addis_ababa': 'Addis Ababa'
+} %}
+{% set region_val = region_map.get(raw_region, raw_region) %}
+{% set species_map = {
+  'cattle': 'LIVESTOCK_SPECIES_CATTLE',
+  'cow': 'LIVESTOCK_SPECIES_CATTLE',
+  'bovine': 'LIVESTOCK_SPECIES_CATTLE',
+  'sheep': 'LIVESTOCK_SPECIES_SHEEP',
+  'ovine': 'LIVESTOCK_SPECIES_SHEEP',
+  'goat': 'LIVESTOCK_SPECIES_GOAT',
+  'caprine': 'LIVESTOCK_SPECIES_GOAT',
+  'camel': 'LIVESTOCK_SPECIES_CAMEL',
+  'donkey': 'LIVESTOCK_SPECIES_DONKEY',
+  'horse': 'LIVESTOCK_SPECIES_HORSE',
+  'mule': 'LIVESTOCK_SPECIES_MULE',
+  'poultry': 'LIVESTOCK_SPECIES_POULTRY',
+  'chicken': 'LIVESTOCK_SPECIES_POULTRY',
+  'pig': 'LIVESTOCK_SPECIES_PIG',
+  'swine': 'LIVESTOCK_SPECIES_PIG',
+  'beehive': 'LIVESTOCK_SPECIES_BEEHIVE',
+  'bee': 'LIVESTOCK_SPECIES_BEEHIVE'
+} %}
+{% set zone_val = d.get('zone_id') or fl.get('zone_id') or loc.get('zone_name_id') or d.get('zone') or '' %}
+{% set woreda_val = d.get('woreda_id') or fl.get('woreda_id') or loc.get('woreda_name_id') or d.get('woreda') or '' %}
+{% set kebele_val = d.get('kebele_id') or fl.get('kebele_id') or loc.get('kebele_name_id') or d.get('kebele') or '' %}
+
+{% set fayda_val = d.get('fayda_id') or f.get('fayda_fan_id') or f.get('fayda_id') or d.get('fayda_fan_id') or '' %}
+{% set farmer_name_val = d.get('owner_id') or f.get('farmer_name') or ((f.get('first_name', '') ~ ' ' ~ f.get('middle_name', '') ~ ' ' ~ f.get('last_name', '')) | trim) %}
+{% set farmer_id_val = f.get('farmer_id') or d.get('farmer_id') or '' %}
+{% set submission_date = f.get('registration_date') or sys.get('submissionDate') or (d.get('start', '').split('T')[0]) or '' %}
+
+{% set surveyor_name_val = sp.get('surveyor_name') or sys.get('submitterName') or '' %}
+{% set surveyor_mobile_val = sp.get('surveyor_mobile_number') or '' %}
+{% set supervisor_name_val = sp.get('supervisor_name') or '' %}
+{% set supervisor_mobile_val = sp.get('supervisor_mobile_number') or '' %}
+
+{% set livestock_list = d.get('livestock', []) %}
+
+{
+  "ls_farmer_identity": [
+    {
+      "farmer_id": {{ farmer_id_val | tojson }},
+      "fayda_fan_id": {{ fayda_val | tojson }},
+      "farmer_name": {{ farmer_name_val | tojson }},
+      "first_name": {{ f.get('first_name') | tojson }},
+      "middle_name": {{ f.get('middle_name') | tojson }},
+      "last_name": {{ f.get('last_name') | tojson }},
+      "gender": {{ f.get('gender') | tojson }},
+      "date_of_birth": {{ f.get('date_of_birth') | tojson }},
+      "mobile_number": {{ f.get('mobile_number') | tojson }},
+      "registration_date": {{ submission_date | tojson }},
+      "status": "ACTIVE",
+      "region": {{ region_val | tojson }},
+      "zone": {{ zone_val | tojson }},
+      "woreda": {{ woreda_val | tojson }},
+      "kebele": {{ kebele_val | tojson }}
+    }
+  ],
+  "ls_farmer_location": [
+    {
+      "region": {{ region_val | tojson }},
+      "zone": {{ zone_val | tojson }},
+      "woreda": {{ woreda_val | tojson }},
+      "kebele": {{ kebele_val | tojson }}
+    }
+  ],
+  "ls_survey_personnel": [
+    {
+      "surveyor_name": {{ surveyor_name_val | tojson }},
+      "surveyor_mobile_number": {{ surveyor_mobile_val | tojson }},
+      "supervisor_name": {{ supervisor_name_val | tojson }},
+      "supervisor_mobile_number": {{ supervisor_mobile_val | tojson }}
+    }
+  ],
+  "ls_livestock_record": [
+    {
+      "record_name": {{ farmer_name_val | tojson }},
+      "farmer_id": {{ farmer_id_val | tojson }},
+      "farmer_name": {{ farmer_name_val | tojson }},
+      "fayda_fan_id": {{ fayda_val | tojson }},
+      "total_animals": {{ livestock_list | length }},
+      "registration_date": {{ submission_date | tojson }},
+      "status": "ACTIVE",
+      "state": "CONFIRMED"
+    }
+  ],
+  "ls_livestock_location": [
+    {
+      "record_name": {{ farmer_name_val | tojson }},
+      "farmer_id": {{ farmer_id_val | tojson }},
+      "farmer_name": {{ farmer_name_val | tojson }},
+      "fayda_fan_id": {{ fayda_val | tojson }},
+      "total_animals": {{ livestock_list | length }},
+      "region": {{ region_val | tojson }},
+      "zone": {{ zone_val | tojson }},
+      "woreda": {{ woreda_val | tojson }},
+      "kebele": {{ kebele_val | tojson }}
+    }
+  ],
+  "ls_animal_details": [
+    {% for a in livestock_list %}
+    {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
+    {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+    {% set a_br_raw = ((a.get('breed') or '') | string) | lower | trim %}
+    {% set a_br = a_br_raw %}
+    {% if a_sp == 'LIVESTOCK_SPECIES_GOAT' %}
+      {% if 'begait' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_BEGAIT_GOAT' %}
+      {% elif 'abergelle' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_ABERGELLE' %}
+      {% elif 'afar' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_AFAR_GOAT' %}
+      {% elif 'boer' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_BOER_CROSS' %}
+      {% elif 'central' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_CENTRAL_HIGHLAND' %}
+      {% elif 'somali' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_LONG_EARED_SOMALI' %}
+      {% elif 'woito' in a_br_raw or 'guji' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_WOITO_GUJI' %}
+      {% elif 'local' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_LOCAL_GOAT' %}
+      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = 'LIVESTOCK_BREED_' ~ a_br_raw | upper %}
+      {% else %}{% set a_br = a.get('breed') %}
+      {% endif %}
+    {% elif a_sp == 'LIVESTOCK_SPECIES_SHEEP' %}
+      {% if 'menz' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_MENZ' %}
+      {% elif 'afar' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_AFAR_SHEEP' %}
+      {% elif 'blackhead' in a_br_raw or 'somali' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_BLACKHEAD_SOMALI' %}
+      {% elif 'horro' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_HORRO_SHEEP' %}
+      {% elif 'bonga' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_BONGA' %}
+      {% elif 'washera' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_WASHERA' %}
+      {% elif 'dorper' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_DORPER_CROSS' %}
+      {% elif 'local' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_LOCAL_SHEEP' %}
+      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = 'LIVESTOCK_BREED_' ~ a_br_raw | upper %}
+      {% else %}{% set a_br = a.get('breed') %}
+      {% endif %}
+    {% elif a_sp == 'LIVESTOCK_SPECIES_CATTLE' %}
+      {% if 'begait' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_BEGAIT' %}
+      {% elif 'boran' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_BORAN' %}
+      {% elif 'fogera' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_FOGERA' %}
+      {% elif 'horro' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_HORRO' %}
+      {% elif 'sheko' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_SHEKO' %}
+      {% elif 'arsi' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_ARSI' %}
+      {% elif 'barka' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_BARKA' %}
+      {% elif 'holstein' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_HOLSTEIN_CROSS' %}
+      {% elif 'jersey' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_JERSEY_CROSS' %}
+      {% elif 'zebu' in a_br_raw or 'local' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_LOCAL_ZEBU' %}
+      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = 'LIVESTOCK_BREED_' ~ a_br_raw | upper %}
+      {% else %}{% set a_br = a.get('breed') %}
+      {% endif %}
+    {% else %}
+      {% if a_br_raw.startswith('livestock_breed_') %}
+        {% set a_br = 'LIVESTOCK_BREED_' ~ a_br_raw | upper %}
+      {% else %}
+        {% set a_br = a.get('breed') %}
+      {% endif %}
+    {% endif %}
+    {
+      "ear_tag_id": {{ a.get('ear_tag_id') | tojson }},
+      "secondary_identifier": {{ a.get('secondary_identifier') | tojson }},
+      "species": {{ a_sp | tojson }},
+      "breed": {{ a_br | tojson }},
+      "colour": {{ a.get('colour') | tojson }},
+      "weight": {{ a.get('weight') | tojson }},
+      "gender": {{ (a.get('gender') or 'male') | upper | tojson }},
+      "date_of_birth": {{ a.get('date_of_birth') | tojson }},
+      "age": {{ a.get('age') | tojson }},
+      "health_status": {{ (a.get('health_status') or 'healthy') | upper | tojson }},
+      "vaccination_status": {{ (a.get('vaccination_status') or 'up_to_date') | upper | tojson }},
+      "registration_date": {{ (a.get('registration_date') or submission_date) | tojson }},
+      "state": "CONFIRMED"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "ls_health_event_details": [
+    {% set ns = namespace(items=[]) %}
+    {% for a in livestock_list %}
+      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
+      {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {% for he in a.get('health_events', []) %}
+        {% set raw_loc = ((he.get('location') or 'FIELD') | string) | upper %}
+        {% set _ = ns.items.append({
+          "ear_tag_id": a.get('ear_tag_id'),
+          "species": a_sp,
+          "age": a.get('age'),
+          "event_type": (he.get('event_type') or he.get('health_event_type') or 'treatment') | upper,
+          "disease_type": he.get('disease_type') or 'GENERAL',
+          "date_onset": he.get('date_onset'),
+          "date_resolution": he.get('date_resolution'),
+          "is_notifiable": (he.get('is_notifiable') == true or he.get('is_notifiable') == 'true' or he.get('is_notifiable') == 'yes'),
+          "treatment": he.get('treatment'),
+          "veterinarian_name": he.get('veterinarian_name') or he.get('veterinarian_id'),
+          "location": "HOME" if "HOME" in raw_loc else ("VETERINARY" if "VET" in raw_loc else ("MARKET" if "MARKET" in raw_loc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_loc else ("FIELD" if "FIELD" in raw_loc else "OTHER")))),
+          "location_details": he.get('location_details'),
+          "notes": he.get('health_event_notes') or he.get('notes')
+        }) %}
+      {% endfor %}
+    {% endfor %}
+    {% for item in ns.items %}
+      {{ item | tojson }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "ls_vaccination_details": [
+    {% set ns = namespace(items=[]) %}
+    {% for a in livestock_list %}
+      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
+      {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {% for v in a.get('vaccinations', []) %}
+        {% set raw_v = ((v.get('vaccine_type') or v.get('vaccine') or v.get('type') or 'ROUTINE') | string) | lower | trim %}
+        {% set v_type = raw_v %}
+        {% if 'bovine_pasteurellosis' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_PASTEURELLOSIS_CATTLE' %}
+        {% elif 'caprine_pasteurellosis' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_PASTEURELLOSIS_GOAT' %}
+        {% elif 'ovine_pasteurellosis' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_PASTEURELLOSIS_SHEEP' %}
+        {% elif 'camel_pasteurellosis' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_PASTEURELLOSIS_CAMEL' %}
+        {% elif 'pasteurellosis' in raw_v %}
+          {% if a_sp == 'LIVESTOCK_SPECIES_GOAT' %}
+            {% set v_type = 'VACCINE_TYPE_PASTEURELLOSIS_GOAT' %}
+          {% elif a_sp == 'LIVESTOCK_SPECIES_SHEEP' %}
+            {% set v_type = 'VACCINE_TYPE_PASTEURELLOSIS_SHEEP' %}
+          {% elif a_sp == 'LIVESTOCK_SPECIES_CAMEL' %}
+            {% set v_type = 'VACCINE_TYPE_PASTEURELLOSIS_CAMEL' %}
+          {% else %}
+            {% set v_type = 'VACCINE_TYPE_PASTEURELLOSIS_CATTLE' %}
+          {% endif %}
+        {% elif 'anthrax' in raw_v %}
+          {% if a_sp == 'LIVESTOCK_SPECIES_GOAT' %}
+            {% set v_type = 'VACCINE_TYPE_ANTHRAX_GOAT' %}
+          {% elif a_sp == 'LIVESTOCK_SPECIES_SHEEP' %}
+            {% set v_type = 'VACCINE_TYPE_ANTHRAX_SHEEP' %}
+          {% elif a_sp == 'LIVESTOCK_SPECIES_CAMEL' %}
+            {% set v_type = 'VACCINE_TYPE_ANTHRAX_CAMEL' %}
+          {% else %}
+            {% set v_type = 'VACCINE_TYPE_ANTHRAX_CATTLE' %}
+          {% endif %}
+        {% elif 'blackleg' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_BLACKLEG' %}
+        {% elif 'cbpp' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_CBPP' %}
+        {% elif 'ccpp' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_CCPP' %}
+        {% elif 'fmd' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_FMD_CATTLE' %}
+        {% elif 'lsd' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_LSD' %}
+        {% elif 'brucellosis' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_BRUCELLOSIS_S19' %}
+        {% elif 'rabies' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_RABIES_DONKEY' if a_sp == 'LIVESTOCK_SPECIES_DONKEY' else 'VACCINE_TYPE_RABIES_CATTLE' %}
+        {% elif 'ppr' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_PPR_SHEEP' if a_sp == 'LIVESTOCK_SPECIES_SHEEP' else 'VACCINE_TYPE_PPR_GOAT' %}
+        {% elif 'sgp' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_SGP_SHEEP' if a_sp == 'LIVESTOCK_SPECIES_SHEEP' else 'VACCINE_TYPE_SGP_GOAT' %}
+        {% elif 'enterotoxaemia' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_ENTEROTOXAEMIA' %}
+        {% elif 'camel_pox' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_CAMEL_POX_VACCINE' %}
+        {% elif 'newcastle' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_NEWCASTLE' %}
+        {% elif 'gumboro' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_GUMBORO' %}
+        {% elif 'fowl_typhoid' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_FOWL_TYPHOID' %}
+        {% elif 'fowl_pox' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_FOWL_POX' %}
+        {% elif 'marek' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_MAREK' %}
+        {% elif 'ahs' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_AHS_DONKEY' if a_sp == 'LIVESTOCK_SPECIES_DONKEY' else 'VACCINE_TYPE_AHS' %}
+        {% elif 'tetanus' in raw_v %}
+          {% set v_type = 'VACCINE_TYPE_TETANUS_HORSE' %}
+        {% elif raw_v in ['routine', ''] %}
+          {% set v_type = 'ROUTINE' %}
+        {% else %}
+          {% set v_type = raw_v | upper %}
+        {% endif %}
+        {% set _ = ns.items.append({
+          "ear_tag_id": a.get('ear_tag_id'),
+          "species": a_sp,
+          "age": a.get('age'),
+          "vaccine_type": v_type,
+          "vaccination_date": v.get('vaccination_date'),
+          "next_due_date": v.get('next_due_date'),
+          "batch_number": v.get('batch_number'),
+          "administered_by": v.get('administered_by'),
+          "notes": v.get('vaccination_notes') or v.get('notes')
+        }) %}
+      {% endfor %}
+    {% endfor %}
+    {% for item in ns.items %}
+      {{ item | tojson }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "ls_vital_event_details": [
+    {% set ns = namespace(items=[]) %}
+    {% for a in livestock_list %}
+      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
+      {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {% for ve in a.get('vital_events', []) %}
+        {% set dd = ve.get('disease_details', {}) or {} %}
+        {% set bd = ve.get('birth_details', {}) or {} %}
+        {% set raw_loc = ((ve.get('location') or 'HOME') | string) | upper %}
+        {% set _ = ns.items.append({
+          "ear_tag_id": a.get('ear_tag_id'),
+          "species": a_sp,
+          "age": a.get('age'),
+          "event_type": (ve.get('event_type') or ve.get('vital_event_type') or 'birth') | upper,
+          "event_date": ve.get('event_date') or ve.get('date'),
+          "cause": (ve.get('cause') or 'UNKNOWN') | upper,
+          "location": "HOME" if "HOME" in raw_loc else ("VETERINARY" if "VET" in raw_loc else ("MARKET" if "MARKET" in raw_loc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_loc else ("FIELD" if "FIELD" in raw_loc else "OTHER")))),
+          "location_details": ve.get('location_details'),
+          "reporting_officer": ve.get('reporting_officer') or ve.get('reporting_officer_id'),
+          "disease_type": dd.get('disease_type') or ve.get('disease_type'),
+          "date_onset": dd.get('vital_date_onset') or dd.get('date_onset') or ve.get('date_onset'),
+          "date_resolution": dd.get('vital_date_resolution') or dd.get('date_resolution') or ve.get('date_resolution'),
+          "treatment": dd.get('treatment') or ve.get('treatment'),
+          "veterinarian_name": dd.get('veterinarian_id') or dd.get('veterinarian_name') or ve.get('veterinarian_name'),
+          "is_notifiable": (dd.get('vital_is_notifiable') == true or ve.get('is_notifiable') == true),
+          "offspring_count": bd.get('offspring_count') or ve.get('offspring_count'),
+          "offspring_ear_tag_prefix": bd.get('offspring_ear_tag_prefix') or ve.get('offspring_ear_tag_prefix'),
+          "offspring_gender": (bd.get('offspring_gender') or ve.get('offspring_gender') or ve.get('gender') or 'FEMALE') | upper,
+          "notes": ve.get('notes')
+        }) %}
+      {% endfor %}
+    {% endfor %}
+    {% for item in ns.items %}
+      {{ item | tojson }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ],
+  "ls_breeding_details": [
+    {% set ns = namespace(items=[]) %}
+    {% for a in livestock_list %}
+      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
+      {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {% for be in a.get('breeding_events', []) %}
+        {% set ai = be.get('artificial_insemination_tab', {}) or {} %}
+        {% set raw_et = ((be.get('event_type') or be.get('breeding_event_type') or 'NATURAL') | string) | upper %}
+        {% set raw_bloc = ((be.get('location') or 'HOME') | string) | upper %}
+        {% set _ = ns.items.append({
+          "ear_tag_id": a.get('ear_tag_id'),
+          "species": a_sp,
+          "age": a.get('age'),
+          "event_type": "AI" if ("AI" in raw_et or "INSEMINATION" in raw_et) else "NATURAL",
+          "breeding_date": be.get('breeding_date'),
+          "sire_or_semen_id": be.get('sire_or_semen_id'),
+          "location": "HOME" if "HOME" in raw_bloc else ("VETERINARY" if "VET" in raw_bloc else ("MARKET" if "MARKET" in raw_bloc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_bloc else ("FIELD" if "FIELD" in raw_bloc else "OTHER")))),
+          "location_details": be.get('location_details'),
+          "ai_technician_name": ai.get('ai_technician_name') or ai.get('ai_technician_id') or be.get('ai_technician_name'),
+          "ai_technique": ai.get('ai_technique') or be.get('ai_technique'),
+          "semen_batch_number": ai.get('semen_batch_number') or be.get('semen_batch_number'),
+          "expected_calving_date": be.get('expected_calving_date'),
+          "pregnancy_confirmed": (be.get('pregnancy_confirmed') == true or be.get('pregnancy_confirmed') == 'true'),
+          "pregnancy_confirmation_date": be.get('pregnancy_confirmation_date'),
+          "outcome": (be.get('outcome') or 'PENDING') | upper,
+          "notes": be.get('breeding_notes') or be.get('notes')
+        }) %}
+      {% endfor %}
+    {% endfor %}
+    {% for item in ns.items %}
+      {{ item | tojson }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}

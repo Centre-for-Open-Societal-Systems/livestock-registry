@@ -55,6 +55,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./local/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./local/postgres/init_connector.sql:/docker-entrypoint-initdb.d/init_connector.sql:ro
     ports:
       - '${POSTGRES_PORT}:5432'
     healthcheck:
@@ -288,12 +289,18 @@ services:
     image: ${MASTER_DATA_IMAGE}
     <<: *amd64
     environment:
+      MASTER_DATA_API_DB_HOSTNAME: postgres
+      MASTER_DATA_API_DB_PORT: 5432
+      MASTER_DATA_API_DB_DBNAME: ${MASTER_DATA_DB}
+      MASTER_DATA_API_DB_USERNAME: ${MASTER_DATA_DB_USER}
+      MASTER_DATA_API_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
+      MASTER_DATA_API_PORT: ${MASTER_DATA_PORT}
+      MASTER_DATA_API_OPENAPI_ROOT_PATH: /
       GEN2_MASTER_DATA_API_DB_HOSTNAME: postgres
       GEN2_MASTER_DATA_API_DB_PORT: 5432
       GEN2_MASTER_DATA_API_DB_DBNAME: ${MASTER_DATA_DB}
       GEN2_MASTER_DATA_API_DB_USERNAME: ${MASTER_DATA_DB_USER}
       GEN2_MASTER_DATA_API_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
-      # Container port is configurable, so it is set equal to the published port.
       GEN2_MASTER_DATA_API_PORT: ${MASTER_DATA_PORT}
       GEN2_MASTER_DATA_API_OPENAPI_ROOT_PATH: /
       COMMON_KEYCLOAK_CLIENT_ID: ${AUTH_CLIENT_ID}
@@ -388,7 +395,7 @@ services:
       REGISTRY_STAFF_PORTAL_API_AUTH_REFRESH_TOKEN_TTL_SECONDS: '1800'
       REGISTRY_STAFF_PORTAL_API_CSRF_ENABLED: 'true'
       REGISTRY_STAFF_PORTAL_API_KEYCLOAK_CLIENT_ID: ${AUTH_CLIENT_ID}
-      REGISTRY_STAFF_PORTAL_API_MINIO_ENDPOINT: ${MINIO_HOST}:${MINIO_API_PORT}
+      REGISTRY_STAFF_PORTAL_API_MINIO_ENDPOINT: minio:${MINIO_API_PORT}
       REGISTRY_STAFF_PORTAL_API_MINIO_SECURE: 'false'
       REGISTRY_STAFF_PORTAL_API_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       REGISTRY_STAFF_PORTAL_API_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -470,7 +477,7 @@ services:
       REGISTRY_PARTNER_API_CONSENT_ENFORCEMENT_ENABLED: ${CONSENT_ENFORCEMENT_ENABLED}
       REGISTRY_PARTNER_API_CRYPTO_BACKEND: ${CRYPTO_BACKEND}
       REGISTRY_PARTNER_API_KEYMANAGER_AUTH_ENABLED: ${KEYMANAGER_AUTH_ENABLED}
-      REGISTRY_PARTNER_API_MINIO_ENDPOINT: ${MINIO_HOST}:${MINIO_API_PORT}
+      REGISTRY_PARTNER_API_MINIO_ENDPOINT: minio:${MINIO_API_PORT}
       REGISTRY_PARTNER_API_MINIO_SECURE: 'false'
       REGISTRY_PARTNER_API_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       REGISTRY_PARTNER_API_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -515,7 +522,7 @@ services:
       REGISTRY_CELERY_WORKERS_WORKER_QUEUE: registry_worker_queue
       REGISTRY_CELERY_WORKERS_BATCH_SIZE: '2000'
       REGISTRY_CELERY_WORKERS_WORKER_MAX_ATTEMPTS: '5'
-      REGISTRY_CELERY_WORKERS_MINIO_ENDPOINT: ${MINIO_HOST}:${MINIO_API_PORT}
+      REGISTRY_CELERY_WORKERS_MINIO_ENDPOINT: minio:${MINIO_API_PORT}
       REGISTRY_CELERY_WORKERS_MINIO_SECURE: 'false'
       REGISTRY_CELERY_WORKERS_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       REGISTRY_CELERY_WORKERS_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -794,6 +801,70 @@ services:
         condition: service_healthy
     ports:
       - '${DASHBOARD_UI_PORT}:3000'
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # OpenG2P Connector Service & UI (Ingestion Pipeline)
+  # ───────────────────────────────────────────────────────────────────────────
+  connector-api:
+    build:
+      context: ./openg2p-connector-service
+      dockerfile: Dockerfile
+    command: ["api"]
+    environment:
+      CONNECTOR_DB_HOSTNAME: postgres
+      CONNECTOR_DB_PORT: 5432
+      CONNECTOR_DB_DBNAME: ${CONNECTOR_DB:-connector}
+      CONNECTOR_DB_USERNAME: ${CONNECTOR_DB_USER:-connector_user}
+      CONNECTOR_DB_PASSWORD: ${CONNECTOR_DB_PASSWORD:-connector_pass}
+      CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
+      CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
+      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+      CONNECTOR_APP_HOST: 0.0.0.0
+      CONNECTOR_APP_PORT: 8050
+      CONNECTOR_CORS_ORIGINS: "*"
+    ports:
+      - '${CONNECTOR_PORT:-8051}:8050'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'python3 -S -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8050/health\")"']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+  connector-worker:
+    build:
+      context: ./openg2p-connector-service
+      dockerfile: Dockerfile
+    command: ["worker-beat"]
+    environment:
+      CONNECTOR_DB_HOSTNAME: postgres
+      CONNECTOR_DB_PORT: 5432
+      CONNECTOR_DB_DBNAME: ${CONNECTOR_DB:-connector}
+      CONNECTOR_DB_USERNAME: ${CONNECTOR_DB_USER:-connector_user}
+      CONNECTOR_DB_PASSWORD: ${CONNECTOR_DB_PASSWORD:-connector_pass}
+      CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
+      CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
+      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+    depends_on:
+      connector-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  connector-ui:
+    build:
+      context: ./openg2p-connector-ui
+      dockerfile: Dockerfile
+    ports:
+      - '${CONNECTOR_UI_PORT:-5174}:8080'
+    depends_on:
+      connector-api:
+        condition: service_healthy
 
 volumes:
   postgres-data:
