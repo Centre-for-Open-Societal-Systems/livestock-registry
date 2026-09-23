@@ -18,7 +18,9 @@ from .domain_validation_utils import (
     validation_error,
     resolve_today_default,
     validate_belongs_to_species,
-    application_references_of,
+    intake_rows_as_records,
+    tables_for,
+    submission_ids_of,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -71,6 +73,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             # off a cattle record here, server-side.
             await validate_belongs_to_species(record.get("breed"), record.get("species"), "Breed")
             self._validate_identifier_required(record, requires_ear_tag)
+            self._validate_gender_for_species(record, requires_ear_tag)
             self._validate_ear_tag_id(record)
             self._validate_quantity(record, is_flock_species)
             self._validate_date_of_birth_required(record, is_flock_species)
@@ -85,6 +88,15 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         # tag-exempt species that require it.
         await self._validate_no_duplicate_ear_tags(records)
         await self._validate_no_duplicate_secondary_identifiers(records)
+
+    async def post_intake_upsert(self, rows: list, session) -> None:
+        """Intake-side duplicate checks (other submissions' drafted animals):
+        only here do the rows carry the submission they belong to, which the
+        search must leave out — see exists_in_tables in domain_validation_utils."""
+        records = intake_rows_as_records(rows)
+        own = submission_ids_of(rows)
+        await self._validate_no_duplicate_ear_tags(records, search=("intake",), exclude_submission_ids=own)
+        await self._validate_no_duplicate_secondary_identifiers(records, search=("intake",), exclude_submission_ids=own)
 
     def _validate_required_fields(self, record: dict) -> None:
         for field, label in _REQUIRED_FIELDS.items():
@@ -110,6 +122,20 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 "Please provide a secondary identifier (leg band, wing tag, "
                 "hive number, etc.) before saving the record — this species "
                 "has no ear to attach an ear tag to."
+            )
+
+    def _validate_gender_for_species(self, record: dict, requires_ear_tag: bool) -> None:
+        """Sex is Male or Female for every ear-tagged species; "Mixed / Not
+        Applicable" (GenderEnum.MIXED) exists for the species that have no ear
+        tag (poultry, beehive, ...), where one record stands for a whole
+        flock/hive. The Livestock Details dialog only offers Mixed for those
+        species (livestock-dialog-overlay.js); this is the same rule for API
+        and bulk-import clients."""
+        gender = str(record.get("gender") or "").strip().upper()
+        if gender == "MIXED" and requires_ear_tag:
+            validation_error(
+                "Sex 'Mixed / Not Applicable' is only for species without an ear tag "
+                "(poultry, beehive, ...) — choose Male or Female for this species."
             )
 
     def _validate_quantity(self, record: dict, is_flock_species: bool) -> None:
@@ -163,7 +189,13 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         # below (and by ear_tag_exists/get_animal_species elsewhere).
         record["ear_tag_id"] = normalized
 
-    async def _validate_no_duplicate_ear_tags(self, records: list[dict]) -> None:
+    async def _validate_no_duplicate_ear_tags(
+        self,
+        records: list[dict],
+        *,
+        search: tuple[str, ...] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+    ) -> None:
         """Two different animals must never share an ear tag with the same
         species and breed — mirroring the Old System's duplicate check,
         which this section had no equivalent of at all. Two layers:
@@ -176,11 +208,13 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
            `ear_tag_used_by_other_animal` DB check, which excludes this
            submission's own rows so re-saving an animal you already
            registered isn't flagged as a duplicate of itself.
+
+        `search` / `exclude_submission_ids`: which tables to look in and which
+        submission to ignore — see exists_in_tables in domain_validation_utils.
+        Left unset (validate_domain_attributes) each row picks its own tables
+        through tables_for(); post_intake_upsert passes the intake half with
+        the submission itself excluded.
         """
-        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
-        # (edit_action ADD); the submission's own application_reference still
-        # identifies them, so exclude those rows from the duplicate search too.
-        self_refs = application_references_of(records)
         self_ids = {
             str(record["internal_record_id"])
             for record in records
@@ -205,14 +239,21 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 record.get("species"),
                 record.get("breed"),
                 exclude_internal_record_ids=self_ids,
-                exclude_application_references=self_refs,
+                exclude_submission_ids=exclude_submission_ids,
+                search=search or tables_for(record),
             ):
                 validation_error(
                     f"ear_tag_id '{ear_tag_id}' is already registered to a different "
                     "animal of the same species and breed."
                 )
 
-    async def _validate_no_duplicate_secondary_identifiers(self, records: list[dict]) -> None:
+    async def _validate_no_duplicate_secondary_identifiers(
+        self,
+        records: list[dict],
+        *,
+        search: tuple[str, ...] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+    ) -> None:
         """Same protection as _validate_no_duplicate_ear_tags, for the
         secondary_identifier animals of a species whose "Requires Ear Tag"
         config is off use instead of an ear tag. A blank secondary_identifier
@@ -220,11 +261,13 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         species' record simply never has one, and _validate_identifier_required
         already rejected a missing one for a species that needed it before
         this runs.
+
+        `search` / `exclude_submission_ids`: which tables to look in and which
+        submission to ignore — see exists_in_tables in domain_validation_utils.
+        Left unset (validate_domain_attributes) each row picks its own tables
+        through tables_for(); post_intake_upsert passes the intake half with
+        the submission itself excluded.
         """
-        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
-        # (edit_action ADD); the submission's own application_reference still
-        # identifies them, so exclude those rows from the duplicate search too.
-        self_refs = application_references_of(records)
         self_ids = {
             str(record["internal_record_id"])
             for record in records
@@ -249,7 +292,8 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 record.get("species"),
                 record.get("breed"),
                 exclude_internal_record_ids=self_ids,
-                exclude_application_references=self_refs,
+                exclude_submission_ids=exclude_submission_ids,
+                search=search or tables_for(record),
             ):
                 validation_error(
                     f"secondary_identifier '{secondary_identifier}' is already "

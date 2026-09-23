@@ -8,11 +8,14 @@ from sqlalchemy import select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    animal_identified_by,
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
-    application_references_of,
     ensure_ear_tags_belong_to_submission,
+    intake_rows_as_records,
+    tables_for,
+    submission_ids_of,
 )
 
 # Kept as its own import line rather than folded into the block above: the
@@ -51,7 +54,7 @@ _HEALTH_STATUS_BY_EVENT_TYPE = {
 # mirroring vital_event's _validate_offspring_count) — an INJURY/TREATMENT/
 # RECOVERY event hides the field entirely and must not be blocked on it.
 _REQUIRED_FIELDS = {
-    "ear_tag_id": "livestock ear tag",
+    "ear_tag_id": "livestock ear tag or secondary identifier",
     "species": "species",
     "event_type": "event type",
 }
@@ -72,6 +75,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
+            self._validate_event_dates_required(record)
             await validate_species_matches(record)
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
@@ -81,6 +85,24 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         for field, label in _REQUIRED_FIELDS.items():
             if is_blank(record.get(field)):
                 validation_error(f"Please provide the {label} before saving the record.")
+
+    def _validate_event_dates_required(self, record: dict) -> None:
+        """Date of Onset / Date of Resolution are mandatory exactly when the
+        Health Event Details dialog shows them for the chosen event_type
+        (see patch_ls_health_event_details_sync_ui_schema.sql):
+            DISEASE    onset + resolution required
+            INJURY     onset + resolution required
+            TREATMENT  onset required (the form hides resolution)
+            RECOVERY   resolution required (the form hides onset)
+        Mirrors _validate_disease_type below -- the form's conditional
+        "require" action alone can't be trusted for API / bulk-import
+        clients that bypass it.
+        """
+        event_type = str(record.get("event_type") or "").upper()
+        if event_type != "RECOVERY" and is_blank(record.get("date_onset")):
+            validation_error("Please provide the date of onset before saving the record.")
+        if event_type != "TREATMENT" and is_blank(record.get("date_resolution")):
+            validation_error("Please provide the date of resolution before saving the record.")
 
     def _validate_disease_type(self, record: dict) -> None:
         # Only a DISEASE event carries a disease — the form hides disease_type
@@ -96,8 +118,9 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             return
         if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
             validation_error(
-                "ear_tag_id does not match any registered or drafted animal. "
-                "Add it under Livestock Details first, or check for a typo."
+                f"'{str(value).strip()}' does not match any registered or drafted animal's "
+                "ear tag or secondary identifier. Add it under Livestock Details first, "
+                "or check for a typo."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
@@ -187,7 +210,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         animal = (
             await session.execute(
                 select(G2PRegisterAnimal).where(
-                    G2PRegisterAnimal.ear_tag_id == health_event.ear_tag_id,
+                    animal_identified_by(G2PRegisterAnimal, health_event.ear_tag_id),
                     G2PRegisterAnimal.link_internal_record_id == health_event.link_internal_record_id,
                 )
             )
@@ -198,7 +221,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         await session.flush()
         _logger.info(
             "%s health event %s: set animal %s health_status to %s",
-            event_type, health_event.internal_record_id, animal.ear_tag_id, new_status,
+            event_type, health_event.internal_record_id, animal.ear_tag_id or animal.secondary_identifier, new_status,
         )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
@@ -241,34 +264,59 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
 
         return " ".join(record_name).strip()
 
-    async def _validate_no_duplicate_events(self, records: list[dict]) -> None:
+    async def _validate_no_duplicate_events(
+        self,
+        records: list[dict],
+        *,
+        search: tuple[str, ...] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+    ) -> None:
         """The same health event must not be recorded twice for one animal:
         same ear tag, same event type, same disease and same onset date —
         the Old System's _check_duplicate_health_event. Two layers, like
         _validate_no_duplicate_ear_tags on the Animal section: the rows of
         this save first, then the register plus every intake draft
         (excluding this save's own rows, so editing an already-approved
-        event isn't flagged against itself). A row without an onset date is
-        left alone here — there is nothing to say it is the same event.
+        event isn't flagged against itself). A RECOVERY is keyed on its
+        resolution date instead of the onset it does not have; a row with
+        neither date is left alone — there is nothing to say it is the same
+        event.
+
+        `search` / `exclude_submission_ids`: which tables to look in and which
+        submission to ignore — see exists_in_tables in domain_validation_utils.
+        Left unset (validate_domain_attributes) each row picks its own tables
+        through tables_for(); post_intake_upsert passes the intake half with
+        the submission itself excluded.
         """
 
         def key_of(record: dict):
-            onset = parse_date(record.get("date_onset"))
-            if is_blank(record.get("ear_tag_id")) or is_blank(record.get("event_type")) or onset is None:
+            if is_blank(record.get("ear_tag_id")) or is_blank(record.get("event_type")):
+                return None
+            event_type = str(record["event_type"]).strip().upper()
+            # A RECOVERY has no onset date (the form hides it) -- its date is
+            # the resolution date, so that is what identifies it. The Old
+            # System keyed a recovery on its empty onset, which made a second
+            # recovery for the same animal a duplicate however far apart the
+            # two were; here an animal that falls ill and recovers twice in a
+            # year keeps both, and only the same day twice is refused.
+            date_column = "date_resolution" if event_type == "RECOVERY" else "date_onset"
+            on = parse_date(record.get(date_column))
+            if on is None:
                 return None
             disease = record.get("disease_type")
             return (
                 str(record["ear_tag_id"]).strip(),
-                str(record["event_type"]).strip().upper(),
+                event_type,
                 None if is_blank(disease) else str(disease).strip(),
-                onset,
+                date_column,
+                on,
             )
 
         repeated = first_repeated_key(records, key_of)
         if repeated:
-            ear_tag_id, event_type, _disease, onset = repeated
+            ear_tag_id, event_type, _disease, _date_column, onset = repeated
             validation_error(
-                f"The {event_type} health event for ear tag '{ear_tag_id}' on {onset} "
+                f"The {event_type} health event for animal '{ear_tag_id}' on {onset} "
                 "is entered more than once in this record."
             )
 
@@ -277,32 +325,33 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             for record in records
             if record.get("internal_record_id")
         }
-        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
-        # (edit_action ADD); the submission's own application_reference still
-        # identifies them, so exclude those rows from the duplicate search too.
-        self_refs = application_references_of(records)
         for record in records:
             key = key_of(record)
             if key is None:
                 continue
-            ear_tag_id, event_type, disease, onset = key
+            ear_tag_id, event_type, disease, date_column, onset = key
             if await event_already_recorded(
                 "HealthEvent",
                 {
                     "ear_tag_id": ear_tag_id,
                     "event_type": event_type,
                     "disease_type": disease,
-                    "date_onset": onset,
+                    date_column: onset,
                 },
                 exclude_internal_record_ids=self_ids,
-                exclude_application_references=self_refs,
+                exclude_submission_ids=exclude_submission_ids,
+                search=search or tables_for(record),
             ):
                 validation_error(
-                    f"A {event_type} health event for ear tag '{ear_tag_id}' on {onset} "
+                    f"A {event_type} health event for animal '{ear_tag_id}' on {onset} "
                     "is already recorded."
                 )
 
     async def post_intake_upsert(self, rows: list, session) -> None:
-        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission):
-        only here do the rows carry the submission reference."""
+        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission)
+        and the intake-side duplicate check: only here do the rows carry the
+        submission they belong to, which the search must leave out."""
         await ensure_ear_tags_belong_to_submission(rows)
+        await self._validate_no_duplicate_events(
+            intake_rows_as_records(rows), search=("intake",), exclude_submission_ids=submission_ids_of(rows)
+        )

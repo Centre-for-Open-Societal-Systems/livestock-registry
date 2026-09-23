@@ -8,10 +8,13 @@ from sqlalchemy import select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    animal_identified_by,
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
-    application_references_of,
+    intake_rows_as_records,
+    submission_ids_of,
+    tables_for,
     resolve_today_default,
     validate_belongs_to_species,
     ensure_ear_tags_belong_to_submission,
@@ -37,7 +40,7 @@ VACCINATION_REGISTER_ID = "51c1f6d6-856a-5e2f-84e9-ff5abdc4fb75"
 # field -> human label used in the "Please provide the ... " message, mirroring
 # the fields marked "widget-required" on the Vaccination Details form.
 _REQUIRED_FIELDS = {
-    "ear_tag_id": "livestock ear tag",
+    "ear_tag_id": "livestock ear tag or secondary identifier",
     "species": "species",
     "vaccine_type": "vaccine",
     "vaccination_date": "vaccination date",
@@ -79,8 +82,9 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             return
         if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
             validation_error(
-                "ear_tag_id does not match any registered or drafted animal. "
-                "Add it under Livestock Details first, or check for a typo."
+                f"'{str(value).strip()}' does not match any registered or drafted animal's "
+                "ear tag or secondary identifier. Add it under Livestock Details first, "
+                "or check for a typo."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
@@ -223,7 +227,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         animal = (
             await session.execute(
                 select(G2PRegisterAnimal).where(
-                    G2PRegisterAnimal.ear_tag_id == vaccination.ear_tag_id,
+                    animal_identified_by(G2PRegisterAnimal, vaccination.ear_tag_id),
                     G2PRegisterAnimal.link_internal_record_id == vaccination.link_internal_record_id,
                 )
             )
@@ -234,7 +238,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         await session.flush()
         _logger.info(
             "Vaccination %s: set animal %s vaccination_status to UP_TO_DATE",
-            vaccination.internal_record_id, animal.ear_tag_id,
+            vaccination.internal_record_id, animal.ear_tag_id or animal.secondary_identifier,
         )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
@@ -274,7 +278,13 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
 
         return " ".join(record_name).strip()
 
-    async def _validate_no_duplicate_events(self, records: list[dict]) -> None:
+    async def _validate_no_duplicate_events(
+        self,
+        records: list[dict],
+        *,
+        search: tuple[str, ...] | None = None,
+        exclude_submission_ids: set[str] | None = None,
+    ) -> None:
         """The same vaccine must not be recorded twice for one animal on the
         same day: same ear tag, same vaccine, same vaccination date. The Old
         System had no such check for vaccinations (only for health, vital
@@ -283,6 +293,12 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         animal's next due date. Same two layers as the other event sections:
         this save's own rows, then register + intake drafts excluding this
         save's own rows.
+
+        `search` / `exclude_submission_ids`: which tables to look in and which
+        submission to ignore — see exists_in_tables in domain_validation_utils.
+        Left unset (validate_domain_attributes) each row picks its own tables
+        through tables_for(); post_intake_upsert passes the intake half with
+        the submission itself excluded.
         """
 
         def key_of(record: dict):
@@ -300,7 +316,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             ear_tag_id, vaccine_type, on = repeated
             vaccine_label = await humanize_attribute_value(vaccine_type)
             validation_error(
-                f"Vaccine '{vaccine_label}' for ear tag '{ear_tag_id}' on {on} "
+                f"Vaccine '{vaccine_label}' for animal '{ear_tag_id}' on {on} "
                 "is entered more than once in this record."
             )
 
@@ -309,10 +325,6 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             for record in records
             if record.get("internal_record_id")
         }
-        # Reopened drafts: the platform resends saved rows WITHOUT internal_record_id
-        # (edit_action ADD); the submission's own application_reference still
-        # identifies them, so exclude those rows from the duplicate search too.
-        self_refs = application_references_of(records)
         for record in records:
             key = key_of(record)
             if key is None:
@@ -322,15 +334,20 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
                 "Vaccination",
                 {"ear_tag_id": ear_tag_id, "vaccine_type": vaccine_type, "vaccination_date": on},
                 exclude_internal_record_ids=self_ids,
-                exclude_application_references=self_refs,
+                exclude_submission_ids=exclude_submission_ids,
+                search=search or tables_for(record),
             ):
                 vaccine_label = await humanize_attribute_value(vaccine_type)
                 validation_error(
-                    f"Vaccine '{vaccine_label}' for ear tag '{ear_tag_id}' on {on} "
+                    f"Vaccine '{vaccine_label}' for animal '{ear_tag_id}' on {on} "
                     "is already recorded."
                 )
 
     async def post_intake_upsert(self, rows: list, session) -> None:
-        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission):
-        only here do the rows carry the submission reference."""
+        """Scoped ear-tag check (see ensure_ear_tags_belong_to_submission)
+        and the intake-side duplicate check: only here do the rows carry the
+        submission they belong to, which the search must leave out."""
         await ensure_ear_tags_belong_to_submission(rows)
+        await self._validate_no_duplicate_events(
+            intake_rows_as_records(rows), search=("intake",), exclude_submission_ids=submission_ids_of(rows)
+        )

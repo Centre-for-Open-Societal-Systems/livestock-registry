@@ -107,9 +107,28 @@ def _animal_models():
     return models.G2PRegisterAnimal, models.G2PIntakeFormAnimal
 
 
+def animal_identified_by(model, identifier: str):
+    """SQL condition: this Animal row is the one `identifier` names.
+
+    An animal carries one of two identifiers, decided by its species'
+    "Requires Ear Tag" config (get_species_config): an ear tag (ET + 10
+    digits) or, for a species that has no ear to tag -- poultry, beehives --
+    a free-text secondary_identifier (leg band, wing tag, hive number).
+    Event rows name their animal in `ear_tag_id` either way, so every lookup
+    from an event must accept both, or a flock could never have a health
+    event, vaccination, vital event or breeding record logged against it.
+    The two formats do not overlap in practice, and an exact match on either
+    column is what the Animal section itself enforces uniqueness on.
+    """
+    from sqlalchemy import or_
+
+    return or_(model.ear_tag_id == identifier, model.secondary_identifier == identifier)
+
+
 async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = None) -> bool:
     """True if `ear_tag_id` names a real animal — already approved into the
-    register, or drafted under an in-progress intake submission.
+    register, or drafted under an in-progress intake submission. The value
+    may be an ear tag or a secondary identifier (see animal_identified_by).
 
     With `application_reference` (the intake submission's reference, present on
     every row the platform has already saved) the check is SCOPED to that
@@ -132,8 +151,8 @@ async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = No
 
     G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
 
-    register_cond = G2PRegisterAnimal.ear_tag_id == ear_tag_id
-    intake_cond = G2PIntakeFormAnimal.ear_tag_id == ear_tag_id
+    register_cond = animal_identified_by(G2PRegisterAnimal, ear_tag_id)
+    intake_cond = animal_identified_by(G2PIntakeFormAnimal, ear_tag_id)
     if application_reference:
         # Intake rows carry the submission's reference directly. Register rows
         # do not, but they hang off the holding (link_internal_record_id), and
@@ -162,7 +181,8 @@ async def ear_tag_used_by_other_animal(
     species,
     breed,
     exclude_internal_record_ids: set[str] | None = None,
-    exclude_application_references: set[str] | None = None,
+    exclude_submission_ids: set[str] | None = None,
+    search: tuple[str, ...] = ("register", "intake"),
 ) -> bool:
     """True if `ear_tag_id`, with this same species and breed, already
     belongs to a DIFFERENT animal — either already approved into the
@@ -184,16 +204,17 @@ async def ear_tag_used_by_other_animal(
     editing Health Status on an already-approved animal raised
     "ear_tag_id ... is already registered to a different animal" even though
     nothing about the tag, species or breed had changed.)
+
+    `exclude_submission_ids` / `search`: see exists_in_tables and
+    exclude_own_rows below — the intake table is only searched from
+    post_intake_upsert, where the submission being saved is known.
     """
     if is_blank(ear_tag_id):
         return False
 
-    from openg2p_fastapi_common.context import dbengine
-    from sqlalchemy import and_, exists, select
-    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy import and_
 
     G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
-    exclude_internal_record_ids = exclude_internal_record_ids or set()
 
     def _same_animal_key(model):
         conditions = [
@@ -201,37 +222,18 @@ async def ear_tag_used_by_other_animal(
             model.species == species,
             model.breed == breed,
         ]
-        if exclude_internal_record_ids:
-            conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
-        if exclude_application_references and hasattr(model, "application_reference"):
-            # Rows of the submission being edited (intake table only — the
-            # register table has no application_reference). The platform's
-            # intake form resends already-saved dialog rows WITHOUT their
-            # internal_record_id (edit_action ADD) when a draft is reopened,
-            # so the id exclusion above cannot recognise them; every saved row
-            # of a submission carries the same application_reference, which can.
-            conditions.append(model.application_reference.not_in(exclude_application_references))
+        exclude_own_rows(model, conditions, exclude_internal_record_ids, exclude_submission_ids)
         return and_(*conditions)
 
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        in_register = (
-            await session.execute(select(exists().where(_same_animal_key(G2PRegisterAnimal))))
-        ).scalar()
-        if in_register:
-            return True
-
-        in_intake = (
-            await session.execute(select(exists().where(_same_animal_key(G2PIntakeFormAnimal))))
-        ).scalar()
-        return bool(in_intake)
+    return await exists_in_tables(G2PRegisterAnimal, G2PIntakeFormAnimal, _same_animal_key, search)
 
 async def secondary_identifier_used_by_other_animal(
     secondary_identifier: str,
     species,
     breed,
     exclude_internal_record_ids: set[str] | None = None,
-    exclude_application_references: set[str] | None = None,
+    exclude_submission_ids: set[str] | None = None,
+    search: tuple[str, ...] = ("register", "intake"),
 ) -> bool:
     """Same check as ear_tag_used_by_other_animal, for `secondary_identifier`
     — the leg band/wing tag/hive number an _EAR_TAG_EXEMPT_SPECIES animal
@@ -244,12 +246,9 @@ async def secondary_identifier_used_by_other_animal(
     if is_blank(secondary_identifier):
         return False
 
-    from openg2p_fastapi_common.context import dbengine
-    from sqlalchemy import and_, exists, select
-    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy import and_
 
     G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
-    exclude_internal_record_ids = exclude_internal_record_ids or set()
 
     def _same_animal_key(model):
         conditions = [
@@ -257,30 +256,10 @@ async def secondary_identifier_used_by_other_animal(
             model.species == species,
             model.breed == breed,
         ]
-        if exclude_internal_record_ids:
-            conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
-        if exclude_application_references and hasattr(model, "application_reference"):
-            # Rows of the submission being edited (intake table only — the
-            # register table has no application_reference). The platform's
-            # intake form resends already-saved dialog rows WITHOUT their
-            # internal_record_id (edit_action ADD) when a draft is reopened,
-            # so the id exclusion above cannot recognise them; every saved row
-            # of a submission carries the same application_reference, which can.
-            conditions.append(model.application_reference.not_in(exclude_application_references))
+        exclude_own_rows(model, conditions, exclude_internal_record_ids, exclude_submission_ids)
         return and_(*conditions)
 
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        in_register = (
-            await session.execute(select(exists().where(_same_animal_key(G2PRegisterAnimal))))
-        ).scalar()
-        if in_register:
-            return True
-
-        in_intake = (
-            await session.execute(select(exists().where(_same_animal_key(G2PIntakeFormAnimal))))
-        ).scalar()
-        return bool(in_intake)
+    return await exists_in_tables(G2PRegisterAnimal, G2PIntakeFormAnimal, _same_animal_key, search)
 
 def format_age(birth_date: date | None) -> str | None:
     """The Age display string for a date of birth ("2 years, 8 months"), the
@@ -334,7 +313,7 @@ async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None
         # and without this an unordered .limit(1) can just as easily land on
         # a row where species was never filled in, making the result
         # nondeterministic — same ear tag, different answer between calls.
-        return and_(model.ear_tag_id == ear_tag_id, model.species.is_not(None), model.species != "")
+        return and_(animal_identified_by(model, ear_tag_id), model.species.is_not(None), model.species != "")
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
@@ -439,9 +418,9 @@ async def validate_species_matches(record: dict) -> None:
         entered_label = await humanize_attribute_value(species)
         actual_label = await humanize_attribute_value(animal_species)
         validation_error(
-            f"species '{entered_label}' does not match ear tag '{ear_tag_id}', "
+            f"species '{entered_label}' does not match animal '{ear_tag_id}', "
             f"which is recorded as '{actual_label}' under Livestock Details. "
-            "Select the matching species, or check you entered the correct ear tag."
+            "Select the matching species, or check you entered the correct ear tag / identifier."
         )
 
 
@@ -476,6 +455,91 @@ def _event_models(register_mnemonic: str):
     )
 
 
+def tables_for(record: dict) -> tuple[str, ...]:
+    """Which tables a duplicate search may look in for this row, when the
+    caller has not said (see exists_in_tables).
+
+    A row that carries an internal_record_id names a record that already
+    exists: a change request editing an approved record, or an intake row the
+    platform will update in place. Excluding that id is enough to keep the
+    search off the row itself, so both tables can be searched.
+
+    A row without one is a dialog row of an intake save: every "Next" resends
+    it with edit_action ADD, the platform inserts it under a fresh id and
+    deletes the previous copy afterwards, so the submission's own earlier copy
+    is sitting in the intake table with an id nothing in the payload can
+    match. Only the register is searched here; post_intake_upsert then runs
+    the intake half with the submission itself excluded.
+    """
+    return ("register", "intake") if record.get("internal_record_id") else ("register",)
+
+
+def exclude_own_rows(model, conditions: list, exclude_internal_record_ids, exclude_submission_ids) -> None:
+    """Keep a duplicate search from finding the record being saved.
+
+    `exclude_internal_record_ids`: every internal_record_id the current save's
+    own rows carry — an edit of an already-approved record (change request)
+    resubmits its unchanged key fields with its id, and without this it is
+    always found "already recorded" against itself.
+
+    `exclude_submission_ids`: the intake submission being saved. Dialog rows
+    (Animal, Health, Vaccination, Vital, Breeding) never carry an id back to
+    the server: every "Next" resends them with edit_action ADD, the platform
+    inserts them under fresh ids and deletes the previous copies afterwards
+    (_upsert_intake_rows / _delete_missing_intake_rows). So the previous copy
+    of the very same row sits in the intake table, under the same
+    submission_id, at the moment the search runs — Previous then Next with
+    no edits, or reopening a draft, must not trip over it. Intake rows carry
+    submission_id; register rows don't, and never need this.
+    """
+    if exclude_internal_record_ids:
+        conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
+    if exclude_submission_ids and hasattr(model, "submission_id"):
+        conditions.append(model.submission_id.not_in(exclude_submission_ids))
+
+
+async def exists_in_tables(register_model, intake_model, condition_of, search=("register", "intake")) -> bool:
+    """True if `condition_of(model)` matches a row in any of the tables named
+    by `search` ("register" and/or "intake"), checked in that order.
+
+    Which tables to search depends on where the caller runs:
+    - validate_domain_attributes gets the request rows with NO submission
+      context, so it leaves the choice to tables_for(record) above: the
+      register always, and the intake table only for a row whose own
+      internal_record_id can be excluded from the search.
+    - post_intake_upsert gets the freshly upserted ORM rows, which carry the
+      submission_id, so the intake half runs there for every row.
+    """
+    from openg2p_fastapi_common.context import dbengine
+    from sqlalchemy import exists, select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    models = {"register": register_model, "intake": intake_model}
+    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+    async with session_maker() as session:
+        for table in search:
+            found = (await session.execute(select(exists().where(condition_of(models[table]))))).scalar()
+            if found:
+                return True
+    return False
+
+
+def intake_rows_as_records(rows: list) -> list[dict]:
+    """The column values of upserted intake ORM rows as plain dicts, so the
+    per-section duplicate check written for the request payload can run on
+    them from post_intake_upsert."""
+    from sqlalchemy import inspect
+
+    return [
+        {attr.key: getattr(row, attr.key, None) for attr in inspect(row).mapper.column_attrs}
+        for row in rows
+    ]
+
+
+def submission_ids_of(rows: list) -> set[str]:
+    return {str(row.submission_id) for row in rows if getattr(row, "submission_id", None)}
+
+
 def first_repeated_key(records: list[dict], key_of) -> tuple | None:
     """The first key that appears on more than one row of this save, or
     None. `key_of(record)` returns the tuple that identifies an event for
@@ -498,7 +562,8 @@ async def event_already_recorded(
     match: dict,
     exclude_internal_record_ids: set[str] | None = None,
     within_days: tuple | None = None,
-    exclude_application_references: set[str] | None = None,
+    exclude_submission_ids: set[str] | None = None,
+    search: tuple[str, ...] = ("register", "intake"),
 ) -> bool:
     """True if an event with these same field values already exists for
     this section — approved into the register, or drafted under any intake
@@ -516,21 +581,15 @@ async def event_already_recorded(
     resubmits its unchanged key fields, and without excluding its own row it
     would always be found "already recorded" against itself.
 
-    `exclude_application_references` covers the case the id exclusion cannot:
-    on a reopened draft the platform resends already-saved dialog rows
-    WITHOUT their internal_record_id (edit_action ADD), so pass the
-    submission's own application_reference(s) as well — every saved row of a
-    submission carries it (intake table only; the register table has none).
-    Same two-part exclusion as ear_tag_used_by_other_animal.
+    `exclude_submission_ids` / `search`: see exists_in_tables and
+    exclude_own_rows — the intake table is only searched from
+    post_intake_upsert, where the submission being saved is known.
     """
     from datetime import timedelta
 
-    from openg2p_fastapi_common.context import dbengine
-    from sqlalchemy import and_, exists, select
-    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy import and_
 
     register_model, intake_model = _event_models(register_mnemonic)
-    exclude_internal_record_ids = exclude_internal_record_ids or set()
 
     def _same_event(model):
         conditions = []
@@ -541,24 +600,10 @@ async def event_already_recorded(
             column, on, days = within_days
             attribute = getattr(model, column)
             conditions.append(attribute.between(on - timedelta(days=days), on + timedelta(days=days)))
-        if exclude_internal_record_ids:
-            conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
-        if exclude_application_references and hasattr(model, "application_reference"):
-            conditions.append(model.application_reference.not_in(exclude_application_references))
+        exclude_own_rows(model, conditions, exclude_internal_record_ids, exclude_submission_ids)
         return and_(*conditions)
 
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        in_register = (
-            await session.execute(select(exists().where(_same_event(register_model))))
-        ).scalar()
-        if in_register:
-            return True
-
-        in_intake = (
-            await session.execute(select(exists().where(_same_event(intake_model))))
-        ).scalar()
-        return bool(in_intake)
+    return await exists_in_tables(register_model, intake_model, _same_event, search)
 
 
 def resolve_today_default(record: dict, field: str) -> None:
@@ -631,14 +676,6 @@ def first_application_reference(records: list[dict]) -> str | None:
     return None
 
 
-def application_references_of(records: list[dict]) -> set[str]:
-    return {
-        str(record["application_reference"]).strip()
-        for record in records
-        if not is_blank(record.get("application_reference"))
-    }
-
-
 async def fill_species_and_age_from_animal(record: dict) -> None:
     """Copy the animal's species (when the row has none) and its current age
     onto an event row that names an ear tag.
@@ -661,6 +698,43 @@ async def fill_species_and_age_from_animal(record: dict) -> None:
         record["age"] = format_age(birth_date)
 
 
+async def get_animal_gender(ear_tag_id: str) -> str | None:
+    """The gender already recorded against ear_tag_id under Livestock
+    Details, or None if the ear tag isn't known anywhere or has no gender on
+    file yet. Same lookup shape as get_animal_species_and_birth_date (register
+    first, then any in-progress intake draft; same "same ear tag, different
+    answer between calls" ordering guard) -- used by Breeding to reject
+    logging a breeding event against a male animal (see
+    G2PRegisterDomainServiceBreeding._validate_female_only).
+    """
+    if is_blank(ear_tag_id):
+        return None
+
+    from openg2p_fastapi_common.context import dbengine
+    from sqlalchemy import and_, select
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
+
+    def _has_gender(model):
+        return and_(animal_identified_by(model, ear_tag_id), model.gender.is_not(None), model.gender != "")
+
+    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+    async with session_maker() as session:
+        for model in (G2PRegisterAnimal, G2PIntakeFormAnimal):
+            row = (
+                await session.execute(
+                    select(model.gender)
+                    .where(_has_gender(model))
+                    .order_by(model.created_at.desc())
+                    .limit(1)
+                )
+            ).first()
+            if row and row[0]:
+                return row[0]
+        return None
+
+
 async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
     """post_intake_upsert companion to ear_tag_exists(): the platform hands
     validate_domain_attributes a brand-new row with NO submission context, so
@@ -677,8 +751,8 @@ async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
             continue
         if not await ear_tag_exists(str(ear_tag_id).strip(), application_reference=str(reference)):
             validation_error(
-                f"Ear tag '{str(ear_tag_id).strip()}' is not an animal of this submission. "
-                "Add the animal under Livestock Details first, or check the tag."
+                f"'{str(ear_tag_id).strip()}' is not an animal of this submission. "
+                "Add the animal under Livestock Details first, or check the ear tag / identifier."
             )
 
 
