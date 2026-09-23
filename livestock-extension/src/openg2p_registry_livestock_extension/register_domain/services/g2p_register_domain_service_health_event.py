@@ -54,7 +54,7 @@ _HEALTH_STATUS_BY_EVENT_TYPE = {
 # mirroring vital_event's _validate_offspring_count) — an INJURY/TREATMENT/
 # RECOVERY event hides the field entirely and must not be blocked on it.
 _REQUIRED_FIELDS = {
-    "ear_tag_id": "livestock ear tag",
+    "ear_tag_id": "livestock ear tag or secondary identifier",
     "species": "species",
     "event_type": "event type",
 }
@@ -303,7 +303,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         if repeated:
             ear_tag_id, event_type, _disease, onset = repeated
             validation_error(
-                f"The {event_type} health event for ear tag '{ear_tag_id}' on {onset} "
+                f"The {event_type} health event for animal '{ear_tag_id}' on {onset} "
                 "is entered more than once in this record."
             )
 
@@ -330,7 +330,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
                 search=search or tables_for(record),
             ):
                 validation_error(
-                    f"A {event_type} health event for ear tag '{ear_tag_id}' on {onset} "
+                    f"A {event_type} health event for animal '{ear_tag_id}' on {onset} "
                     "is already recorded."
                 )
 

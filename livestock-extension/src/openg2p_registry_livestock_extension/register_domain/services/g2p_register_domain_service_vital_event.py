@@ -49,7 +49,7 @@ _EAR_TAG_PATTERN = re.compile(r"^ET(\d{10})$")
 # field -> human label used in the "Please provide the ... " message, mirroring
 # the fields marked "widget-required" on the Vital Event Details form.
 _REQUIRED_FIELDS = {
-    "ear_tag_id": "livestock ear tag",
+    "ear_tag_id": "livestock ear tag or secondary identifier",
     "species": "species",
     "event_type": "event type",
     "event_date": "event date",

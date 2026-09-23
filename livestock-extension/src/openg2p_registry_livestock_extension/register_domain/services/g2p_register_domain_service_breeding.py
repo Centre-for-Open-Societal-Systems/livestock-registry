@@ -23,7 +23,7 @@ _logger = logging.getLogger("g2p-register-domain-service")
 # field -> human label used in the "Please provide the ... " message, mirroring
 # the fields marked "widget-required" on the Breeding Details form.
 _REQUIRED_FIELDS = {
-    "ear_tag_id": "livestock ear tag",
+    "ear_tag_id": "livestock ear tag or secondary identifier",
     "species": "species",
     "event_type": "event type",
 }
@@ -89,7 +89,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         if gender and str(gender).upper() != "FEMALE":
             validation_error(
                 "Breeding can only be logged against a Female animal "
-                f"(ear tag '{str(ear_tag_id).strip()}' is on file as {str(gender).title()})."
+                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).title()})."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:

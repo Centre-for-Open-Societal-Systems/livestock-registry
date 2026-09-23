@@ -40,7 +40,7 @@ VACCINATION_REGISTER_ID = "51c1f6d6-856a-5e2f-84e9-ff5abdc4fb75"
 # field -> human label used in the "Please provide the ... " message, mirroring
 # the fields marked "widget-required" on the Vaccination Details form.
 _REQUIRED_FIELDS = {
-    "ear_tag_id": "livestock ear tag",
+    "ear_tag_id": "livestock ear tag or secondary identifier",
     "species": "species",
     "vaccine_type": "vaccine",
     "vaccination_date": "vaccination date",
@@ -316,7 +316,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             ear_tag_id, vaccine_type, on = repeated
             vaccine_label = await humanize_attribute_value(vaccine_type)
             validation_error(
-                f"Vaccine '{vaccine_label}' for ear tag '{ear_tag_id}' on {on} "
+                f"Vaccine '{vaccine_label}' for animal '{ear_tag_id}' on {on} "
                 "is entered more than once in this record."
             )
 
@@ -339,7 +339,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             ):
                 vaccine_label = await humanize_attribute_value(vaccine_type)
                 validation_error(
-                    f"Vaccine '{vaccine_label}' for ear tag '{ear_tag_id}' on {on} "
+                    f"Vaccine '{vaccine_label}' for animal '{ear_tag_id}' on {on} "
                     "is already recorded."
                 )
 

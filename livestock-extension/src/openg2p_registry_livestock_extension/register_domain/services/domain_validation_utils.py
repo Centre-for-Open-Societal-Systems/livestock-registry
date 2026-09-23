@@ -418,9 +418,9 @@ async def validate_species_matches(record: dict) -> None:
         entered_label = await humanize_attribute_value(species)
         actual_label = await humanize_attribute_value(animal_species)
         validation_error(
-            f"species '{entered_label}' does not match ear tag '{ear_tag_id}', "
+            f"species '{entered_label}' does not match animal '{ear_tag_id}', "
             f"which is recorded as '{actual_label}' under Livestock Details. "
-            "Select the matching species, or check you entered the correct ear tag."
+            "Select the matching species, or check you entered the correct ear tag / identifier."
         )
 
 
