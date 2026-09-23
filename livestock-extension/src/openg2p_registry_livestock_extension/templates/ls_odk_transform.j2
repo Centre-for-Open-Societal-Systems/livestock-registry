@@ -4,13 +4,12 @@
 #}
 {% set d = expanded if expanded is defined else {} %}
 
-{% set f = d.get('farmer', {}) or {} %}
-{% set fl = d.get('farmer_location', {}) or {} %}
-{% set loc = d.get('location', {}) or {} %}
-{% set sp = d.get('survey_personnel', {}) or {} %}
-{% set sys = d.get('__system', {}) or {} %}
+{% set f = d.get('farmer', {}) if (d.get('farmer') is mapping) else {} %}
+{% set fl = d.get('farmer_location', {}) if (d.get('farmer_location') is mapping) else {} %}
+{% set loc = d.get('location', {}) if (d.get('location') is mapping) else {} %}
+{% set sp = d.get('survey_personnel', {}) if (d.get('survey_personnel') is mapping) else {} %}
+{% set sys = d.get('__system', {}) if (d.get('__system') is mapping) else {} %}
 
-{% set raw_region = d.get('region_id') or fl.get('region_id') or loc.get('region_name_id') or d.get('region') or '' %}
 {% set region_map = {
   'central_ethiopia': 'Central Ethiopia',
   'amhara': 'Amhara',
@@ -29,7 +28,29 @@
   'harari': 'Harari',
   'addis_ababa': 'Addis Ababa'
 } %}
-{% set region_val = region_map.get(raw_region, raw_region) %}
+
+{# Farmer Residential Location #}
+{% set fl_raw_region = fl.get('region_id') or fl.get('region') or fl.get('region_name_id') or d.get('farmer_region_id') or d.get('farmer_region') or loc.get('region_name_id') or loc.get('region_id') or loc.get('region') or d.get('region_id') or d.get('region') or '' %}
+{% set fl_raw_reg_key = (fl_raw_region | string | lower | trim) %}
+{% set fl_region_val = region_map.get(fl_raw_reg_key, fl_raw_region) %}
+{% set fl_zone_val = fl.get('zone_id') or fl.get('zone') or fl.get('zone_name_id') or d.get('farmer_zone_id') or d.get('farmer_zone') or loc.get('zone_name_id') or loc.get('zone_id') or loc.get('zone') or d.get('zone_id') or d.get('zone') or '' %}
+{% set fl_woreda_val = fl.get('woreda_id') or fl.get('woreda') or fl.get('woreda_name_id') or d.get('farmer_woreda_id') or d.get('farmer_woreda') or loc.get('woreda_name_id') or loc.get('woreda_id') or loc.get('woreda') or d.get('woreda_id') or d.get('woreda') or '' %}
+{% set fl_kebele_val = fl.get('kebele_id') or fl.get('kebele') or fl.get('kebele_name_id') or d.get('farmer_kebele_id') or d.get('farmer_kebele') or loc.get('kebele_name_id') or loc.get('kebele_id') or loc.get('kebele') or d.get('kebele_id') or d.get('kebele') or '' %}
+
+{# Livestock Holding Location #}
+{% set loc_raw_region = loc.get('region_name_id') or loc.get('region_id') or loc.get('region') or d.get('holding_region_id') or d.get('holding_region') or d.get('region_name_id') or d.get('region_id') or d.get('region') or fl.get('region_id') or fl.get('region') or fl.get('region_name_id') or d.get('farmer_region_id') or d.get('farmer_region') or '' %}
+{% set loc_raw_reg_key = (loc_raw_region | string | lower | trim) %}
+{% set loc_region_val = region_map.get(loc_raw_reg_key, loc_raw_region) %}
+{% set loc_zone_val = loc.get('zone_name_id') or loc.get('zone_id') or loc.get('zone') or d.get('holding_zone_id') or d.get('holding_zone') or d.get('zone_name_id') or d.get('zone_id') or d.get('zone') or fl.get('zone_id') or fl.get('zone') or fl.get('zone_name_id') or d.get('farmer_zone_id') or d.get('farmer_zone') or '' %}
+{% set loc_woreda_val = loc.get('woreda_name_id') or loc.get('woreda_id') or loc.get('woreda') or d.get('holding_woreda_id') or d.get('holding_woreda') or d.get('woreda_name_id') or d.get('woreda_id') or d.get('woreda') or fl.get('woreda_id') or fl.get('woreda') or fl.get('woreda_name_id') or d.get('farmer_woreda_id') or d.get('farmer_woreda') or '' %}
+{% set loc_kebele_val = loc.get('kebele_name_id') or loc.get('kebele_id') or loc.get('kebele') or d.get('holding_kebele_id') or d.get('holding_kebele') or d.get('kebele_name_id') or d.get('kebele_id') or d.get('kebele') or fl.get('kebele_id') or fl.get('kebele') or fl.get('kebele_name_id') or d.get('farmer_kebele_id') or d.get('farmer_kebele') or '' %}
+
+{# Backward compatibility aliases #}
+{% set region_val = fl_region_val %}
+{% set zone_val = fl_zone_val %}
+{% set woreda_val = fl_woreda_val %}
+{% set kebele_val = fl_kebele_val %}
+
 {% set species_map = {
   'cattle': 'LIVESTOCK_SPECIES_CATTLE',
   'cow': 'LIVESTOCK_SPECIES_CATTLE',
@@ -49,9 +70,6 @@
   'beehive': 'LIVESTOCK_SPECIES_BEEHIVE',
   'bee': 'LIVESTOCK_SPECIES_BEEHIVE'
 } %}
-{% set zone_val = d.get('zone_id') or fl.get('zone_id') or loc.get('zone_name_id') or d.get('zone') or '' %}
-{% set woreda_val = d.get('woreda_id') or fl.get('woreda_id') or loc.get('woreda_name_id') or d.get('woreda') or '' %}
-{% set kebele_val = d.get('kebele_id') or fl.get('kebele_id') or loc.get('kebele_name_id') or d.get('kebele') or '' %}
 
 {% set fayda_val = d.get('fayda_id') or f.get('fayda_fan_id') or f.get('fayda_id') or d.get('fayda_fan_id') or '' %}
 {% set farmer_name_val = d.get('owner_id') or f.get('farmer_name') or ((f.get('first_name', '') ~ ' ' ~ f.get('middle_name', '') ~ ' ' ~ f.get('last_name', '')) | trim) %}
@@ -79,18 +97,18 @@
       "mobile_number": {{ f.get('mobile_number') | tojson }},
       "registration_date": {{ submission_date | tojson }},
       "status": "ACTIVE",
-      "region": {{ region_val | tojson }},
-      "zone": {{ zone_val | tojson }},
-      "woreda": {{ woreda_val | tojson }},
-      "kebele": {{ kebele_val | tojson }}
+      "region": {{ fl_region_val | tojson }},
+      "zone": {{ fl_zone_val | tojson }},
+      "woreda": {{ fl_woreda_val | tojson }},
+      "kebele": {{ fl_kebele_val | tojson }}
     }
   ],
   "ls_farmer_location": [
     {
-      "region": {{ region_val | tojson }},
-      "zone": {{ zone_val | tojson }},
-      "woreda": {{ woreda_val | tojson }},
-      "kebele": {{ kebele_val | tojson }}
+      "region": {{ fl_region_val | tojson }},
+      "zone": {{ fl_zone_val | tojson }},
+      "woreda": {{ fl_woreda_val | tojson }},
+      "kebele": {{ fl_kebele_val | tojson }}
     }
   ],
   "ls_survey_personnel": [
@@ -120,10 +138,10 @@
       "farmer_name": {{ farmer_name_val | tojson }},
       "fayda_fan_id": {{ fayda_val | tojson }},
       "total_animals": {{ livestock_list | length }},
-      "region": {{ region_val | tojson }},
-      "zone": {{ zone_val | tojson }},
-      "woreda": {{ woreda_val | tojson }},
-      "kebele": {{ kebele_val | tojson }}
+      "region": {{ loc_region_val | tojson }},
+      "zone": {{ loc_zone_val | tojson }},
+      "woreda": {{ loc_woreda_val | tojson }},
+      "kebele": {{ loc_kebele_val | tojson }}
     }
   ],
   "ls_animal_details": [
