@@ -37,16 +37,22 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
 
     async def validate_domain_attributes(self, records: list[dict]):
         for record in records:
-            # Guarded by "key present", not unconditional: the Farmer register
-            # also backs the (currently unused-by-intake) Farmer Location
-            # section, whose payload never carries farmer_id/fayda_fan_id at
-            # all. Requiring them outright would reject that section's save
-            # outright since the keys are simply absent, not blank.
             # Registration Date defaults to the literal "today" on the intake form;
             # resolve it before any check (see resolve_today_default).
             resolve_today_default(record, "registration_date")
-            if "farmer_id" in record:
-                require_field(record, "farmer_id", "Farmer ID")
+            # Farmer ID is optional: the form does not mark it required, and
+            # the Old System only checked its format (FR- + 10 digits) when
+            # one was given -- on its staging data most farmers had none.
+            # Requiring it here while the form did not made a draft saved
+            # with the field blank fail on reopen with "Farmer ID is
+            # required": a new form omits an empty field from the payload
+            # and slips past a key-present guard, a reopened one resends it
+            # as null and does not. _validate_farmer_id still rejects a
+            # malformed value.
+            #
+            # Fayda is guarded by "key present", not unconditionally: the
+            # Farmer register also backs the (currently unused-by-intake)
+            # Farmer Location section, whose payload never carries the key.
             if "fayda_fan_id" in record:
                 require_field(record, "fayda_fan_id", "Fayda FAN ID")
             self._fill_farmer_name(record)
