@@ -14,14 +14,16 @@
  *   - Animal dialog: choosing a Species hides the breeds of other species;
  *     the read-only Age field is filled live from Date of Birth as it is
  *     typed (same "N years, M months" text the server stores on save).
- *   - Event dialogs (Health / Vaccination / Vital / Breeding): a dropdown of
- *     this submission's animals sits under the Ear Tag field (typing still
- *     works, with suggestions); once a tag names one of those animals the
- *     read-only Species and Age fields are filled from it (the server fills
- *     the same two columns on save) and its breed / sex are shown beside it;
- *     on the Vaccination dialog the Vaccine list is narrowed to that
- *     animal's species, and Next Due Date is filled as Vaccination Date +
- *     the vaccine's configured interval.
+ *   - Event dialogs (Health / Vaccination / Vital / Breeding): the Ear Tag
+ *     field becomes a dropdown of this submission's animals (species /
+ *     breed / sex / age in each option; the platform's text input stays
+ *     hidden behind it as the submitted field, and is shown only when
+ *     there is no animal to pick). Choosing one fills the read-only
+ *     Species and Age fields (the server fills the same two columns on
+ *     save) and two on-screen-only fields, Breed and Sex, added under
+ *     Species; on the Vaccination dialog the Vaccine list is narrowed to
+ *     that animal's species, and Next Due Date is filled as Vaccination
+ *     Date + the vaccine's configured interval.
  *
  * The read-only fields are the platform's display widgets (plain text, "-"
  * when empty); they are written directly and re-applied whenever the dialog
@@ -143,12 +145,6 @@
     if (years < 0) return "";
     return years + " years, " + months + " months"; // same text the server stores (format_age)
   }
-  function describeRest(a) {
-    var parts = [];
-    if (a.breed) parts.push(pretty(a.breed, "LIVESTOCK_BREED_"));
-    if (a.gender) parts.push(pretty(a.gender, ""));
-    return parts.join(" \u00b7 ");
-  }
   function describe(a) {
     var parts = [pretty(a.species, "LIVESTOCK_SPECIES_")];
     if (a.breed) parts.push(pretty(a.breed, "LIVESTOCK_BREED_"));
@@ -157,9 +153,6 @@
     return parts.join(" \u00b7 ");
   }
   var CONTROL_CLASS = "w-full sm:w-[180px] max-w-full h-[30px] px-3 border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white";
-  function infoLine(id) {
-    var el = document.createElement("div"); el.id = id; el.className = "text-sm text-gray-600 mt-1"; el.style.minHeight = "1.25rem"; return el;
-  }
   function pretty(id, prefix) { return String(id || "").replace(prefix, "").replace(/_/g, " ").toLowerCase().replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
   // Read-only cells in the dialog ("Species:", "Age:") are display widgets:
   // <div class="widget-container" data-widget-id="..-dlg-N-<key>"> .. <div class="flex-1"><div title="-">-</div>
@@ -483,46 +476,92 @@
       var dropdownAnimals = femaleOnly
         ? animals.filter(function (a) { return String(a.gender || "").toUpperCase() === "FEMALE"; })
         : animals;
-      var dl = document.getElementById("lr-ear-tag-suggestions");
-      if (!dl) { dl = document.createElement("datalist"); dl.id = "lr-ear-tag-suggestions"; document.body.appendChild(dl); }
-      dl.innerHTML = "";
-      dropdownAnimals.forEach(function (a) {
-        var o = document.createElement("option");
-        o.value = a.tag;
-        o.label = pretty(a.species, "LIVESTOCK_SPECIES_") + (a.breed ? " / " + pretty(a.breed, "LIVESTOCK_BREED_") : "");
-        dl.appendChild(o);
-      });
-      ear.setAttribute("list", "lr-ear-tag-suggestions");
-      ear.setAttribute("autocomplete", "off");
-      if (dropdownAnimals.length && !ear.getAttribute("placeholder")) ear.setAttribute("placeholder", "Pick or type an ear tag of this form");
-
-      // a real dropdown of this form's animals + a description line, under the field
-      var box = ear.parentElement; while (box && box.parentElement && !/flex-1/.test(box.className)) box = box.parentElement;
-      var host = box || ear.parentElement;
-      var pick = document.createElement("select"); pick.className = CONTROL_CLASS + " mt-1"; pick.id = "lr-animal-pick";
+      // One control for the ear tag. The platform's text input stays the field
+      // the form validates and submits, but it is hidden and a dropdown of this
+      // form's animals stands in its place: the server only accepts an animal
+      // of this very submission anyway (ensure_ear_tags_belong_to_submission),
+      // so there is nothing a typed tag could add but a typo. Each option
+      // carries the animal's species / breed / sex / age, so no extra
+      // description line is needed under the field. The text input is left
+      // visible only when there is nothing to pick from (no animal saved yet,
+      // or the submission lookup failed), so a tag can still be typed then.
+      var pick = document.createElement("select"); pick.className = ear.className; pick.id = "lr-animal-pick";
       var ph = document.createElement("option"); ph.value = "";
-      ph.textContent = dropdownAnimals.length ? "Pick an animal of this form\u2026" : (femaleOnly ? "No female animals saved on this form yet" : "No animals saved on this form yet");
+      ph.textContent = dropdownAnimals.length ? "Select an animal of this form\u2026" : (femaleOnly ? "No female animals saved on this form yet" : "No animals saved on this form yet");
       pick.appendChild(ph);
       dropdownAnimals.forEach(function (a) { var o = document.createElement("option"); o.value = a.tag; o.textContent = a.tag + " \u2014 " + describe(a); pick.appendChild(o); });
-      var info = infoLine("lr-animal-info");
-      host.appendChild(pick); host.appendChild(info);
       var find = function () { var t = String(ear.value || "").trim().toUpperCase(); for (var i = 0; i < animals.length; i++) if (animals[i].tag === t) return animals[i]; return null; };
+      // Breed and Sex of the picked animal, shown as two more read-only fields
+      // in the row under Species (Species and Age are the platform's own
+      // display widgets from the metadata; these two are clones of the
+      // Species cell, so they look the same and setDisplay fills them the
+      // same way). Purely on screen: the event row has no breed/sex columns.
+      var EXTRA = [["breed", "Breed"], ["gender", "Sex"]];
+      var extras = function () {
+        var speciesBox = dialog.querySelector('.widget-container[data-widget-id$="-species"]');
+        if (!speciesBox || !speciesBox.parentElement) return;
+        var after = speciesBox.parentElement; // the grid cell holding the widget
+        EXTRA.forEach(function (pair) {
+          var key = pair[0], label = pair[1];
+          var have = dialog.querySelector('.widget-container[data-widget-id="lr-extra-' + key + '"]');
+          if (have) { after = have.parentElement; return; }
+          var cell = after.cloneNode(true);
+          var box = cell.querySelector(".widget-container") || cell;
+          box.setAttribute("data-widget-id", "lr-extra-" + key);
+          var lab = box.querySelector("[title]"); if (lab) { lab.textContent = label + ":"; lab.title = label; }
+          var val = box.querySelector(".flex-1 > div"); if (val) { val.textContent = "-"; val.title = "-"; }
+          after.insertAdjacentElement("afterend", cell);
+          after = cell;
+        });
+      };
+      var place = function () {
+        // (re)attach after every dialog re-render: the platform may remount the input
+        var current = control(dialog, /Ear Tag\b/, "input");
+        if (current && current !== ear) { ear = current; }
+        if (!ear) return;
+        if (pick.parentElement !== ear.parentElement) ear.insertAdjacentElement("afterend", pick);
+        var hide = dropdownAnimals.length > 0;
+        if ((ear.style.display === "none") !== hide) ear.style.display = hide ? "none" : "";
+        extras();
+      };
       keepDisplay(dialog);
+      var hasOption = function (value) {
+        // by value, not a CSS selector: an ear tag is free text until the
+        // server has seen it, and a quote or bracket in it would make
+        // querySelector throw out of reflect() and freeze the whole dialog.
+        for (var i = 0; i < pick.options.length; i++) if (pick.options[i].value === value) return true;
+        return false;
+      };
+      var extraApply = null; // set below by the Vaccination dialog's own wiring
       var reflect = function () {
-        var a = find(); var t = String(ear.value || "").trim();
-        var notFemale = femaleOnly && a && String(a.gender || "").toUpperCase() !== "FEMALE";
-        pick.value = a && !notFemale ? a.tag : "";
+        var a = find(); var t = String(ear.value || "").trim().toUpperCase();
+        // A tag the dropdown does not offer: an Edit of a row whose animal has
+        // since left the form, or (on Breeding) one of this form's animals that
+        // the Female-only filter left out. Add it as an option either way, so
+        // the field shows what is actually saved instead of the placeholder,
+        // and say why it is not a normal choice.
+        if (t && !hasOption(t)) {
+          var o = document.createElement("option"); o.value = t;
+          o.textContent = a
+            ? t + " \u2014 " + describe(a) + (femaleOnly ? " \u2014 not a Female, breeding can only be logged against a Female" : "")
+            : t + " \u2014 not an animal of this form";
+          pick.appendChild(o);
+        }
+        if (pick.value !== t) pick.value = t;
         setDisplay(dialog, "species", a ? pretty(a.species, "LIVESTOCK_SPECIES_") : "");
         setDisplay(dialog, "age", a ? (a.age || ageFrom(a.dob)) : "");
-        if (notFemale) {
-          info.textContent = "Not a Female animal \u2014 breeding can only be logged against a Female (this is " + pretty(a.gender, "") + ")";
-        } else {
-          info.textContent = a ? describeRest(a) : (t ? "Not an animal of this form \u2014 add it under Livestock Details first" : "");
-        }
-        info.style.color = a && !notFemale || !t ? "" : "#b91c1c";
+        setDisplay(dialog, "breed", a && a.breed ? pretty(a.breed, "LIVESTOCK_BREED_") : "");
+        setDisplay(dialog, "gender", a && a.gender ? pretty(a.gender, "") : "");
+        if (extraApply) extraApply();
       };
-      pick.addEventListener("change", function () { if (pick.value) setValue(ear, pick.value); reflect(); });
-      ear.addEventListener("input", reflect); ear.addEventListener("change", reflect); reflect();
+      pick.addEventListener("change", function () { setValue(ear, pick.value); reflect(); });
+      dialog.addEventListener("input", function (e) { if (e.target === ear) reflect(); });
+      dialog.addEventListener("change", function (e) { if (e.target === ear) reflect(); });
+      if (!dialog.__lrPickObserver) {
+        dialog.__lrPickObserver = new MutationObserver(function () { place(); reflect(); });
+        dialog.__lrPickObserver.observe(dialog, { childList: true, subtree: true });
+      }
+      place(); reflect();
 
       var vaccine = control(dialog, /^Vaccine\b/, "select");
       if (!vaccine) return;
@@ -534,8 +573,10 @@
           for (var i = 0; i < animals.length; i++) if (animals[i].tag === tag) { a = animals[i]; break; }
           restrictOptions(vaccine, a && a.species ? (map[a.species] || {}) : null);
         };
-        ear.addEventListener("input", apply);
-        ear.addEventListener("change", apply);
+        // Driven from reflect(), not from listeners on `ear`: place() swaps
+        // `ear` for the new node whenever the platform remounts the field, and
+        // listeners bound to the old node would stop firing with it.
+        extraApply = apply;
         observeOptions(vaccine, apply);
         apply();
         wireNextDueDate(dialog, vaccine, list);
