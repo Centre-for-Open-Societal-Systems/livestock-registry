@@ -115,12 +115,21 @@
     (function walk(o) {
       if (Array.isArray(o)) { o.forEach(walk); return; }
       if (!o || typeof o !== "object") return;
-      // an animal row: has ear_tag_id + breed, and is not an event row
-      if (o.ear_tag_id && ("breed" in o) && !("event_type" in o) && !("vaccine_type" in o)) {
-        var tag = String(o.ear_tag_id).trim().toUpperCase();
-        if (tag && !seen[tag]) {
-          seen[tag] = true;
-          out.push({ tag: tag, species: o.species || "", breed: o.breed || "", gender: o.gender || "", dob: o.date_of_birth || "", age: o.age || "" });
+      // an animal row: has breed + an identifier, and is not an event row.
+      // The identifier is the ear tag or, for a species with no ear to tag
+      // (poultry, beehives), the secondary identifier -- whichever the
+      // Livestock Details dialog collected. Event rows name the animal by
+      // that same value in ear_tag_id, and the server accepts either
+      // (animal_identified_by in domain_validation_utils). Ear tags are
+      // upper-cased like the server stores them; a secondary identifier is
+      // free text and is kept exactly as typed, since the server matches it
+      // exactly -- `key` is the case-folded form used only for matching here.
+      if (("breed" in o) && !("event_type" in o) && !("vaccine_type" in o) && (o.ear_tag_id || o.secondary_identifier)) {
+        var tag = o.ear_tag_id ? String(o.ear_tag_id).trim().toUpperCase() : String(o.secondary_identifier).trim();
+        var key = tag.toUpperCase();
+        if (tag && !seen[key]) {
+          seen[key] = true;
+          out.push({ tag: tag, key: key, species: o.species || "", breed: o.breed || "", gender: o.gender || "", dob: o.date_of_birth || "", age: o.age || "", quantity: o.quantity || "" });
         }
       }
       Object.keys(o).forEach(function (k) { walk(o[k]); });
@@ -150,6 +159,7 @@
     if (a.breed) parts.push(pretty(a.breed, "LIVESTOCK_BREED_"));
     if (a.gender) parts.push(pretty(a.gender, ""));
     var age = a.age || ageFrom(a.dob); if (age) parts.push("age " + age);
+    if (a.quantity) parts.push(a.quantity + " head");
     return parts.join(" \u00b7 ");
   }
   var CONTROL_CLASS = "w-full sm:w-[180px] max-w-full h-[30px] px-3 border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white";
@@ -490,7 +500,7 @@
       ph.textContent = dropdownAnimals.length ? "Select an animal of this form\u2026" : (femaleOnly ? "No female animals saved on this form yet" : "No animals saved on this form yet");
       pick.appendChild(ph);
       dropdownAnimals.forEach(function (a) { var o = document.createElement("option"); o.value = a.tag; o.textContent = a.tag + " \u2014 " + describe(a); pick.appendChild(o); });
-      var find = function () { var t = String(ear.value || "").trim().toUpperCase(); for (var i = 0; i < animals.length; i++) if (animals[i].tag === t) return animals[i]; return null; };
+      var find = function () { var t = String(ear.value || "").trim().toUpperCase(); for (var i = 0; i < animals.length; i++) if (animals[i].key === t) return animals[i]; return null; };
       // Breed and Sex of the picked animal, shown as two more read-only fields
       // in the row under Species (Species and Age are the platform's own
       // display widgets from the metadata; these two are clones of the
@@ -534,7 +544,7 @@
       };
       var extraApply = null; // set below by the Vaccination dialog's own wiring
       var reflect = function () {
-        var a = find(); var t = String(ear.value || "").trim().toUpperCase();
+        var a = find(); var t = a ? a.tag : String(ear.value || "").trim();
         // A tag the dropdown does not offer: an Edit of a row whose animal has
         // since left the form, or (on Breeding) one of this form's animals that
         // the Female-only filter left out. Add it as an option either way, so
@@ -570,7 +580,7 @@
         var apply = function () {
           var tag = String(ear.value || "").trim().toUpperCase();
           var a = null;
-          for (var i = 0; i < animals.length; i++) if (animals[i].tag === tag) { a = animals[i]; break; }
+          for (var i = 0; i < animals.length; i++) if (animals[i].key === tag) { a = animals[i]; break; }
           restrictOptions(vaccine, a && a.species ? (map[a.species] || {}) : null);
         };
         // Driven from reflect(), not from listeners on `ear`: place() swaps

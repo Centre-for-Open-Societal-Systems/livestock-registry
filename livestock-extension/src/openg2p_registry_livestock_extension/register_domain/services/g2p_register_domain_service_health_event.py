@@ -8,6 +8,7 @@ from sqlalchemy import select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    animal_identified_by,
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
@@ -117,8 +118,9 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             return
         if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
             validation_error(
-                "ear_tag_id does not match any registered or drafted animal. "
-                "Add it under Livestock Details first, or check for a typo."
+                f"'{str(value).strip()}' does not match any registered or drafted animal's "
+                "ear tag or secondary identifier. Add it under Livestock Details first, "
+                "or check for a typo."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
@@ -208,7 +210,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         animal = (
             await session.execute(
                 select(G2PRegisterAnimal).where(
-                    G2PRegisterAnimal.ear_tag_id == health_event.ear_tag_id,
+                    animal_identified_by(G2PRegisterAnimal, health_event.ear_tag_id),
                     G2PRegisterAnimal.link_internal_record_id == health_event.link_internal_record_id,
                 )
             )
@@ -219,7 +221,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         await session.flush()
         _logger.info(
             "%s health event %s: set animal %s health_status to %s",
-            event_type, health_event.internal_record_id, animal.ear_tag_id, new_status,
+            event_type, health_event.internal_record_id, animal.ear_tag_id or animal.secondary_identifier, new_status,
         )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:

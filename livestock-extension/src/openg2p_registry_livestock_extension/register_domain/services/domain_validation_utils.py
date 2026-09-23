@@ -107,9 +107,28 @@ def _animal_models():
     return models.G2PRegisterAnimal, models.G2PIntakeFormAnimal
 
 
+def animal_identified_by(model, identifier: str):
+    """SQL condition: this Animal row is the one `identifier` names.
+
+    An animal carries one of two identifiers, decided by its species'
+    "Requires Ear Tag" config (get_species_config): an ear tag (ET + 10
+    digits) or, for a species that has no ear to tag -- poultry, beehives --
+    a free-text secondary_identifier (leg band, wing tag, hive number).
+    Event rows name their animal in `ear_tag_id` either way, so every lookup
+    from an event must accept both, or a flock could never have a health
+    event, vaccination, vital event or breeding record logged against it.
+    The two formats do not overlap in practice, and an exact match on either
+    column is what the Animal section itself enforces uniqueness on.
+    """
+    from sqlalchemy import or_
+
+    return or_(model.ear_tag_id == identifier, model.secondary_identifier == identifier)
+
+
 async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = None) -> bool:
     """True if `ear_tag_id` names a real animal — already approved into the
-    register, or drafted under an in-progress intake submission.
+    register, or drafted under an in-progress intake submission. The value
+    may be an ear tag or a secondary identifier (see animal_identified_by).
 
     With `application_reference` (the intake submission's reference, present on
     every row the platform has already saved) the check is SCOPED to that
@@ -132,8 +151,8 @@ async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = No
 
     G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
 
-    register_cond = G2PRegisterAnimal.ear_tag_id == ear_tag_id
-    intake_cond = G2PIntakeFormAnimal.ear_tag_id == ear_tag_id
+    register_cond = animal_identified_by(G2PRegisterAnimal, ear_tag_id)
+    intake_cond = animal_identified_by(G2PIntakeFormAnimal, ear_tag_id)
     if application_reference:
         # Intake rows carry the submission's reference directly. Register rows
         # do not, but they hang off the holding (link_internal_record_id), and
@@ -294,7 +313,7 @@ async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None
         # and without this an unordered .limit(1) can just as easily land on
         # a row where species was never filled in, making the result
         # nondeterministic — same ear tag, different answer between calls.
-        return and_(model.ear_tag_id == ear_tag_id, model.species.is_not(None), model.species != "")
+        return and_(animal_identified_by(model, ear_tag_id), model.species.is_not(None), model.species != "")
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
@@ -698,7 +717,7 @@ async def get_animal_gender(ear_tag_id: str) -> str | None:
     G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
 
     def _has_gender(model):
-        return and_(model.ear_tag_id == ear_tag_id, model.gender.is_not(None), model.gender != "")
+        return and_(animal_identified_by(model, ear_tag_id), model.gender.is_not(None), model.gender != "")
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
@@ -732,8 +751,8 @@ async def ensure_ear_tags_belong_to_submission(rows: list) -> None:
             continue
         if not await ear_tag_exists(str(ear_tag_id).strip(), application_reference=str(reference)):
             validation_error(
-                f"Ear tag '{str(ear_tag_id).strip()}' is not an animal of this submission. "
-                "Add the animal under Livestock Details first, or check the tag."
+                f"'{str(ear_tag_id).strip()}' is not an animal of this submission. "
+                "Add the animal under Livestock Details first, or check the ear tag / identifier."
             )
 
 

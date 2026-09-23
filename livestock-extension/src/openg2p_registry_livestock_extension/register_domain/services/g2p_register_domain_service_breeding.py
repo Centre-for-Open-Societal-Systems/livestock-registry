@@ -71,8 +71,9 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             return
         if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
             validation_error(
-                "ear_tag_id does not match any registered or drafted animal. "
-                "Add it under Livestock Details first, or check for a typo."
+                f"'{str(value).strip()}' does not match any registered or drafted animal's "
+                "ear tag or secondary identifier. Add it under Livestock Details first, "
+                "or check for a typo."
             )
 
     async def _validate_female_only(self, record: dict) -> None:

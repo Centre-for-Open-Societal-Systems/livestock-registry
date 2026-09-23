@@ -13,6 +13,7 @@ from sqlalchemy import and_, func, select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    animal_identified_by,
     _animal_models,
     as_int,
     ear_tag_exists,
@@ -106,8 +107,9 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             return
         if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
             validation_error(
-                "ear_tag_id does not match any registered or drafted animal. "
-                "Add it under Livestock Details first, or check for a typo."
+                f"'{str(value).strip()}' does not match any registered or drafted animal's "
+                "ear tag or secondary identifier. Add it under Livestock Details first, "
+                "or check for a typo."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
@@ -403,7 +405,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         animal = (
             await session.execute(
                 select(G2PRegisterAnimal).where(
-                    G2PRegisterAnimal.ear_tag_id == vital_event.ear_tag_id,
+                    animal_identified_by(G2PRegisterAnimal, vital_event.ear_tag_id),
                     G2PRegisterAnimal.link_internal_record_id == vital_event.link_internal_record_id,
                 )
             )
@@ -414,7 +416,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         await session.flush()
         _logger.info(
             "%s event %s: set animal %s health_status to %s",
-            event_type, vital_event.internal_record_id, animal.ear_tag_id, new_status,
+            event_type, vital_event.internal_record_id, animal.ear_tag_id or animal.secondary_identifier, new_status,
         )
 
     async def post_intake_upsert(self, rows: list, session) -> None:
@@ -490,7 +492,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         dam = (
             await session.execute(
                 select(G2PRegisterAnimal).where(
-                    G2PRegisterAnimal.ear_tag_id == vital_event.ear_tag_id,
+                    animal_identified_by(G2PRegisterAnimal, vital_event.ear_tag_id),
                     G2PRegisterAnimal.link_internal_record_id == vital_event.link_internal_record_id,
                 )
             )
