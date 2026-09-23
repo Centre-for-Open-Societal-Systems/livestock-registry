@@ -277,8 +277,10 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         _validate_no_duplicate_ear_tags on the Animal section: the rows of
         this save first, then the register plus every intake draft
         (excluding this save's own rows, so editing an already-approved
-        event isn't flagged against itself). A row without an onset date is
-        left alone here — there is nothing to say it is the same event.
+        event isn't flagged against itself). A RECOVERY is keyed on its
+        resolution date instead of the onset it does not have; a row with
+        neither date is left alone — there is nothing to say it is the same
+        event.
 
         `search` / `exclude_submission_ids`: which tables to look in and which
         submission to ignore — see exists_in_tables in domain_validation_utils.
@@ -288,20 +290,31 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         """
 
         def key_of(record: dict):
-            onset = parse_date(record.get("date_onset"))
-            if is_blank(record.get("ear_tag_id")) or is_blank(record.get("event_type")) or onset is None:
+            if is_blank(record.get("ear_tag_id")) or is_blank(record.get("event_type")):
+                return None
+            event_type = str(record["event_type"]).strip().upper()
+            # A RECOVERY has no onset date (the form hides it) -- its date is
+            # the resolution date, so that is what identifies it. The Old
+            # System keyed a recovery on its empty onset, which made a second
+            # recovery for the same animal a duplicate however far apart the
+            # two were; here an animal that falls ill and recovers twice in a
+            # year keeps both, and only the same day twice is refused.
+            date_column = "date_resolution" if event_type == "RECOVERY" else "date_onset"
+            on = parse_date(record.get(date_column))
+            if on is None:
                 return None
             disease = record.get("disease_type")
             return (
                 str(record["ear_tag_id"]).strip(),
-                str(record["event_type"]).strip().upper(),
+                event_type,
                 None if is_blank(disease) else str(disease).strip(),
-                onset,
+                date_column,
+                on,
             )
 
         repeated = first_repeated_key(records, key_of)
         if repeated:
-            ear_tag_id, event_type, _disease, onset = repeated
+            ear_tag_id, event_type, _disease, _date_column, onset = repeated
             validation_error(
                 f"The {event_type} health event for animal '{ear_tag_id}' on {onset} "
                 "is entered more than once in this record."
@@ -316,14 +329,14 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             key = key_of(record)
             if key is None:
                 continue
-            ear_tag_id, event_type, disease, onset = key
+            ear_tag_id, event_type, disease, date_column, onset = key
             if await event_already_recorded(
                 "HealthEvent",
                 {
                     "ear_tag_id": ear_tag_id,
                     "event_type": event_type,
                     "disease_type": disease,
-                    "date_onset": onset,
+                    date_column: onset,
                 },
                 exclude_internal_record_ids=self_ids,
                 exclude_submission_ids=exclude_submission_ids,
