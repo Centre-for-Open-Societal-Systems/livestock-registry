@@ -20,7 +20,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from .reminder_alert_utils import (
-    already_sent, ensure_tracking_table, record_sent, resolve_recipients, send_email, today,
+    already_sent, animal_not_deceased_sql, ensure_tracking_table, record_sent, resolve_recipients,
+    send_email, today,
 )
 
 _logger = logging.getLogger("g2p-reminder-alerts")
@@ -41,25 +42,27 @@ def find_due_soon(engine: Engine, window_days: int = DEFAULT_DUE_SOON_WINDOW_DAY
     as_of = as_of or today()
     from datetime import timedelta
     cutoff = as_of + timedelta(days=window_days)
-    return _fetch(engine, """
-        SELECT internal_record_id, ear_tag_id, vaccine_type, next_due_date
-        FROM g2p_register_vaccinations
-        WHERE record_status = 'ACTIVE'
-          AND next_due_date IS NOT NULL
-          AND next_due_date >= :today AND next_due_date <= :cutoff
-        ORDER BY next_due_date
+    return _fetch(engine, f"""
+        SELECT v.internal_record_id, v.ear_tag_id, v.vaccine_type, v.next_due_date
+        FROM g2p_register_vaccinations v
+        WHERE v.record_status = 'ACTIVE'
+          AND v.next_due_date IS NOT NULL
+          AND v.next_due_date >= :today AND v.next_due_date <= :cutoff
+          AND {animal_not_deceased_sql("v")}
+        ORDER BY v.next_due_date
     """, {"today": as_of, "cutoff": cutoff})
 
 
 def find_overdue(engine: Engine, as_of=None) -> list[dict]:
     as_of = as_of or today()
-    return _fetch(engine, """
-        SELECT internal_record_id, ear_tag_id, vaccine_type, next_due_date
-        FROM g2p_register_vaccinations
-        WHERE record_status = 'ACTIVE'
-          AND next_due_date IS NOT NULL
-          AND next_due_date < :today
-        ORDER BY next_due_date
+    return _fetch(engine, f"""
+        SELECT v.internal_record_id, v.ear_tag_id, v.vaccine_type, v.next_due_date
+        FROM g2p_register_vaccinations v
+        WHERE v.record_status = 'ACTIVE'
+          AND v.next_due_date IS NOT NULL
+          AND v.next_due_date < :today
+          AND {animal_not_deceased_sql("v")}
+        ORDER BY v.next_due_date
     """, {"today": as_of})
 
 

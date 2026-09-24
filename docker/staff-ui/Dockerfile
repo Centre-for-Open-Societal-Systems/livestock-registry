@@ -109,6 +109,13 @@ RUN node /tmp/patch-dialog-overlay.js && rm /tmp/patch-dialog-overlay.js
 COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-attribute-value-routes.js /tmp/patch-attribute-value-routes.js
 RUN node /tmp/patch-attribute-value-routes.js && rm /tmp/patch-attribute-value-routes.js
 
+# ── File Import: forward document_id to the enqueue API ──
+# The portal's enqueue-import route sends only document_store_id, which the
+# registry API rejects (it requires document_id), so File Import queued nothing.
+# See the script's header; the overlay supplies the document_id.
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-enqueue-import-route.js /tmp/patch-enqueue-import-route.js
+RUN node /tmp/patch-enqueue-import-route.js && rm /tmp/patch-enqueue-import-route.js
+
 # ── Rename the attribute-value "Sort Order" field label to "Display Order" ──
 # Configuration -> Attributes (and Configuration -> Registry -> Languages,
 # which shares the same i18n key) label the g2p_attribute_values.sort_order

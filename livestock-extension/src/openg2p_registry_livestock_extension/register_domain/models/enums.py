@@ -102,6 +102,12 @@ class BreedingOutcomeEnum(StrEnum):
     FAILED = "FAILED"
 
 
+class RetagReasonEnum(StrEnum):
+    LOST = "LOST"
+    DAMAGED = "DAMAGED"
+    UPGRADE = "UPGRADE"
+
+
 class EventLocationEnum(StrEnum):
     """Shared LOCATION_SELECTION in livestock_event.py."""
 

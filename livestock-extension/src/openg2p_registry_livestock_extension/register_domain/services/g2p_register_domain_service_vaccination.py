@@ -28,6 +28,7 @@ from .domain_validation_utils import (
     first_repeated_key,
     humanize_attribute_value,
 )
+from .domain_validation_utils import get_animal_species_and_birth_date
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -67,6 +68,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             await validate_belongs_to_species(record.get("vaccine_type"), record.get("species"), "Vaccine")
             await validate_species_matches(record)
             self._validate_not_in_future(record, "vaccination_date")
+            await self._validate_not_before_birth(record)
             await self._populate_next_due_date(record)
             self._validate_date_order(record, "vaccination_date", "next_due_date")
         await self._validate_no_duplicate_events(records)
@@ -91,6 +93,20 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         value = parse_date(record.get(field))
         if value is not None and value > date.today():
             validation_error(f"{field} must not be in the future")
+
+    async def _validate_not_before_birth(self, record: dict) -> None:
+        """An animal cannot be vaccinated before it was born. Animals with no
+        Date of Birth on file (e.g. flock species) are not checked."""
+        vaccination_date = parse_date(record.get("vaccination_date"))
+        ear_tag_id = record.get("ear_tag_id")
+        if vaccination_date is None or is_blank(ear_tag_id):
+            return
+        _, birth_date = await get_animal_species_and_birth_date(str(ear_tag_id).strip())
+        if birth_date is not None and vaccination_date < birth_date:
+            validation_error(
+                "Vaccination date cannot be before the animal's date of birth "
+                f"({birth_date.strftime('%d/%m/%Y')})."
+            )
 
     async def _populate_next_due_date(self, record: dict) -> None:
         """Derive next_due_date from vaccination_date + the matching Vaccine

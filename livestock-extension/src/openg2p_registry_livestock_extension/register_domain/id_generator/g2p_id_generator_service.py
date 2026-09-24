@@ -37,6 +37,8 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
             return IdAffix(prefix="VE-", suffix="")
         if mnemonic == "breeding":
             return IdAffix(prefix="BR-", suffix="")
+        if mnemonic == "retagging":
+            return IdAffix(prefix="RT-", suffix="")
         if mnemonic == "vaccineschedule":
             return IdAffix(prefix="VS-", suffix="")
         if mnemonic == "importbatch":

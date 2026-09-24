@@ -400,6 +400,13 @@ services:
       REGISTRY_STAFF_PORTAL_API_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       REGISTRY_STAFF_PORTAL_API_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       REGISTRY_STAFF_PORTAL_API_MINIO_BUCKET_NAME: ${DOCUMENTS_BUCKET}
+      # The document handler (uploads, File Import downloads) reads the CORE
+      # MinIO settings, not the service-prefixed ones above; without these it
+      # falls back to localhost:9000, which does not exist in this container.
+      REGISTRY_CORE_MINIO_ENDPOINT: minio:${MINIO_API_PORT}
+      REGISTRY_CORE_MINIO_SECURE: 'false'
+      REGISTRY_CORE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      REGISTRY_CORE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       REGISTRY_STAFF_PORTAL_API_TEMPLATE_BUCKET_NAME: ${TEMPLATE_BUCKET}
       REGISTRY_STAFF_PORTAL_API_AUDIT_ENABLED: ${AUDIT_ENABLED}
       REGISTRY_STAFF_PORTAL_API_AWE_ENABLED: ${AWE_ENABLED}
@@ -425,6 +432,11 @@ services:
       AUTH_CLIENT_ID: ${AUTH_CLIENT_ID}
       AUTH_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
       APPROVER_RESOLVER_SECRET: ${APPROVER_RESOLVER_SECRET}
+      # File Import (New Intake -> File Import) uploads its CSV / Excel through
+      # the same document upload as attachments, whose core default allows only
+      # images and PDF. Add the spreadsheet types (Excel can be sniffed as zip).
+      REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ${DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS:-png,jpg,jpeg,webp,pdf,csv,xlsx,xls}
+      REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: ${DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES:-image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip}
     ports:
       - '${STAFF_API_PORT}:8000'
     depends_on:
@@ -527,6 +539,13 @@ services:
       REGISTRY_CELERY_WORKERS_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       REGISTRY_CELERY_WORKERS_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       REGISTRY_CELERY_WORKERS_MINIO_BUCKET_NAME: ${DEFAULT_BUCKET}
+      # The document handler (uploads, File Import downloads) reads the CORE
+      # MinIO settings, not the service-prefixed ones above; without these it
+      # falls back to localhost:9000, which does not exist in this container.
+      REGISTRY_CORE_MINIO_ENDPOINT: minio:${MINIO_API_PORT}
+      REGISTRY_CORE_MINIO_SECURE: 'false'
+      REGISTRY_CORE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      REGISTRY_CORE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       REGISTRY_CELERY_WORKERS_TEMPLATE_BUCKET_NAME: ${TEMPLATE_BUCKET}
       REGISTRY_CELERY_WORKERS_FUNCTIONAL_ID_GENERATION_URL: http://id-generator:8000/v1
       REGISTRY_CELERY_WORKERS_ID_GENERATION_ALLOCATION_PATH: '/idgenerator/{id_type}/id'

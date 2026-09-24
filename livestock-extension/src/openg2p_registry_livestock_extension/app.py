@@ -40,13 +40,14 @@ from .register_domain.models import (
     G2PRegisterVaccination, G2PRegisterHistoryVaccination,
     G2PRegisterVitalEvent, G2PRegisterHistoryVitalEvent,
     G2PRegisterBreeding, G2PRegisterHistoryBreeding,
+    G2PRegisterRetagging, G2PRegisterHistoryRetagging,
     G2PRegisterVaccineSchedule, G2PRegisterHistoryVaccineSchedule,
     G2PRegisterImportBatch, G2PRegisterHistoryImportBatch,
     G2PRegisterAuditLog, G2PRegisterHistoryAuditLog,
     G2PIntakeFormFarmer, G2PIntakeFormLivestock, G2PIntakeFormAnimal,
     G2PIntakeFormHealthEvent, G2PIntakeFormVaccination, G2PIntakeFormVitalEvent,
     G2PIntakeFormBreeding, G2PIntakeFormVaccineSchedule, G2PIntakeFormImportBatch,
-    G2PIntakeFormAuditLog,
+    G2PIntakeFormAuditLog, G2PIntakeFormRetagging,
 )
 from .register_domain.factory import G2PRegisterDomainFactory
 from .register_domain.services import (
@@ -55,6 +56,7 @@ from .register_domain.services import (
     G2PRegisterDomainServiceVaccination, G2PRegisterDomainServiceVitalEvent,
     G2PRegisterDomainServiceBreeding, G2PRegisterDomainServiceVaccineSchedule,
     G2PRegisterDomainServiceImportBatch, G2PRegisterDomainServiceAuditLog,
+    G2PRegisterDomainServiceRetagging,
 )
 from .register_domain.controllers import G2PAnimalBulkImportController, G2PApproverResolverController
 
@@ -74,6 +76,7 @@ class Initializer(BaseInitializer):
         G2PRegisterDomainServiceVaccination()
         G2PRegisterDomainServiceVitalEvent()
         G2PRegisterDomainServiceBreeding()
+        G2PRegisterDomainServiceRetagging()
         G2PRegisterDomainServiceVaccineSchedule()
         G2PRegisterDomainServiceImportBatch()
         G2PRegisterDomainServiceAuditLog()
@@ -142,6 +145,10 @@ class Initializer(BaseInitializer):
             await G2PRegisterBreeding.create_migrate()
             await G2PRegisterHistoryBreeding.create_migrate()
             await G2PIntakeFormBreeding.create_migrate()
+
+            await G2PRegisterRetagging.create_migrate()
+            await G2PRegisterHistoryRetagging.create_migrate()
+            await G2PIntakeFormRetagging.create_migrate()
 
             await G2PRegisterVaccineSchedule.create_migrate()
             await G2PRegisterHistoryVaccineSchedule.create_migrate()

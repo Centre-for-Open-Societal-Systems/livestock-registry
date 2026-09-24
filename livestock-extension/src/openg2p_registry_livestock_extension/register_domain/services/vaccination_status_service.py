@@ -35,7 +35,8 @@ def flag_overdue_vaccinations(engine: Engine, as_of: date | None = None) -> list
     passed from UP_TO_DATE to OVERDUE. "Most recent" = highest
     vaccination_date on file for that (ear_tag_id, livestock) pair — an
     earlier vaccination's due date doesn't matter once a later one has been
-    logged. Returns the ear tags flipped this run.
+    logged. A DECEASED animal is left alone — it is no longer due anything.
+    Returns the ear tags flipped this run.
     """
     as_of = as_of or date.today()
 
@@ -54,6 +55,7 @@ def flag_overdue_vaccinations(engine: Engine, as_of: date | None = None) -> list
           AND a.link_internal_record_id = lv.link_internal_record_id
           AND a.record_status = 'ACTIVE'
           AND a.vaccination_status = 'UP_TO_DATE'
+          AND a.health_status IS DISTINCT FROM 'DECEASED'
           AND lv.next_due_date IS NOT NULL
           AND lv.next_due_date < :as_of
         RETURNING a.ear_tag_id
