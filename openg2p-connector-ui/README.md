@@ -67,3 +67,64 @@ The current version has **no login flow**. This is acceptable when:
 - Vite
 - React Router
 - Lucide icons
+
+## DevOps / Deployment
+
+The Connector UI is a standard Single Page Application (SPA) built with Vite. It needs to be served by a static web server (like Nginx) and must be configured to point to the `openg2p-connector-service` API.
+
+### 1. Build Time Configuration
+Because it is a static build, the API URL must be injected at **build time**. 
+Create a `.env.production` file or export the variable during your CI/CD pipeline:
+```bash
+VITE_CONNECTOR_API_BASE_URL=https://api.your-connector-domain.com
+npm run build
+```
+*Note: Make sure CORS is configured on the backend `openg2p-connector-service` to accept requests from the deployed UI domain.*
+
+### 2. Sample Dockerfile
+You can deploy the built artifacts using a lightweight Nginx container.
+
+```dockerfile
+# Stage 1: Build
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+# Inject the backend URL during build
+ARG VITE_CONNECTOR_API_BASE_URL
+ENV VITE_CONNECTOR_API_BASE_URL=$VITE_CONNECTOR_API_BASE_URL
+RUN npm run build
+
+# Stage 2: Serve
+FROM nginx:alpine
+# Copy the built assets
+COPY --from=builder /app/dist /usr/share/nginx/html
+# SPA routing fallback config (serve index.html for all routes)
+RUN echo 'server { \
+    listen 80; \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html index.htm; \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### 3. Docker Compose Example
+If you are deploying it alongside the other services using Docker Compose:
+
+```yaml
+  connector-ui:
+    build:
+      context: ./openg2p-connector-ui
+      args:
+        # Provide the public-facing URL of the connector API
+        - VITE_CONNECTOR_API_BASE_URL=http://connector-api.local
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+```
