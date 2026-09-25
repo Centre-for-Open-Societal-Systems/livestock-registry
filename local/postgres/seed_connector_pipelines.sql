@@ -44,7 +44,7 @@ INSERT INTO connector_definitions (
     'odk_central',
     true,
     false,
-    'LS_DATA_MODEL',
+    'MY_DATA_MODEL',
     'Livestock',
     'Livestock',
     '{"base_url": "https://odk.13.207.43.8.nip.io", "project_id": 14, "form_id": "livestock_registry", "resolve_nav_links": true, "strict_incremental": false, "target_url": "http://partner-api:8000/partner/ingest_data", "target_headers": {"partner-id": "livestock-partner", "Content-Type": "application/json"}}',
