@@ -45,11 +45,6 @@
 {% set loc_woreda_val = loc.get('woreda_name_id') or loc.get('woreda_id') or loc.get('woreda') or d.get('holding_woreda_id') or d.get('holding_woreda') or d.get('woreda_name_id') or d.get('woreda_id') or d.get('woreda') or fl.get('woreda_id') or fl.get('woreda') or fl.get('woreda_name_id') or d.get('farmer_woreda_id') or d.get('farmer_woreda') or '' %}
 {% set loc_kebele_val = loc.get('kebele_name_id') or loc.get('kebele_id') or loc.get('kebele') or d.get('holding_kebele_id') or d.get('holding_kebele') or d.get('kebele_name_id') or d.get('kebele_id') or d.get('kebele') or fl.get('kebele_id') or fl.get('kebele') or fl.get('kebele_name_id') or d.get('farmer_kebele_id') or d.get('farmer_kebele') or '' %}
 
-{# Backward compatibility aliases #}
-{% set region_val = fl_region_val %}
-{% set zone_val = fl_zone_val %}
-{% set woreda_val = fl_woreda_val %}
-{% set kebele_val = fl_kebele_val %}
 
 {% set species_map = {
   'cattle': 'LIVESTOCK_SPECIES_CATTLE',
@@ -202,6 +197,7 @@
       "breed": {{ a_br | tojson }},
       "colour": {{ a.get('colour') | tojson }},
       "weight": {{ a.get('weight') | tojson }},
+      "quantity": {{ a.get('quantity') | tojson }},
       "gender": {{ (a.get('gender') or 'male') | upper | tojson }},
       "date_of_birth": {{ a.get('date_of_birth') | tojson }},
       "age": {{ a.get('age') | tojson }},
@@ -220,7 +216,8 @@
       {% for he in a.get('health_events', []) %}
         {% set raw_loc = ((he.get('location') or 'FIELD') | string) | upper %}
         {% set _ = ns.items.append({
-          "ear_tag_id": a.get('ear_tag_id'),
+          "ear_tag_id": a.get('ear_tag_id') or a.get('secondary_identifier'),
+          "secondary_identifier": a.get('secondary_identifier'),
           "species": a_sp,
           "age": a.get('age'),
           "event_type": (he.get('event_type') or he.get('health_event_type') or 'treatment') | upper,
@@ -318,7 +315,8 @@
           {% set v_type = raw_v | upper %}
         {% endif %}
         {% set _ = ns.items.append({
-          "ear_tag_id": a.get('ear_tag_id'),
+          "ear_tag_id": a.get('ear_tag_id') or a.get('secondary_identifier'),
+          "secondary_identifier": a.get('secondary_identifier'),
           "species": a_sp,
           "age": a.get('age'),
           "vaccine_type": v_type,
@@ -344,7 +342,8 @@
         {% set bd = ve.get('birth_details', {}) or {} %}
         {% set raw_loc = ((ve.get('location') or 'HOME') | string) | upper %}
         {% set _ = ns.items.append({
-          "ear_tag_id": a.get('ear_tag_id'),
+          "ear_tag_id": a.get('ear_tag_id') or a.get('secondary_identifier'),
+          "secondary_identifier": a.get('secondary_identifier'),
           "species": a_sp,
           "age": a.get('age'),
           "event_type": (ve.get('event_type') or ve.get('vital_event_type') or 'birth') | upper,
@@ -358,7 +357,7 @@
           "date_resolution": dd.get('vital_date_resolution') or dd.get('date_resolution') or ve.get('date_resolution'),
           "treatment": dd.get('treatment') or ve.get('treatment'),
           "veterinarian_name": dd.get('veterinarian_id') or dd.get('veterinarian_name') or ve.get('veterinarian_name'),
-          "is_notifiable": (dd.get('vital_is_notifiable') == true or ve.get('is_notifiable') == true),
+          "is_notifiable": (dd.get('vital_is_notifiable') == true or dd.get('vital_is_notifiable') == 'true' or dd.get('vital_is_notifiable') == 'yes' or ve.get('is_notifiable') == true or ve.get('is_notifiable') == 'true' or ve.get('is_notifiable') == 'yes'),
           "offspring_count": bd.get('offspring_count') or ve.get('offspring_count'),
           "offspring_ear_tag_prefix": bd.get('offspring_ear_tag_prefix') or ve.get('offspring_ear_tag_prefix'),
           "offspring_gender": (bd.get('offspring_gender') or ve.get('offspring_gender') or ve.get('gender') or 'FEMALE') | upper,
@@ -380,19 +379,20 @@
         {% set raw_et = ((be.get('event_type') or be.get('breeding_event_type') or 'NATURAL') | string) | upper %}
         {% set raw_bloc = ((be.get('location') or 'HOME') | string) | upper %}
         {% set _ = ns.items.append({
-          "ear_tag_id": a.get('ear_tag_id'),
+          "ear_tag_id": a.get('ear_tag_id') or a.get('secondary_identifier'),
+          "secondary_identifier": a.get('secondary_identifier'),
           "species": a_sp,
           "age": a.get('age'),
           "event_type": "AI" if ("AI" in raw_et or "INSEMINATION" in raw_et) else "NATURAL",
           "breeding_date": be.get('breeding_date'),
           "sire_or_semen_id": be.get('sire_or_semen_id'),
-          "location": "HOME" if "HOME" in raw_bloc else ("VETERINARY" if "VET" in raw_bloc else ("MARKET" if "MARKET" in raw_bloc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_bloc else ("FIELD" if "FIELD" in raw_bloc else "OTHER")))),
+          "location": "HOME" if "HOME" in raw_bloc else ("VETERINARY" if "VET" in raw_bloc else ("MARKET" if "MARKET" in raw_bloc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_bloc else ("FIELD" if "FIELD" in raw_loc else "OTHER")))),
           "location_details": be.get('location_details'),
           "ai_technician_name": ai.get('ai_technician_name') or ai.get('ai_technician_id') or be.get('ai_technician_name'),
           "ai_technique": ai.get('ai_technique') or be.get('ai_technique'),
           "semen_batch_number": ai.get('semen_batch_number') or be.get('semen_batch_number'),
           "expected_calving_date": be.get('expected_calving_date'),
-          "pregnancy_confirmed": (be.get('pregnancy_confirmed') == true or be.get('pregnancy_confirmed') == 'true'),
+          "pregnancy_confirmed": (be.get('pregnancy_confirmed') == true or be.get('pregnancy_confirmed') == 'true' or be.get('pregnancy_confirmed') == 'yes'),
           "pregnancy_confirmation_date": be.get('pregnancy_confirmation_date'),
           "outcome": (be.get('outcome') or 'PENDING') | upper,
           "notes": be.get('breeding_notes') or be.get('notes')
