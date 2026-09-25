@@ -17,6 +17,7 @@ from .domain_validation_utils import (
     _animal_models,
     as_int,
     ear_tag_exists,
+    get_animal_gender,
     is_blank,
     parse_date,
     resolve_today_default,
@@ -80,6 +81,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
             self._validate_offspring_count(record)
+            await self._validate_birth_female_only(record)
         # Run only once every record above has passed — so by this point
         # every ear_tag_id/event_type/disease_type used below is known
         # non-blank where required. Mirrors G2PRegisterDomainServiceAnimal's
@@ -92,6 +94,24 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         for field, label in _REQUIRED_FIELDS.items():
             if is_blank(record.get(field)):
                 validation_error(f"Please provide the {label} before saving the record.")
+
+    async def _validate_birth_female_only(self, record: dict) -> None:
+        """A BIRTH is logged against the dam -- only a Female animal can give
+        birth. Same check as G2PRegisterDomainServiceBreeding._validate_female_only:
+        the Ear Tag dropdown only offers Female animals once Event Type is
+        BIRTH (livestock-dialog-overlay.js), but the tag is still text the
+        server must check itself. MORTALITY / DISEASE apply to any animal."""
+        if str(record.get("event_type") or "").upper() != "BIRTH":
+            return
+        ear_tag_id = record.get("ear_tag_id")
+        if is_blank(ear_tag_id):
+            return
+        gender = await get_animal_gender(str(ear_tag_id).strip())
+        if gender and str(gender).upper() != "FEMALE":
+            validation_error(
+                "A Birth event can only be logged against a Female animal "
+                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).title()})."
+            )
 
     def _validate_disease_type(self, record: dict) -> None:
         # Only a DISEASE vital event carries a diagnosis — the form hides

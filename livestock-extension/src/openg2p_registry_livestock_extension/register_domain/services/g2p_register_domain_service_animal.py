@@ -79,6 +79,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             self._validate_date_of_birth_required(record, is_flock_species)
             self._validate_not_in_future(record, "date_of_birth")
             self._validate_not_in_future(record, "registration_date")
+            self._validate_registration_not_before_birth(record)
             self._validate_weight(record)
             self._populate_age_from_date_of_birth(record)
         # Runs only once every record above has passed — so by this point
@@ -88,6 +89,19 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         # tag-exempt species that require it.
         await self._validate_no_duplicate_ear_tags(records)
         await self._validate_no_duplicate_secondary_identifiers(records)
+        await self._validate_ear_tags_not_retired(records)
+
+    async def _validate_ear_tags_not_retired(self, records: list[dict]) -> None:
+        """A tag replaced by an applied Ear Tag Replacement (retagging) stays
+        linked to its animal forever and is never issued again (SRS LR-14)."""
+        from .g2p_register_domain_service_retagging import ear_tag_is_retired
+
+        for record in records:
+            ear_tag_id = record.get("ear_tag_id")
+            if not is_blank(ear_tag_id) and await ear_tag_is_retired(ear_tag_id):
+                validation_error(
+                    f"ear_tag_id '{ear_tag_id}' was retired by an ear tag replacement and cannot be reused."
+                )
 
     async def post_intake_upsert(self, rows: list, session) -> None:
         """Intake-side duplicate checks (other submissions' drafted animals):
@@ -299,6 +313,17 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                     f"secondary_identifier '{secondary_identifier}' is already "
                     "registered to a different animal of the same species and breed."
                 )
+
+    def _validate_registration_not_before_birth(self, record: dict) -> None:
+        """An animal cannot be registered before it was born. Skipped when
+        either date is missing (e.g. flock species have no Date of Birth)."""
+        birth_date = parse_date(record.get("date_of_birth"))
+        registration_date = parse_date(record.get("registration_date"))
+        if birth_date and registration_date and registration_date < birth_date:
+            validation_error(
+                "Registration date cannot be before the animal's date of birth "
+                f"({birth_date.strftime('%d/%m/%Y')})."
+            )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))

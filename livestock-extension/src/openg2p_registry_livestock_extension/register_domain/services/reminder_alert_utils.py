@@ -50,6 +50,25 @@ CREATE TABLE IF NOT EXISTS g2p_reminder_emails_sent (
 """
 
 
+def animal_not_deceased_sql(event_alias: str) -> str:
+    """SQL condition: the animal an event row names is not DECEASED.
+
+    Vaccination / breeding rows carry no health status of their own, so a
+    reminder about an animal that has since died (a MORTALITY vital event
+    sets its health_status to DECEASED) must look the animal up. Matched the
+    same way domain_validation_utils.animal_identified_by does: the event's
+    `ear_tag_id` names either the animal's ear tag or its secondary
+    identifier, under the same parent Livestock record.
+    """
+    return f"""NOT EXISTS (
+        SELECT 1 FROM g2p_register_animals dead
+        WHERE dead.link_internal_record_id = {event_alias}.link_internal_record_id
+          AND (dead.ear_tag_id = {event_alias}.ear_tag_id
+               OR dead.secondary_identifier = {event_alias}.ear_tag_id)
+          AND dead.health_status = 'DECEASED'
+    )"""
+
+
 def ensure_tracking_table(engine: Engine) -> None:
     with engine.begin() as conn:
         conn.execute(text(_TRACKING_TABLE_DDL))

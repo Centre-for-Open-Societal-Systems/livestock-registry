@@ -5,6 +5,7 @@ from .health_event import G2PRegisterHealthEvent, G2PRegisterHistoryHealthEvent,
 from .vaccination import G2PRegisterVaccination, G2PRegisterHistoryVaccination, G2PIntakeFormVaccination
 from .vital_event import G2PRegisterVitalEvent, G2PRegisterHistoryVitalEvent, G2PIntakeFormVitalEvent
 from .breeding import G2PRegisterBreeding, G2PRegisterHistoryBreeding, G2PIntakeFormBreeding
+from .retagging import G2PRegisterRetagging, G2PRegisterHistoryRetagging, G2PIntakeFormRetagging
 from .vaccine_schedule import (
     G2PRegisterVaccineSchedule, G2PRegisterHistoryVaccineSchedule, G2PIntakeFormVaccineSchedule
 )
@@ -23,6 +24,7 @@ from .enums import (
     VitalEventCauseEnum,
     BreedingEventTypeEnum,
     BreedingOutcomeEnum,
+    RetagReasonEnum,
     EventLocationEnum,
     ImportSourceSystemEnum,
     ImportStateEnum,

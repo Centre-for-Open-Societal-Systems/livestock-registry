@@ -21,7 +21,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from .reminder_alert_utils import (
-    already_sent, ensure_tracking_table, record_sent, resolve_recipients, send_email, today,
+    already_sent, animal_not_deceased_sql, ensure_tracking_table, record_sent, resolve_recipients,
+    send_email, today,
 )
 
 _logger = logging.getLogger("g2p-reminder-alerts")
@@ -36,14 +37,15 @@ def find_upcoming_calvings(engine: Engine, window_days: int = DEFAULT_WINDOW_DAY
 
     with engine.connect() as conn:
         rows = conn.execute(
-            text("""
-                SELECT internal_record_id, ear_tag_id, expected_calving_date
-                FROM g2p_register_breedings
-                WHERE record_status = 'ACTIVE'
-                  AND outcome = 'PENDING'
-                  AND expected_calving_date IS NOT NULL
-                  AND expected_calving_date >= :today AND expected_calving_date <= :cutoff
-                ORDER BY expected_calving_date
+            text(f"""
+                SELECT b.internal_record_id, b.ear_tag_id, b.expected_calving_date
+                FROM g2p_register_breedings b
+                WHERE b.record_status = 'ACTIVE'
+                  AND b.outcome = 'PENDING'
+                  AND b.expected_calving_date IS NOT NULL
+                  AND b.expected_calving_date >= :today AND b.expected_calving_date <= :cutoff
+                  AND {animal_not_deceased_sql("b")}
+                ORDER BY b.expected_calving_date
             """),
             {"today": as_of, "cutoff": cutoff},
         ).mappings().all()
