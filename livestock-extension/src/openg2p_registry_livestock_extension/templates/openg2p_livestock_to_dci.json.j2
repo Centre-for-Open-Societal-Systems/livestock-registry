@@ -1,0 +1,194 @@
+{%- macro norm(value) -%}
+{{- (value or '') | string | trim | upper -}}
+{%- endmacro -%}
+
+{%- macro title(value) -%}
+{{- (value or '') | string | trim | replace('_', ' ') | title -}}
+{%- endmacro -%}
+
+{%- macro sex(value) -%}
+{%- set v = norm(value) -%}
+{%- if v == 'MALE' -%}Male
+{%- elif v == 'FEMALE' -%}Female
+{%- else -%}{{ value or '' }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro health_status(value) -%}
+{%- set v = norm(value) -%}
+{%- if v == 'HEALTHY' -%}Healthy
+{%- elif v == 'SICK' -%}Sick
+{%- elif v == 'QUARANTINED' -%}Quarantined
+{%- elif v == 'DECEASED' -%}Deceased
+{%- else -%}{{ value or '' }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro vaccination_status(value) -%}
+{%- set v = norm(value) -%}
+{%- if v == 'UP_TO_DATE' -%}Up to date
+{%- elif v == 'OVERDUE' -%}Overdue
+{%- elif v == 'NONE' -%}None
+{%- else -%}{{ value or '' }}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro approval_state(value) -%}
+{%- set v = norm(value) -%}
+{%- if v == 'DRAFT' -%}Draft
+{%- elif v == 'KEBELE_APPROVED' -%}Kebele approved
+{%- elif v == 'WOREDA_APPROVED' -%}Woreda approved
+{%- elif v == 'ZONE_APPROVED' -%}Zone approved
+{%- elif v == 'VERIFIED' -%}Region approved (verified)
+{%- elif v == 'ARCHIVED' -%}Archived
+{%- else -%}{{ value or '' }}
+{%- endif -%}
+{%- endmacro -%}
+
+{#- The register hierarchy: farmer -> livestock holding -> the animals and the
+    event lines, all children of the holding. -#}
+{%- set d = data if data is defined else {} -%}
+{%- set livestock_list = d.get('livestock') or [] -%}
+{%- set holding = d if d.get('oan_id') is not none or d.get('animal') is not none else (livestock_list[0] if livestock_list else {}) -%}
+{#- The farmer is a separate register the holding points at by farmer_id, so it
+    arrives alongside rather than nested. -#}
+{%- set farmers = d.get('farmer') or holding.get('farmer') or [] -%}
+{%- set farmer = (farmers | selectattr('farmer_id', 'equalto', holding.get('farmer_id')) | list | first) or (farmers[0] if farmers else {}) -%}
+{%- set animals = holding.get('animal') or [] -%}
+{%- set health_events = holding.get('health_event') or [] -%}
+{%- set vaccinations = holding.get('vaccination') or [] -%}
+{%- set vital_events = holding.get('vital_event') or [] -%}
+{%- set breedings = holding.get('breeding') or [] -%}
+{
+  "livestock_details": {
+    "record_identifier": [
+      {
+        "@type": "Identifier",
+        "identifier_type": "UIN",
+        "identifier_value": {{ (holding.get('functional_record_id') or '') | tojson }}
+      }
+    ],
+    "farmer_info": {
+      "member_identifier": [
+        {
+          "@type": "Identifier",
+          "identifier_type": "UIN",
+          "identifier_value": {{ (holding.get('fayda_fan_id') or holding.get('farmer_id') or '') | tojson }}
+        }
+      ],
+      "farmer_id": {{ (holding.get('farmer_id') or '') | tojson }},
+      "farmer_uuid": {{ (holding.get('farmer_uuid') or '') | tojson }},
+      "phone_number": {{ (farmer.get('mobile_number') or '') | tojson }},
+      "demographic_info": {
+        "name": {
+          "@type": "Name",
+          "given_name": {{ (farmer.get('first_name') or holding.get('farmer_name') or '') | tojson }},
+          "surname": {{ (farmer.get('last_name') or '') | tojson }}
+        },
+        "sex": {{ sex(farmer.get('gender')) | tojson }},
+        "birth_date": {{ (farmer.get('date_of_birth') or '') | tojson }}
+      }
+    },
+    "oan_id": {{ (holding.get('oan_id') or '') | tojson }},
+    "secondary_identifier": {{ (holding.get('secondary_identifier') or '') | tojson }},
+    "status": {{ (holding.get('status') or '') | tojson }},
+    "state": {{ approval_state(holding.get('state')) | tojson }},
+    "source_system": {{ title(holding.get('source_system')) | tojson }},
+    "sync_status": {{ title(holding.get('sync_status')) | tojson }},
+    "total_animals": {{ holding.get('total_animals') or (animals | length) }},
+    "survey_info": {
+      "surveyor_name": {{ (holding.get('surveyor_name') or '') | tojson }},
+      "surveyor_mobile_number": {{ (holding.get('surveyor_mobile_number') or '') | tojson }},
+      "supervisor_name": {{ (holding.get('supervisor_name') or '') | tojson }},
+      "supervisor_mobile_number": {{ (holding.get('supervisor_mobile_number') or '') | tojson }}
+    },
+    "place": {
+      "name": {{ (holding.get('address_line_2') or holding.get('address_line_1') or '') | tojson }},
+      "geo": {
+        "@type": "spdci:GeoLocation",
+        "latitude": {{ holding.get('latitude') or 0 }},
+        "longitude": {{ holding.get('longitude') or 0 }}
+      }
+    },
+    "registration_date": {{ (holding.get('registration_date') or holding.get('created_at') or '') | tojson }},
+    "last_updated": {{ (holding.get('last_approved_at') or '') | tojson }}
+  },
+  "animal_details": [
+    {%- for animal in animals %}
+    {%- set tag = animal.get('ear_tag_id') -%}
+    {%- set animal_vaccinations = vaccinations | selectattr('ear_tag_id', 'equalto', tag) | list -%}
+    {
+      "ear_tag_id": {{ (tag or '') | tojson }},
+      "secondary_identifier": {{ (animal.get('secondary_identifier') or '') | tojson }},
+      "name": {{ (animal.get('animal_name') or '') | tojson }},
+      "species": {{ title(animal.get('species')) | tojson }},
+      "breed": {{ title(animal.get('breed')) | tojson }},
+      "sex": {{ sex(animal.get('gender')) | tojson }},
+      "birth_date": {{ (animal.get('date_of_birth') or '') | tojson }},
+      "age": {{ (animal.get('age') or '') | tojson }},
+      "weight": {{ animal.get('weight') or 0 }},
+      "health_status": {{ health_status(animal.get('health_status')) | tojson }},
+      "vaccination_status": {{ vaccination_status(animal.get('vaccination_status')) | tojson }},
+      "registration_date": {{ (animal.get('registration_date') or '') | tojson }},
+      "vaccination_count": {{ animal_vaccinations | length }}
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  ],
+  "health_event_details": [
+    {%- for event in health_events %}
+    {
+      "ear_tag_id": {{ (event.get('ear_tag_id') or '') | tojson }},
+      "species": {{ title(event.get('species')) | tojson }},
+      "event_type": {{ title(event.get('event_type')) | tojson }},
+      "disease_type": {{ title(event.get('disease_type')) | tojson }},
+      "date_onset": {{ (event.get('date_onset') or '') | tojson }},
+      "date_resolution": {{ (event.get('date_resolution') or '') | tojson }},
+      "treatment": {{ (event.get('treatment') or '') | tojson }},
+      "veterinarian": {{ (event.get('veterinarian_name') or '') | tojson }},
+      "is_notifiable": {{ 'true' if event.get('is_notifiable') else 'false' }}
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  ],
+  "vaccination_details": [
+    {%- for vaccination in vaccinations %}
+    {
+      "ear_tag_id": {{ (vaccination.get('ear_tag_id') or '') | tojson }},
+      "species": {{ title(vaccination.get('species')) | tojson }},
+      "vaccine": {{ title(vaccination.get('vaccine_type')) | tojson }},
+      "vaccination_date": {{ (vaccination.get('vaccination_date') or '') | tojson }},
+      "next_due_date": {{ (vaccination.get('next_due_date') or '') | tojson }},
+      "batch_number": {{ (vaccination.get('batch_number') or '') | tojson }},
+      "administered_by": {{ (vaccination.get('administered_by') or '') | tojson }}
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  ],
+  "vital_event_details": [
+    {%- for event in vital_events %}
+    {
+      "ear_tag_id": {{ (event.get('ear_tag_id') or '') | tojson }},
+      "species": {{ title(event.get('species')) | tojson }},
+      "event_type": {{ title(event.get('event_type')) | tojson }},
+      "event_date": {{ (event.get('event_date') or '') | tojson }},
+      "cause": {{ title(event.get('cause')) | tojson }},
+      "offspring_count": {{ event.get('offspring_count') or 0 }},
+      "reporting_officer": {{ (event.get('reporting_officer') or '') | tojson }}
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  ],
+  "breeding_details": [
+    {%- for breeding in breedings %}
+    {
+      "ear_tag_id": {{ (breeding.get('ear_tag_id') or '') | tojson }},
+      "species": {{ title(breeding.get('species')) | tojson }},
+      "event_type": {{ title(breeding.get('event_type')) | tojson }},
+      "breeding_date": {{ (breeding.get('breeding_date') or '') | tojson }},
+      "sire_or_semen_id": {{ (breeding.get('sire_or_semen_id') or '') | tojson }},
+      "ai_technician": {{ (breeding.get('ai_technician_name') or '') | tojson }},
+      "semen_batch_number": {{ (breeding.get('semen_batch_number') or '') | tojson }},
+      "expected_calving_date": {{ (breeding.get('expected_calving_date') or '') | tojson }},
+      "pregnancy_confirmed": {{ 'true' if breeding.get('pregnancy_confirmed') else 'false' }},
+      "outcome": {{ title(breeding.get('outcome')) | tojson }}
+    }{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  ]
+}

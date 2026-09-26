@@ -1,0 +1,170 @@
+{% set d = expanded if expanded is defined else {} %}
+{% set holding = d.get("livestock_details", {}) %}
+{% set farmer = holding.get("farmer_info", {}) %}
+{% set farmer_demo = farmer.get("demographic_info", {}) %}
+{% set farmer_name = farmer_demo.get("name", {}) %}
+{% set farmer_identifier = (farmer.get("member_identifier", []) | first) or farmer_demo.get("identifier", {}) %}
+{% set survey = holding.get("survey_info", {}) %}
+{% set place = holding.get("place", {}) %}
+{% set geo = place.get("geo", {}) %}
+{% set animals = d.get("animal_details", []) %}
+{% set health_events = d.get("health_event_details", []) %}
+{% set vaccinations = d.get("vaccination_details", []) %}
+{% set vital_events = d.get("vital_event_details", []) %}
+{% set breedings = d.get("breeding_details", []) %}
+
+{% set state = (holding.get("state", "") or "DRAFT") | upper | replace(" ", "_") %}
+{% if state not in ["DRAFT", "KEBELE_APPROVED", "WOREDA_APPROVED", "ZONE_APPROVED", "VERIFIED", "ARCHIVED"] %}
+  {% set state = "DRAFT" %}
+{% endif %}
+
+{% set source_system = (holding.get("source_system", "") or "MANUAL") | upper | replace(" ", "_") %}
+{% if source_system not in ["MANUAL", "DOVAR", "LITS", "CASEBOOK", "ALIVE", "OFFLINE"] %}
+  {% set source_system = "MANUAL" %}
+{% endif %}
+
+{% set full_name = (farmer_name.get('given_name', '') ~ ' ' ~ farmer_name.get('surname', '')).strip() %}
+{% set farmer_code = farmer.get('farmer_id', '') %}
+
+{
+  "ls_farmer_identity": [
+    {
+      "record_name": "{{ full_name }}",
+      "farmer_id": "{{ farmer_code }}",
+      "fayda_fan_id": "{{ farmer_identifier.get('identifier_value', '') }}",
+      "farmer_name": "{{ full_name }}",
+      "first_name": "{{ farmer_name.get('given_name', '') }}",
+      "last_name": "{{ farmer_name.get('surname', '') }}",
+      "gender": "{{ (farmer_demo.get('sex', '') or '') | upper }}",
+      "date_of_birth": "{{ (farmer_demo.get('birth_date', '') or '').split('T')[0] }}",
+      "mobile_number": "{{ farmer.get('phone_number', '') }}",
+      "status": "{{ (holding.get('status', '') or '') | upper | replace(' ', '_') }}"
+    }
+  ],
+  "ls_farmer_location": [
+    {
+      "locality": "{{ place.get('name', '') }}",
+      "latitude": "{{ geo.get('latitude', '') }}",
+      "longitude": "{{ geo.get('longitude', '') }}"
+    }
+  ],
+  "ls_livestock_record": [
+    {
+      "record_name": "{{ full_name }} {{ holding.get('oan_id', '') }}",
+      "farmer_uuid": "{{ farmer.get('farmer_uuid', '') }}",
+      "farmer_id": "{{ farmer_code }}",
+      "fayda_fan_id": "{{ farmer_identifier.get('identifier_value', '') }}",
+      "farmer_name": "{{ full_name }}",
+      "oan_id": "{{ holding.get('oan_id', '') }}",
+      "secondary_identifier": "{{ holding.get('secondary_identifier', '') }}",
+      "registration_date": "{{ (holding.get('registration_date', '') or '').split('T')[0] }}",
+      "status": "{{ (holding.get('status', '') or '') | upper | replace(' ', '_') }}",
+      "state": "{{ state }}",
+      "source_system": "{{ source_system }}",
+      "total_animals": {{ animals | length }}
+    }
+  ],
+  "ls_survey_personnel": [
+    {
+      "surveyor_name": "{{ survey.get('surveyor_name', '') }}",
+      "surveyor_mobile_number": "{{ survey.get('surveyor_mobile_number', '') }}",
+      "supervisor_name": "{{ survey.get('supervisor_name', '') }}",
+      "supervisor_mobile_number": "{{ survey.get('supervisor_mobile_number', '') }}"
+    }
+  ],
+  "ls_livestock_location": [
+    {
+      "locality": "{{ place.get('name', '') }}",
+      "latitude": "{{ geo.get('latitude', '') }}",
+      "longitude": "{{ geo.get('longitude', '') }}"
+    }
+  ],
+  "ls_animal_details": [
+{% for animal in animals %}
+    {% set sex = (animal.get("sex", "") or "") | upper %}
+    {% if sex not in ["MALE", "FEMALE"] %}{% set sex = "" %}{% endif %}
+    {% set health = (animal.get("health_status", "") or "HEALTHY") | upper | replace(" ", "_") %}
+    {% if health not in ["HEALTHY", "SICK", "QUARANTINED", "DECEASED"] %}{% set health = "HEALTHY" %}{% endif %}
+    {
+      "ear_tag_id": "{{ animal.get('ear_tag_id', '') }}",
+      "secondary_identifier": "{{ animal.get('secondary_identifier', '') }}",
+      "animal_name": "{{ animal.get('name', '') }}",
+      "species": "{{ (animal.get('species', '') or '') | upper | replace(' ', '_') }}",
+      "breed": "{{ (animal.get('breed', '') or '') | upper | replace(' ', '_') }}",
+      "gender": "{{ sex }}",
+      "date_of_birth": "{{ (animal.get('birth_date', '') or '').split('T')[0] }}",
+      "weight": "{{ animal.get('weight', '') }}",
+      "health_status": "{{ health }}",
+      "vaccination_status": "{{ (animal.get('vaccination_status', '') or 'NONE') | upper | replace(' ', '_') | replace('-', '_') }}",
+      "registration_date": "{{ (animal.get('registration_date', '') or '').split('T')[0] }}"
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ],
+  "ls_health_event_details": [
+{% for event in health_events %}
+    {% set event_type = (event.get("event_type", "") or "DISEASE") | upper %}
+    {% if event_type not in ["DISEASE", "INJURY", "TREATMENT", "RECOVERY"] %}{% set event_type = "DISEASE" %}{% endif %}
+    {
+      "ear_tag_id": "{{ event.get('ear_tag_id', '') }}",
+      "species": "{{ (event.get('species', '') or '') | upper | replace(' ', '_') }}",
+      "event_type": "{{ event_type }}",
+      "disease_type": "{{ (event.get('disease_type', '') or '') | upper | replace(' ', '_') }}",
+      "date_onset": "{{ (event.get('date_onset', '') or '').split('T')[0] }}",
+      "date_resolution": "{{ (event.get('date_resolution', '') or '').split('T')[0] }}",
+      "treatment": "{{ event.get('treatment', '') }}",
+      "veterinarian_name": "{{ event.get('veterinarian', '') }}",
+      "is_notifiable": {{ "true" if event.get("is_notifiable") else "false" }}
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ],
+  "ls_vaccination_details": [
+{% for vaccination in vaccinations %}
+    {
+      "ear_tag_id": "{{ vaccination.get('ear_tag_id', '') }}",
+      "species": "{{ (vaccination.get('species', '') or '') | upper | replace(' ', '_') }}",
+      "vaccine_type": "{{ (vaccination.get('vaccine', '') or '') | upper | replace(' ', '_') }}",
+      "vaccination_date": "{{ (vaccination.get('vaccination_date', '') or '').split('T')[0] }}",
+      "next_due_date": "{{ (vaccination.get('next_due_date', '') or '').split('T')[0] }}",
+      "batch_number": "{{ vaccination.get('batch_number', '') }}",
+      "administered_by": "{{ vaccination.get('administered_by', '') }}"
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ],
+  "ls_vital_event_details": [
+{% for event in vital_events %}
+    {% set event_type = (event.get("event_type", "") or "BIRTH") | upper %}
+    {% if event_type not in ["BIRTH", "MORTALITY", "DISEASE"] %}{% set event_type = "BIRTH" %}{% endif %}
+    {% set cause = (event.get("cause", "") or "UNKNOWN") | upper %}
+    {% if cause not in ["DISEASE", "ACCIDENT", "PREDATION", "SLAUGHTER", "UNKNOWN"] %}{% set cause = "UNKNOWN" %}{% endif %}
+    {
+      "ear_tag_id": "{{ event.get('ear_tag_id', '') }}",
+      "species": "{{ (event.get('species', '') or '') | upper | replace(' ', '_') }}",
+      "event_type": "{{ event_type }}",
+      "event_date": "{{ (event.get('event_date', '') or '').split('T')[0] }}",
+      "cause": "{{ cause }}",
+      "offspring_count": {{ event.get("offspring_count", 0) | int }},
+      "reporting_officer": "{{ event.get('reporting_officer', '') }}"
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ],
+  "ls_breeding_details": [
+{% for breeding in breedings %}
+    {% set event_type = (breeding.get("event_type", "") or "NATURAL") | upper %}
+    {% if event_type not in ["NATURAL", "AI"] %}{% set event_type = "NATURAL" %}{% endif %}
+    {% set outcome = (breeding.get("outcome", "") or "PENDING") | upper %}
+    {% if outcome not in ["PENDING", "SUCCESSFUL", "FAILED"] %}{% set outcome = "PENDING" %}{% endif %}
+    {
+      "ear_tag_id": "{{ breeding.get('ear_tag_id', '') }}",
+      "species": "{{ (breeding.get('species', '') or '') | upper | replace(' ', '_') }}",
+      "event_type": "{{ event_type }}",
+      "breeding_date": "{{ (breeding.get('breeding_date', '') or '').split('T')[0] }}",
+      "sire_or_semen_id": "{{ breeding.get('sire_or_semen_id', '') }}",
+      "ai_technician_name": "{{ breeding.get('ai_technician', '') }}",
+      "semen_batch_number": "{{ breeding.get('semen_batch_number', '') }}",
+      "expected_calving_date": "{{ (breeding.get('expected_calving_date', '') or '').split('T')[0] }}",
+      "pregnancy_confirmed": {{ "true" if breeding.get("pregnancy_confirmed") else "false" }},
+      "outcome": "{{ outcome }}"
+    }{% if not loop.last %},{% endif %}
+{% endfor %}
+  ]
+}

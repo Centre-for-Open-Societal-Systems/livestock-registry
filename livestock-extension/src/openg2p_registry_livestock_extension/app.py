@@ -1,0 +1,165 @@
+# ruff: noqa: E402
+import asyncio
+import logging
+
+from .config import Settings
+
+_config = Settings.get_config()
+
+from openg2p_fastapi_common.app import Initializer as BaseInitializer
+from openg2p_registry_core.app import Initializer as CoreInitializer
+
+# Two tables that core-patches/apply_patches.py adds to the base image's
+# openg2p_registry_core at build time. They are core models, not extension
+# models, but nothing in core migrates them — this stack does not use SQLAlchemy
+# create_all(), it migrates an explicit list (see migrate_database below), and
+# core's own list predates these two. Imported here so they can be added to it.
+#
+# Guarded, because this package is installed into THREE images and only two of
+# them carry the patch: staff-api and celery apply it (docker/staff-api and
+# docker/celery both ship a core-patches/), partner-api builds on the stock
+# openg2p-registry-partner-api base and does not. A plain import kills
+# partner-api at module import, before gunicorn can boot a worker — which is
+# exactly what it did. partner-api has no use for these tables either: the
+# attribute controller that reads them lives in staff-api, and without the patch
+# the models are not in its image at all, so there is nothing for it to migrate.
+try:
+    from openg2p_registry_core.models import (
+        G2PAttributeValueSchedule,
+        G2PAttributeValueSpeciesConfig,
+    )
+except ImportError:  # unpatched base image — partner-api
+    G2PAttributeValueSchedule = None
+    G2PAttributeValueSpeciesConfig = None
+
+from .register_domain.models import (
+    G2PRegisterFarmer, G2PRegisterHistoryFarmer,
+    G2PRegisterLivestock, G2PRegisterHistoryLivestock,
+    G2PRegisterAnimal, G2PRegisterHistoryAnimal,
+    G2PRegisterHealthEvent, G2PRegisterHistoryHealthEvent,
+    G2PRegisterVaccination, G2PRegisterHistoryVaccination,
+    G2PRegisterVitalEvent, G2PRegisterHistoryVitalEvent,
+    G2PRegisterBreeding, G2PRegisterHistoryBreeding,
+    G2PRegisterRetagging, G2PRegisterHistoryRetagging,
+    G2PRegisterVaccineSchedule, G2PRegisterHistoryVaccineSchedule,
+    G2PRegisterImportBatch, G2PRegisterHistoryImportBatch,
+    G2PRegisterAuditLog, G2PRegisterHistoryAuditLog,
+    G2PIntakeFormFarmer, G2PIntakeFormLivestock, G2PIntakeFormAnimal,
+    G2PIntakeFormHealthEvent, G2PIntakeFormVaccination, G2PIntakeFormVitalEvent,
+    G2PIntakeFormBreeding, G2PIntakeFormVaccineSchedule, G2PIntakeFormImportBatch,
+    G2PIntakeFormAuditLog, G2PIntakeFormRetagging,
+)
+from .register_domain.factory import G2PRegisterDomainFactory
+from .register_domain.services import (
+    G2PRegisterDomainServiceFarmer, G2PRegisterDomainServiceLivestock,
+    G2PRegisterDomainServiceAnimal, G2PRegisterDomainServiceHealthEvent,
+    G2PRegisterDomainServiceVaccination, G2PRegisterDomainServiceVitalEvent,
+    G2PRegisterDomainServiceBreeding, G2PRegisterDomainServiceVaccineSchedule,
+    G2PRegisterDomainServiceImportBatch, G2PRegisterDomainServiceAuditLog,
+    G2PRegisterDomainServiceRetagging,
+)
+from .register_domain.controllers import G2PAnimalBulkImportController, G2PApproverResolverController
+
+_logger = logging.getLogger(_config.logging_default_logger_name)
+
+
+class Initializer(BaseInitializer):
+    def initialize(self, **kwargs):
+        super().initialize()
+        CoreInitializer().initialize()
+
+        G2PRegisterDomainFactory()
+        G2PRegisterDomainServiceFarmer()
+        G2PRegisterDomainServiceLivestock()
+        G2PRegisterDomainServiceAnimal()
+        G2PRegisterDomainServiceHealthEvent()
+        G2PRegisterDomainServiceVaccination()
+        G2PRegisterDomainServiceVitalEvent()
+        G2PRegisterDomainServiceBreeding()
+        G2PRegisterDomainServiceRetagging()
+        G2PRegisterDomainServiceVaccineSchedule()
+        G2PRegisterDomainServiceImportBatch()
+        G2PRegisterDomainServiceAuditLog()
+
+        # Custom HTTP endpoint (not a domain service hook) — see
+        # register_domain/controllers/g2p_animal_bulk_import_controller.py.
+        # post_init() registers the router onto the shared FastAPI app the
+        # same way every platform controller does
+        # (openg2p_fastapi_common.controller.BaseController.post_init).
+        G2PAnimalBulkImportController().post_init()
+        # Server-to-server endpoint AWE's "http" approver-rule calls to
+        # resolve who approves each stage of the hierarchical Kebele ->
+        # Woreda -> Zone -> Region chain, scoped to the record's own
+        # location — see g2p_approver_resolver_controller.py.
+        G2PApproverResolverController().post_init()
+
+    def migrate_database(self, args):
+
+        async def migrate():
+            _logger.info("Migrating extensions database")
+
+            # The two tables the core patches add (see the import above). No
+            # foreign keys point at them and they hold per-attribute-value
+            # config, so they come first and stand alone. Without these the
+            # staff API answers 500 on POST /api/attributes/values with
+            # UndefinedTableError as soon as the intake form loads its
+            # dropdowns — the model is in the image, only the table is missing.
+            #
+            # Skipped in an image without the patch (partner-api), where the
+            # models do not exist and neither does anything that reads them.
+            if G2PAttributeValueSchedule is not None:
+                await G2PAttributeValueSchedule.create_migrate()
+                await G2PAttributeValueSpeciesConfig.create_migrate()
+            else:
+                _logger.info(
+                    "openg2p_registry_core is unpatched in this image; "
+                    "skipping the attribute schedule/species-config tables"
+                )
+
+            # Farmer first: the livestock record carries the farmer's identifiers.
+            await G2PRegisterFarmer.create_migrate()
+            await G2PRegisterHistoryFarmer.create_migrate()
+            await G2PIntakeFormFarmer.create_migrate()
+
+            await G2PRegisterLivestock.create_migrate()
+            await G2PRegisterHistoryLivestock.create_migrate()
+            await G2PIntakeFormLivestock.create_migrate()
+
+            # The animals and the event lines, all children of the livestock record.
+            await G2PRegisterAnimal.create_migrate()
+            await G2PRegisterHistoryAnimal.create_migrate()
+            await G2PIntakeFormAnimal.create_migrate()
+
+            await G2PRegisterHealthEvent.create_migrate()
+            await G2PRegisterHistoryHealthEvent.create_migrate()
+            await G2PIntakeFormHealthEvent.create_migrate()
+
+            await G2PRegisterVaccination.create_migrate()
+            await G2PRegisterHistoryVaccination.create_migrate()
+            await G2PIntakeFormVaccination.create_migrate()
+
+            await G2PRegisterVitalEvent.create_migrate()
+            await G2PRegisterHistoryVitalEvent.create_migrate()
+            await G2PIntakeFormVitalEvent.create_migrate()
+
+            await G2PRegisterBreeding.create_migrate()
+            await G2PRegisterHistoryBreeding.create_migrate()
+            await G2PIntakeFormBreeding.create_migrate()
+
+            await G2PRegisterRetagging.create_migrate()
+            await G2PRegisterHistoryRetagging.create_migrate()
+            await G2PIntakeFormRetagging.create_migrate()
+
+            await G2PRegisterVaccineSchedule.create_migrate()
+            await G2PRegisterHistoryVaccineSchedule.create_migrate()
+            await G2PIntakeFormVaccineSchedule.create_migrate()
+
+            await G2PRegisterImportBatch.create_migrate()
+            await G2PRegisterHistoryImportBatch.create_migrate()
+            await G2PIntakeFormImportBatch.create_migrate()
+
+            await G2PRegisterAuditLog.create_migrate()
+            await G2PRegisterHistoryAuditLog.create_migrate()
+            await G2PIntakeFormAuditLog.create_migrate()
+
+        asyncio.run(migrate())

@@ -1,0 +1,260 @@
+{
+  "realm": "staff",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "accessTokenLifespan": 1800,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "clients": [
+    {
+      "clientId": "staff-portal",
+      "name": "Staff Portal (IAM login client)",
+      "description": "The client IAM authenticates staff users with. Its redirect URI is IAM's OIDC callback, not the portal's.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "staff-portal-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "implicitFlowEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://iam.localtest.me:8000/*",
+        "http://portal.localtest.me:3000/*"
+      ],
+      "webOrigins": [
+        "http://iam.localtest.me:8000",
+        "http://portal.localtest.me:3000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://portal.localtest.me:3000/*"
+      }
+    },
+    {
+      "clientId": "livestock-staff-portal",
+      "name": "Registry Staff Portal",
+      "description": "Per-release client carrying the registry role catalog. Chart equivalent: global.authClientId. Service accounts are enabled because iam-register authenticates as this client via client_credentials.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "livestock-staff-portal-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "implicitFlowEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://portal.localtest.me:3000/*"
+      ],
+      "webOrigins": [
+        "http://portal.localtest.me:3000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://portal.localtest.me:3000/*"
+      }
+    }
+  ],
+  "roles": {
+    "client": {
+      "livestock-staff-portal": [
+        { "name": "Intake Officer", "description": "Operations role" },
+        { "name": "Intake Validator", "description": "Operations role" },
+        { "name": "Data Editor", "description": "Operations role" },
+        { "name": "Data Validator", "description": "Operations role" },
+        { "name": "Data Supervisor", "description": "Operations role" },
+        { "name": "Integration Manager", "description": "Operations role" },
+        { "name": "Operations Administrator", "description": "Operations role" },
+        { "name": "Schema Designer", "description": "Configuration role" },
+        { "name": "Integration Specialist", "description": "Configuration role" },
+        { "name": "Reference Data Specialist", "description": "Configuration role" },
+        { "name": "Technical Administrator", "description": "Configuration role" },
+        { "name": "Field Officer", "description": "Livestock hierarchical approval role" },
+        { "name": "Kebele Approver", "description": "Livestock hierarchical approval role" },
+        { "name": "Woreda Approver", "description": "Livestock hierarchical approval role" },
+        { "name": "Zone Approver", "description": "Livestock hierarchical approval role" },
+        { "name": "Region Approver", "description": "Livestock hierarchical approval role" }
+      ]
+    }
+  },
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"approver_location_value\",\"displayName\":\"Approver location value\",\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"multivalued\":true}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+          ]
+        }
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@openg2p.org",
+      "firstName": "Admin",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Operations Administrator",
+          "Technical Administrator"
+        ]
+      }
+    },
+    {
+      "username": "service-account-staff-portal",
+      "enabled": true,
+      "serviceAccountClientId": "staff-portal",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-users",
+          "view-clients",
+          "query-clients",
+          "view-realm"
+        ]
+      }
+    },
+    {
+      "username": "service-account-livestock-staff-portal",
+      "enabled": true,
+      "serviceAccountClientId": "livestock-staff-portal",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-users",
+          "view-clients",
+          "query-clients",
+          "view-realm"
+        ]
+      }
+    },
+    {
+      "username": "field.officer.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "field.officer.test@openg2p.org",
+      "firstName": "Field Officer",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Field Officer"
+        ]
+      }
+    },
+    {
+      "username": "kebele.approver.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "kebele.approver.test@openg2p.org",
+      "firstName": "Kebele Approver",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Kebele Approver"
+        ]
+      },
+      "attributes": {
+        "approver_location_value": ["Dire Arerti"]
+      }
+    },
+    {
+      "username": "woreda.approver.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "woreda.approver.test@openg2p.org",
+      "firstName": "Woreda Approver",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Woreda Approver"
+        ]
+      },
+      "attributes": {
+        "approver_location_value": ["Ada'a"]
+      }
+    },
+    {
+      "username": "zone.approver.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "zone.approver.test@openg2p.org",
+      "firstName": "Zone Approver",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Zone Approver"
+        ]
+      },
+      "attributes": {
+        "approver_location_value": ["East Shewa"]
+      }
+    },
+    {
+      "username": "region.approver.test",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "region.approver.test@openg2p.org",
+      "firstName": "Region Approver",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "livestock-staff-portal": [
+          "Region Approver"
+        ]
+      },
+      "attributes": {
+        "approver_location_value": ["Oromia"]
+      }
+    }
+  ]
+}

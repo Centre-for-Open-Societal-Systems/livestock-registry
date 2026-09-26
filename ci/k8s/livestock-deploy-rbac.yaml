@@ -1,0 +1,87 @@
+# Let live:livestock-ci deploy livestock-registry into live on the dev cluster
+# (10.0.1.166). The Jenkinsfile's "Deploy to Development" stage uses it on
+# develop builds, through a NEW kubeconfig credential (see below) -- this is a
+# dedicated identity, not a reuse of far:farmer-ci, matching the same
+# per-registry-ServiceAccount pattern ci/k8s/farmer-deploy-rbac.yaml documents
+# for crop:crop-ci in crop. Structure copied directly from that file: the
+# built-in admin ClusterRole in this one namespace, plus a Role for the Istio
+# objects (VirtualServices) admin does not cover. livestock-ci-token gives the
+# account a long-lived token for the kubeconfig.
+#
+# Apply once, as the cluster admin, on the dev box:
+#   sudo KUBECONFIG=/etc/rancher/rke2/rke2.yaml kubectl apply -f ci/k8s/livestock-deploy-rbac.yaml
+#
+# Then build the kubeconfig there, and upload it to Jenkins as a "Secret file"
+# credential with a NEW ID -- gen2-dev-livestock-kubeconfig (NOT
+# gen2-dev-kubeconfig, which is farmer-ci's own token scoped to far only; see
+# Jenkinsfile.livestock-registry's header for why DEV_KUBECONFIG_CRED_ID points
+# at this new ID):
+#   k() { sudo KUBECONFIG=/etc/rancher/rke2/rke2.yaml kubectl -n live "$@"; }
+#   k get secret livestock-ci-token -o jsonpath='{.data.ca\.crt}' | base64 -d > /tmp/livestock-ci-ca.crt
+#   export KUBECONFIG=$HOME/gen2-dev-livestock-kubeconfig
+#   kubectl config set-cluster gen2-dev --server=https://10.0.1.166:6443 \
+#     --certificate-authority=/tmp/livestock-ci-ca.crt --embed-certs=true
+#   kubectl config set-credentials livestock-ci \
+#     --token="$(k get secret livestock-ci-token -o jsonpath='{.data.token}' | base64 -d)"
+#   kubectl config set-context livestock-ci --cluster=gen2-dev --user=livestock-ci --namespace=live
+#   kubectl config use-context livestock-ci
+#   kubectl auth can-i list secrets -n live    # yes
+#   unset KUBECONFIG; rm /tmp/livestock-ci-ca.crt
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: live # already exists; this is a no-op, kept for completeness
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: livestock-ci
+  namespace: live
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: livestock-ci-token
+  namespace: live
+  annotations:
+    kubernetes.io/service-account.name: livestock-ci
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: livestock-ci-admin
+  namespace: live
+subjects:
+  - kind: ServiceAccount
+    name: livestock-ci
+    namespace: live
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-deploy-istio
+  namespace: live
+rules:
+  - apiGroups: ["networking.istio.io", "security.istio.io"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: livestock-ci-istio
+  namespace: live
+subjects:
+  - kind: ServiceAccount
+    name: livestock-ci
+    namespace: live
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-deploy-istio

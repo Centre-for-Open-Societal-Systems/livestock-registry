@@ -1,0 +1,186 @@
+# Livestock Registry — values overlay for the openg2p-registry chart.
+#
+# This chart has no templates; it deploys the openg2p-registry subchart (pinned
+# in Chart.yaml, aliased `registry`) with the overrides below. Install:
+#
+#     helm repo add openg2p https://openg2p.github.io/openg2p-helm
+#     helm dependency build ./helm/openg2p-livestock-registry
+#     helm install livestock-registry ./helm/openg2p-livestock-registry
+#
+# Two kinds of override:
+#   * global.*    — Helm propagates these to the subchart (and its subcharts).
+#   * registry.*  — values for the openg2p-registry subchart itself.
+# Everything not listed (keycloak/iam wiring, id-generator, demo users) is
+# inherited from the subchart defaults.
+
+# ── Globals (propagate to the openg2p-registry subchart) ──────────────────────
+global:
+  registryVariant: 'livestock-registry'
+  # Ingress host for this registry. Overrides the subchart's generic default.
+  registryHostname: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.org'
+
+# ── openg2p-registry subchart overrides ───────────────────────────────────────
+registry:
+  # Livestock-built images (each FROM the matching openg2p-registry base image).
+  # Only the tag is CI-rewritten in lockstep with the chart version; the base
+  # image they extend is pinned by the openg2p-registry dependency version.
+  staffApi:
+    image:
+      repository: openg2p/openg2p-livestock-registry-staff-api
+      tag: 0.0.0-develop
+    envVars:
+      # Platform default is date + seconds-of-day + ONE random digit, so two
+      # submissions in the same second collide 1 in 10 ("Unexpected error").
+      # Five random digits keep the same shape; see docker-compose.yml.
+      REGISTRY_STAFF_PORTAL_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
+      # Shared secret AWE presents when it asks /livestock/approver-resolver
+      # who approves a stage (g2p_approver_resolver_controller.py). The seed
+      # writes the same value into the AWE rule URLs (dbSeed.envVars below);
+      # override both together or neither.
+      APPROVER_RESOLVER_SECRET: "livestock-approver-resolver-secret"
+      # Keycloak, for the approver resolver's user lookup
+      # (approver_resolver_service._keycloak_config). It asks Keycloak which
+      # users hold a stage's Approver role and which area each one covers,
+      # using the release's own staff-portal client service account — the
+      # same client the portal logs in with, granted view-users/query-users/
+      # view-clients on realm-management.
+      #
+      # The values come from the globals the rest of the chart already builds
+      # the issuer URL and the OIDC client from, so they follow whatever an
+      # environment overrides (values-dev.yaml points keycloakBaseUrl at that
+      # namespace's Keycloak). A deployment that would rather have the
+      # resolver reach Keycloak in-cluster can override KEYCLOAK_BASE_URL
+      # alone; the realm and client must stay the portal's own.
+      #
+      # Without these the resolver falls back to the registry's keycloak_admin_*
+      # settings, which the chart does not set — the lookup then returns nobody
+      # and AWE has no approver for the stage. They were being applied to the
+      # dev pod by hand (kubectl set env), which the next helm upgrade drops.
+      KEYCLOAK_BASE_URL: '{{ tpl .Values.global.keycloakBaseUrl $ }}'
+      KEYCLOAK_REALM: '{{ tpl .Values.global.keycloakRealm $ }}'
+      AUTH_CLIENT_ID: '{{ tpl .Values.global.authClientId $ }}'
+    # Rendered as valueFrom, so the client password stays in the Secret
+    # keycloak-init creates for this release's client and never appears in
+    # values (same wiring the chart uses for partner-api's OAuth secret).
+    envVarsFrom:
+      AUTH_CLIENT_SECRET:
+        secretKeyRef:
+          name: '{{ tpl .Values.global.authClientSecret $ }}'
+          key: '{{ tpl .Values.global.authClientSecretKey $ }}'
+  partnerApi:
+    image:
+      repository: openg2p/openg2p-livestock-registry-partner-api
+      tag: 0.0.0-develop
+    envVars:
+      REGISTRY_PARTNER_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
+  # Celery prefork concurrency. Celery's default is one worker process per CPU
+  # core of the HOST, not per the container's CPU limit — so on a 48-core node
+  # both pods fork 48 Python processes and the memory they need has nothing to
+  # do with the work they are actually doing. That is what OOMKilled the beat
+  # producer (exit 137) on every deploy to the dev box, and it gets worse each
+  # time the node is made bigger.
+  #
+  # 4 is not a guess: the farmer-registry release running in the same namespace
+  # on the same node sets exactly this and its two celery pods sit at 340Mi and
+  # 319Mi, against 3162Mi for this chart's worker at concurrency 48. The chart
+  # version this overlay pins (openg2p-registry 0.0.0-develop.296) dropped the
+  # flag from its own defaults; these two lines put it back. Everything else in
+  # each string is the subchart's default, unchanged.
+  celeryWorker:
+    image:
+      repository: openg2p/openg2p-livestock-registry-celery
+      tag: 0.0.0-develop
+    envVars:
+      CELERY_OPTS: "worker -Q registry_worker_queue --loglevel=info --concurrency=4"
+  celeryBeat:
+    image:
+      repository: openg2p/openg2p-livestock-registry-celery
+      tag: 0.0.0-develop
+    envVars:
+      CELERY_OPTS: "worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db --concurrency=4"
+  dbSeed:
+    image:
+      repository: openg2p/openg2p-livestock-registry-db-seed
+      tag: 0.0.0-develop
+    # Geo/images/templates loaders are generic and safe to enable. Sample data is
+    # NOT: the platform's load_sample_data.py is hardcoded to the reference
+    # (farmer) registry's tables, so it cannot load livestock records. The livestock
+    # sown sample set ships as SQL at /seed/sample-data in the db-seed image and
+    # is applied explicitly (see local/docker-compose.yml), never by this flag.
+    # The platform's generic sample geo (country..village, l0..l4) does not match
+    # the level ids this registry's Location section uses (level-region ..
+    # level-kebele); it left the dropdowns empty on dev. The db-seed image now
+    # loads the real Ethiopia hierarchy itself (docker/db-seed/livestock-entrypoint.sh).
+    loadGeoData: false
+    loadSampleData: false
+    loadImages: true
+    loadTemplates: true
+    envVars:
+      # See staffApi.envVars.APPROVER_RESOLVER_SECRET. The resolver's base URL
+      # is derived from the AWE webhook URL (global.aweDefaultCallbackUrl:
+      # same staff-api host); set APPROVER_RESOLVER_BASE_URL here only if the
+      # resolver must be reached at a different address.
+      APPROVER_RESOLVER_SECRET: "livestock-approver-resolver-secret"
+
+  # Name of this registry's tile in IAM. The roles/permissions catalog itself is
+  # registry-agnostic and comes from the subchart.
+  iamRegister:
+    applicationDescription: "Livestock Registry"
+
+  # Functional-ID pools, one per register that generates ids. The subchart
+  # defaults to the REFERENCE registry's registers (individual + household), so
+  # the livestock registers must be declared here. NB Helm merges maps, so the
+  # defaults are inherited too and unused pools are provisioned — harmless, and a
+  # parent `null` cannot remove a subchart default.
+  idgenerator:
+    idGenerator:
+      appConfig:
+        idTypes:
+          farmer:
+            idLength: 10
+          livestock:
+            idLength: 12
+          animal:
+            idLength: 12
+          land:
+            idLength: 12
+          cluster:
+            idLength: 10
+
+  # The UI is the platform's, unchanged apart from the page background: the
+  # dashboard tiles a small tile via a compiled Tailwind class, and a photograph
+  # needs background-size: cover, which no theme key can express. The asset and
+  # the CSS override are baked in by docker/staff-ui/Dockerfile — that one file
+  # is the whole reason this image is built here rather than consumed as-is.
+  staffUi:
+    image:
+      repository: openg2p/openg2p-livestock-registry-staff-ui
+      tag: 0.0.0-develop
+
+  # beneApi is consumed as-is from the openg2p-registry base image (the subchart
+  # default already points at openg2p/openg2p-registry-*), so it is
+  # intentionally not overridden.
+
+  # ── Livestock e2e sanity suite (image built here; Set 2 field tests) ────────
+  # The subchart ships the reference (Individual) sanity values; override them
+  # for the Livestock register. Behaviour toggles (runE2e/failOnError) keep the
+  # subchart defaults.
+  sanity:
+    enabled: true
+    image:
+      repository: openg2p/openg2p-livestock-registry-sanity-tests
+      tag: 0.0.0-develop
+    regType: Livestock
+    regRecordType: 'spdci-extensions-dci:Livestock'
+    # livestock functional_record_id of the injected sanity record (see
+    # test/sanity/sanity/fixtures.py).
+    searchText: SANITY-LIVESTOCK-0001
+    # Consented scope + scopes asserted absent — top-level keys of the livestock
+    # outgoing DCI template (openg2p_livestock_to_dci.json.j2).
+    dataScopes: "livestock_details"
+    deniedScopes: "animal_details,health_event_details,vaccination_details,vital_event_details,breeding_details"
+    # The Livestock register + the UI coordinates the change-request test edits
+    # (must match the livestock-extension seed metadata).
+    farmerRegisterId: 6b06a95a-9a6c-5a33-a33d-c1625716c59c
+    crTabId: "livestock_livestock_tab"
+    crSectionId: "livestock_survey_personnel_section_02"
