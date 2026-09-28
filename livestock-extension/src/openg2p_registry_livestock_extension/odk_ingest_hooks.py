@@ -198,7 +198,12 @@ def _get_registry_engine():
         or "livestock_pass"
     )
     dsn = f"postgresql+asyncpg://{username}:{password}@{hostname}:{port}/{dbname}"
-    _registry_engine = create_async_engine(dsn)
+    # NullPool, like the master-data engine below: celery tasks drive this engine
+    # from more than one event loop in the same process, and a pooled asyncpg
+    # connection left mid-operation by a failed task made the next File Import
+    # fail with "another operation is in progress".
+    from sqlalchemy.pool import NullPool
+    _registry_engine = create_async_engine(dsn, poolclass=NullPool)
     return _registry_engine
 
 
@@ -699,6 +704,17 @@ def _ensure_domain_factory_initialized():
     except Exception:
         pass
 
+    # ingest_data resolves the data model's response template through this
+    # service; the celery worker's Initializer never creates it, so File Import
+    # rows failed with "'NoneType' object has no attribute
+    # 'resolve_template_store_id'" right after being saved.
+    try:
+        from openg2p_registry_core.services.g2p_template_service import G2PTemplateService
+        if G2PTemplateService.get_component() is None:
+            G2PTemplateService()
+    except Exception:
+        pass
+
 
 
 def _patch_celery_transformation_worker():
@@ -1041,10 +1057,20 @@ def _patch_celery_ingest_worker():
                 transformed_data: dict,
                 session,
             ) -> None:
+                # session.bind is this worker module's own pooled engine, tied to
+                # its event loop. It is swapped in only for this save and restored
+                # in the finally below: left in place, the next File Import task
+                # in the same process drove it from another loop, failing with
+                # "another operation is in progress" and leaving transactions
+                # open that held row locks and stalled the whole pipeline.
+                prev_dbengine = None
+                swapped_dbengine = False
                 try:
                     from openg2p_fastapi_common.context import dbengine
                     if hasattr(session, "bind") and session.bind:
+                        prev_dbengine = dbengine.get()
                         dbengine.set(session.bind)
+                        swapped_dbengine = True
                     else:
                         _ensure_dbengine_initialized()
                     _ensure_domain_factory_initialized()
@@ -1183,6 +1209,12 @@ def _patch_celery_ingest_worker():
                     return res
                 finally:
                     _active_session.reset(t_session)
+                    if swapped_dbengine and prev_dbengine is not None:
+                        try:
+                            from openg2p_fastapi_common.context import dbengine
+                            dbengine.set(prev_dbengine)
+                        except Exception:
+                            pass
 
             worker_mod._save_sections_async = patched_save_sections_async
             _logger.info("ODK Hook: Successfully patched ingest_data_worker._save_sections_async (Option B)")
@@ -1349,6 +1381,19 @@ def _load_transform_template():
     return None
 
 
+# File Import columns that describe the row's animal (the keys ls_odk_transform.j2
+# reads from each entry of the `livestock` list).
+_FILE_IMPORT_ANIMAL_COLUMNS = (
+    "ear_tag_id", "secondary_identifier", "species", "breed", "colour", "weight",
+    "quantity", "gender", "date_of_birth", "age", "health_status",
+    "vaccination_status", "registration_date",
+)
+
+
+def _is_blank_cell(value):
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
 def _patch_ingest_service():
     """Patch G2PIngestService to transform and process ODK submissions smoothly."""
     try:
@@ -1367,7 +1412,52 @@ def _patch_ingest_service():
             livestock_register_id = "997676d3-7008-59f9-b23e-613ad79bbb08"
             livestock_intake_form_id = "e92e8be1-207f-518e-99c2-8bc21cc1f112"
 
-            if isinstance(data, dict):
+            # File Import (celery import_file_process_worker) sends each row as
+            # {"headers": {...}, "body": <row>} with the import's own data model,
+            # register and intake form. It is not an ODK submission: rewriting it
+            # onto MY_DATA_MODEL (which is only the connector's label, not a
+            # registry data model) failed every row with DATA_MODEL_NOT_FOUND.
+            is_file_import = (
+                isinstance(data, dict)
+                and isinstance(data.get("headers"), dict)
+                and "body" in data
+                and bool(data_model_mnemonic and register_id and intake_form_id)
+            )
+            if is_file_import:
+                # The worker's {"headers", "body"} shape does not match the data
+                # model's key paths ($.body.header.sender_id, $.body.signature,
+                # $.body['header','message']), so re-wrap it. The row goes where
+                # the model's semantic pattern reads the business payload
+                # ($.body.message.search_response[0].data.reg_records[0]); the
+                # transformation step renders it with ls_odk_transform.j2, whose
+                # flat keys (farmer_id, fayda_fan_id, owner_id, region, ...) are
+                # the import file's columns.
+                headers = data["headers"]
+                row = data["body"]
+                # A CSV / Excel row is flat, but the template reads animals from a
+                # `livestock` list. Animal columns on the row (ear_tag_id,
+                # species, breed, ...) become that row's one animal.
+                if isinstance(row, dict) and not row.get("livestock"):
+                    animal = {
+                        k: row[k] for k in _FILE_IMPORT_ANIMAL_COLUMNS
+                        if not _is_blank_cell(row.get(k))
+                    }
+                    if animal.get("ear_tag_id") or animal.get("species"):
+                        row = dict(row, livestock=[animal])
+                data = {
+                    "body": {
+                        "header": {
+                            "sender_id": headers.get("sender_id") or "Staff Portal",
+                            "message_id": headers.get("message_id") or uuid.uuid4().hex,
+                        },
+                        "signature": headers.get("signature") or "file-import",
+                        "message": {
+                            "search_response": [{"data": {"reg_records": [row]}}],
+                        },
+                    }
+                }
+
+            if isinstance(data, dict) and not is_file_import:
                 has_envelope = (
                     ("header" in data and "message" in data) or
                     (isinstance(data.get("body"), dict) and "message" in data.get("body", {}))

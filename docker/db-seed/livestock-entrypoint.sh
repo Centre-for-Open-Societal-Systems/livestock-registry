@@ -126,6 +126,31 @@ SQL
   echo "[db-seed] approver-resolver rules: ${n} rewritten, ${total} in place."
 }
 
+# Third post-seed step: the File Import partner. Every ingest is routed by the
+# sender id in its envelope to a row of master_data.g2p_partners, and File Import
+# (New Intake -> File Import) sends as the celery worker's import_file_sender_id,
+# "Staff Portal" by default. Nothing seeded that row, so every imported row
+# failed with PARTNER_NOT_REGISTERED. Idempotent (keyed on the mnemonic).
+register_import_partner() {
+  if [ -z "${MD_PGHOST:-}" ] || [ -z "${MD_PGDATABASE:-}" ]; then
+    echo "[db-seed] import partner: skipped (MD_PGHOST/MD_PGDATABASE not set)."
+    return
+  fi
+  mnemonic="${IMPORT_FILE_SENDER_ID:-Staff Portal}"
+  export PGHOST="$MD_PGHOST" PGPORT="${MD_PGPORT:-5432}" PGDATABASE="$MD_PGDATABASE" PGUSER="${MD_PGUSER:-}" PGPASSWORD="${MD_PGPASSWORD:-}"
+  if psql -v ON_ERROR_STOP=1 -q -v m="$mnemonic" <<'SQL'
+INSERT INTO g2p_partners (partner_id, partner_mnemonic, keymanager_reference_id, is_active)
+SELECT md5('livestock-import-partner:' || :'m'), :'m', 'livestock-import:' || :'m', true
+WHERE NOT EXISTS (SELECT 1 FROM g2p_partners WHERE partner_mnemonic = :'m');
+SQL
+  then
+    echo "[db-seed] import partner: '${mnemonic}' registered."
+  else
+    echo "[db-seed] import partner: FAILED (see errors above) — File Import rows will fail with PARTNER_NOT_REGISTERED."
+  fi
+}
+
 load_ethiopia_geo
 rewrite_approver_rules
+register_import_partner
 exit $rc
