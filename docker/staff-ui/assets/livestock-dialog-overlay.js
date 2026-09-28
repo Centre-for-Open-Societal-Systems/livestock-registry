@@ -66,6 +66,15 @@
   // document_id to the enqueue request (patch-enqueue-import-route.js lets
   // the route forward it).
   var uploadedDocIds = {};
+  // The portal reads the upload response and fires the enqueue straight away,
+  // which can beat our own read of that response; the enqueue waits on this.
+  var uploadsRead = Promise.resolve();
+  function addEnqueueDocumentId(input, init) {
+    var enq = JSON.parse(init.body);
+    if (enq.document_id || !enq.document_store_id || !uploadedDocIds[enq.document_store_id]) return null;
+    enq.document_id = uploadedDocIds[enq.document_store_id];
+    return [input, Object.assign({}, init, { body: JSON.stringify(enq) })];
+  }
   function rememberUploadedDocs(o) {
     if (Array.isArray(o)) { o.forEach(rememberUploadedDocs); return; }
     if (!o || typeof o !== "object") return;
@@ -79,11 +88,12 @@
     try {
       var reqUrl = typeof input === "string" ? input : (input && input.url) || "";
       if (reqUrl.indexOf("/api/input-mechanism/enqueue-import") > -1 && init && typeof init.body === "string") {
-        var enq = JSON.parse(init.body);
-        if (!enq.document_id && enq.document_store_id && uploadedDocIds[enq.document_store_id]) {
-          enq.document_id = uploadedDocIds[enq.document_store_id];
-          args = [input, Object.assign({}, init, { body: JSON.stringify(enq) })];
-        }
+        var self = this;
+        return uploadsRead.then(function () {
+          var patched = null;
+          try { patched = addEnqueueDocumentId(input, init); } catch (e) { /* never break the portal */ }
+          return nativeFetch.apply(self, patched || args);
+        });
       }
     } catch (e) { /* never break the portal */ }
     try {
@@ -101,8 +111,8 @@
     if (isAttrSave) p.then(function () { cache.values = {}; }).catch(function () {});
     try {
       if (/upload-document/.test(typeof input === "string" ? input : (input && input.url) || "")) {
-        p.then(function (res) {
-          if (res && res.ok) res.clone().json().then(rememberUploadedDocs).catch(function () {});
+        uploadsRead = p.then(function (res) {
+          if (res && res.ok) return res.clone().json().then(rememberUploadedDocs);
         }).catch(function () {});
       }
     } catch (e) { /* never break the portal */ }

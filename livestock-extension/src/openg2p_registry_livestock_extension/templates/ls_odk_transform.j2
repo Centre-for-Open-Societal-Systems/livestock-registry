@@ -154,7 +154,7 @@
       {% elif 'somali' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_LONG_EARED_SOMALI' %}
       {% elif 'woito' in a_br_raw or 'guji' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_WOITO_GUJI' %}
       {% elif 'local' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_LOCAL_GOAT' %}
-      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = 'LIVESTOCK_BREED_' ~ a_br_raw | upper %}
+      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = a_br_raw | upper %}
       {% else %}{% set a_br = a.get('breed') %}
       {% endif %}
     {% elif a_sp == 'LIVESTOCK_SPECIES_SHEEP' %}
@@ -166,7 +166,7 @@
       {% elif 'washera' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_WASHERA' %}
       {% elif 'dorper' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_DORPER_CROSS' %}
       {% elif 'local' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_LOCAL_SHEEP' %}
-      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = 'LIVESTOCK_BREED_' ~ a_br_raw | upper %}
+      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = a_br_raw | upper %}
       {% else %}{% set a_br = a.get('breed') %}
       {% endif %}
     {% elif a_sp == 'LIVESTOCK_SPECIES_CATTLE' %}
@@ -180,12 +180,12 @@
       {% elif 'holstein' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_HOLSTEIN_CROSS' %}
       {% elif 'jersey' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_JERSEY_CROSS' %}
       {% elif 'zebu' in a_br_raw or 'local' in a_br_raw %}{% set a_br = 'LIVESTOCK_BREED_LOCAL_ZEBU' %}
-      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = 'LIVESTOCK_BREED_' ~ a_br_raw | upper %}
+      {% elif a_br_raw.startswith('livestock_breed_') %}{% set a_br = a_br_raw | upper %}
       {% else %}{% set a_br = a.get('breed') %}
       {% endif %}
     {% else %}
       {% if a_br_raw.startswith('livestock_breed_') %}
-        {% set a_br = 'LIVESTOCK_BREED_' ~ a_br_raw | upper %}
+        {% set a_br = a_br_raw | upper %}
       {% else %}
         {% set a_br = a.get('breed') %}
       {% endif %}

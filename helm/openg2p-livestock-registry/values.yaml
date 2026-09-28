@@ -33,6 +33,13 @@ registry:
       # submissions in the same second collide 1 in 10 ("Unexpected error").
       # Five random digits keep the same shape; see docker-compose.yml.
       REGISTRY_STAFF_PORTAL_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
+      # File Import (New Intake -> File Import) uploads its CSV / Excel through
+      # the same document upload as attachments, whose core default allows only
+      # images and PDF ("File upload failed" / "File extension is not allowed").
+      # Add the spreadsheet types (Excel can be sniffed as zip); same values as
+      # docker-compose.yml.
+      REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: "png,jpg,jpeg,webp,pdf,csv,xlsx,xls"
+      REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: "image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip"
       # Shared secret AWE presents when it asks /livestock/approver-resolver
       # who approves a stage (g2p_approver_resolver_controller.py). The seed
       # writes the same value into the AWE rule URLs (dbSeed.envVars below);
