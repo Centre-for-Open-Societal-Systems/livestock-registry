@@ -28,4 +28,13 @@ COPY docker/db-seed/sample-data/                                               /
 COPY docker/db-seed/geo/ethiopia_geo_seed.sql.gz /seed/geo/ethiopia_geo_seed.sql.gz
 COPY docker/db-seed/livestock-entrypoint.sh      /seed/livestock-entrypoint.sh
 RUN chmod +x /seed/livestock-entrypoint.sh
+
+# Reporting layer read by livestock-registry-dashboard-api: the lr_rpt_* views
+# and the Master Data geography copy they resolve P-codes against. Applied and
+# refreshed by the chart's reporting jobs (templates/reporting-views.yaml), not
+# by the seed entrypoint.
+COPY docker/db-seed/reporting_views.sql     /seed/reporting_views.sql
+COPY docker/db-seed/reporting-geo-sync.sh   /seed/reporting-geo-sync.sh
+RUN chmod +x /seed/reporting-geo-sync.sh
+
 ENTRYPOINT ["/seed/livestock-entrypoint.sh"]

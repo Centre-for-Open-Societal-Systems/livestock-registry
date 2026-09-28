@@ -1,0 +1,158 @@
+{{- if .Values.dashboardApi.enabled }}
+{{/*
+The livestock registry dashboard service (livestock-registry-dashboard-api).
+
+A read-only FastAPI service that serves aggregate statistics to the OAN
+dashboards backend-for-frontend, one endpoint per chart. Its source lives in
+its own repository; the Jenkinsfile clones it and builds the image beside the
+registry's own.
+
+It reads only the lr_rpt_* reporting views, which reporting-views.yaml creates
+and reporting-views-refresh.yaml keeps current. Enable reporting.views with it,
+or every chart answers 500 with `relation "lr_rpt_holding" does not exist`.
+
+The dashboards BFF calls the ClusterIP Service at
+http://<release>-dashboard-api.<namespace>. The service has no authentication,
+so it is never published publicly. dashboardApi.virtualService optionally
+routes a hostname on a PRIVATE Istio gateway (e.g. live/internal) for
+developers and tools. Do not attach it to a public gateway.
+
+The password reaches the service as PGPASSWORD, never inside DATABASE_URL, so
+it needs no URL-encoding whatever characters it contains.
+*/}}
+{{- $image := .Values.dashboardApi.image }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-dashboard-api
+  labels:
+    app.kubernetes.io/name: registry
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dashboard-api
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | trunc 63 | trimSuffix "-" }}
+spec:
+  replicas: {{ .Values.dashboardApi.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: registry
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dashboard-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: registry
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: dashboard-api
+    spec:
+      containers:
+        - name: dashboard-api
+          image: "{{ required "dashboardApi.image.repository is required when dashboardApi.enabled" $image.repository }}:{{ required "dashboardApi.image.tag is required when dashboardApi.enabled" $image.tag }}"
+          imagePullPolicy: {{ $image.pullPolicy | default "IfNotPresent" }}
+          {{/* The image's own CMD, with the worker count made configurable.
+               Each worker holds its own asyncpg pool, so one replica uses at
+               most workers x dbPool.maxSize connections. */}}
+          command:
+            - gunicorn
+            - app.main:app
+            - --workers
+            - {{ .Values.dashboardApi.workers | quote }}
+            - --worker-class
+            - uvicorn.workers.UvicornWorker
+            - --bind
+            - 0.0.0.0:8000
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              value: {{ printf "postgresql://%s@%s:%v/%s" (tpl .Values.reporting.db.user $) (include "livestock.reporting.dbHost" .) .Values.reporting.db.port (tpl .Values.reporting.db.name $) | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl .Values.reporting.db.secret $ | quote }}
+                  key: {{ tpl .Values.reporting.db.passwordKey $ | quote }}
+            - name: DB_POOL_MIN_SIZE
+              value: {{ .Values.dashboardApi.dbPool.minSize | quote }}
+            - name: DB_POOL_MAX_SIZE
+              value: {{ .Values.dashboardApi.dbPool.maxSize | quote }}
+            - name: ALLOWED_ORIGINS
+              value: {{ .Values.dashboardApi.allowedOrigins | default list | toJson | quote }}
+            {{- range $name, $value := .Values.dashboardApi.env }}
+            - name: {{ $name }}
+              value: {{ tpl (toString $value) $ | quote }}
+            {{- end }}
+          resources: {{- toYaml .Values.dashboardApi.resources | nindent 12 }}
+          {{/* /health runs SELECT 1, so readiness drops while the database is
+               unreachable. Liveness only checks the port: a database outage
+               should take the pod out of the Service, not restart it in a loop. */}}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-dashboard-api
+  labels:
+    app.kubernetes.io/name: registry
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dashboard-api
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: registry
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dashboard-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+{{- with .Values.dashboardApi.virtualService }}
+{{- if .enabled }}
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ $.Release.Name }}-dashboard-api
+  labels:
+    app.kubernetes.io/name: registry
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: dashboard-api
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+spec:
+  hosts:
+    - {{ tpl (required "dashboardApi.virtualService.host is required when it is enabled" .host) $ | quote }}
+  gateways:
+    - {{ required "dashboardApi.virtualService.gateway is required when it is enabled" .gateway | quote }}
+  http:
+    - headers:
+        request:
+          set:
+            x-forwarded-host: {{ tpl .host $ | quote }}
+            x-forwarded-proto: https
+      match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: {{ $.Release.Name }}-dashboard-api
+            port:
+              number: 80
+{{- end }}
+{{- end }}
+{{- end }}
