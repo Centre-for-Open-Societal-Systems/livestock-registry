@@ -191,3 +191,83 @@ registry:
     farmerRegisterId: 6b06a95a-9a6c-5a33-a33d-c1625716c59c
     crTabId: "livestock_livestock_tab"
     crSectionId: "livestock_survey_personnel_section_02"
+
+# ── Reporting layer and dashboard service (this chart's own templates) ────────
+# The lr_rpt_* views the dashboard service reads (templates/reporting-views.yaml,
+# templates/reporting-views-refresh.yaml) and the service itself
+# (templates/dashboard-api.yaml). Both are off by default.
+reporting:
+  # Registry database. The subchart's globals are not visible to this chart's
+  # templates, so the coordinates are repeated here, following the subchart's
+  # convention (database and user from the release name, password in the
+  # Secret named after the release). host empty = global.postgresqlHost,
+  # else commons-postgresql.
+  db:
+    host: ""
+    port: 5432
+    name: '{{ .Release.Name | replace "-" "_" }}'
+    user: '{{ printf "%s_user" .Release.Name | replace "-" "_" }}'
+    secret: '{{ .Release.Name }}'
+    passwordKey: '{{ .Release.Name }}-db-user'
+  # Master Data, read by the geography copy into lr_rpt_geo. host empty = the
+  # registry database's host. name empty skips the copy (codes stay NULL).
+  masterData:
+    host: ""
+    port: 5432
+    name: master_data
+    user: master_data_user
+    secret: master-data
+    passwordKey: master-data-db-user
+  # Empty: the jobs run in the registry's db-seed image (registry.dbSeed.image),
+  # which ships reporting_views.sql and whose tag CI rewrites.
+  image:
+    repository: ""
+    tag: ""
+  views:
+    enabled: false
+    # How long the create job waits for staff-api's migrations on a fresh install.
+    waitForSchemaSeconds: 600
+    # How often the materialized views are rebuilt. Empty disables the CronJob.
+    refreshSchedule: "*/30 * * * *"
+    refreshLog:
+      enabled: true
+      retentionDays: 90
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+dashboardApi:
+  enabled: false
+  image:
+    repository: ""
+    tag: ""
+  replicas: 1
+  # gunicorn workers. Each holds its own database pool (below), so a replica
+  # uses up to workers x dbPool.maxSize connections.
+  workers: 2
+  # Connections per worker: minSize kept open, maxSize under load. The
+  # dashboards cache responses, so a few are plenty.
+  dbPool:
+    minSize: 1
+    maxSize: 5
+  # CORS origins. Browsers are not expected to call the service directly.
+  allowedOrigins: []
+  # Extra environment variables, as NAME: value. Values may use templates.
+  env: {}
+  # Optional hostname route for developers and tools, on a PRIVATE Istio
+  # gateway only (the service has no authentication), e.g.
+  #   host: dashboard-api.live.openg2p.test
+  #   gateway: internal
+  virtualService:
+    enabled: false
+    host: ""
+    gateway: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
