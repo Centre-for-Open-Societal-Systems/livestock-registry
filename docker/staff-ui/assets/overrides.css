@@ -1,0 +1,67 @@
+/* Livestock Registry overrides appended to the platform's compiled stylesheet
+   by docker/staff-ui/Dockerfile. Same mechanism as the dashboard background
+   rule there: the portal is a finished build, so a rule that cannot be
+   expressed through theme data is appended after the compiled rules and wins
+   on cascade order. Coupled to the platform's class names — the Dockerfile
+   asserts the ones matched here still exist so a platform bump fails the
+   build rather than silently dropping the fix. */
+
+/* ── Possible-duplicate match cards ──────────────────────────────────────────
+   The field-by-field comparison is a 3-column grid, each column ~300px of
+   which 104px is padding, and each "Incoming / Candidate / Similarity" row
+   gives the value half of what is left (~80px) and truncates it. Two things
+   went wrong with our 4 configured fields:
+
+   1. The platform indents every field except the FIRST IN THE LIST (padding-
+      left + a divider on the value block) — right for columns 2 and 3, wrong
+      for the field that starts a new row: the 4th (Woreda) sat indented with
+      a stray divider.
+   2. A long Fayda FAN ID (16 digits, e.g. "3100000000000004") never fit and
+      was cut short with an ellipsis.
+
+   Two columns instead of three gives every value ~240px, enough for a FAN ID
+   on one line, and lines the 4 fields up as a clean 2x2. The "first in row"
+   styling then follows the column, not the list index. Below the md
+   breakpoint the platform's single column is left as is. */
+@media (min-width: 768px) {
+  .grid.md\:grid-cols-3:has(> .space-y-0.py-2 > div > h4) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .grid.md\:grid-cols-3 > .space-y-0.py-2:nth-child(odd) {
+    padding-left: 0 !important;
+    padding-right: 1.5rem !important;
+  }
+  .grid.md\:grid-cols-3 > .space-y-0.py-2:nth-child(odd) > .border-l {
+    border-left-width: 0 !important;
+  }
+  /* The heading wrapper and value block carry their own inner indent (pl-6)
+     on every item but the first in the list; column 1 gets none of it. */
+  .grid.md\:grid-cols-3 > .space-y-0.py-2:nth-child(odd) > div {
+    padding-left: 0 !important;
+  }
+  .grid.md\:grid-cols-3 > .space-y-0.py-2:nth-child(even) {
+    padding-left: 1.5rem !important;
+    padding-right: 0 !important;
+  }
+}
+
+/* Within a row, let the short label take only the width it needs and let the
+   value use the rest, wrapping instead of being cut if it is ever still too
+   long. The full value stays in the title tooltip as before. */
+.grid.md\:grid-cols-3 > .space-y-0.py-2 .flex.w-full.overflow-hidden {
+  overflow: visible !important;
+  align-items: flex-start;
+}
+.grid.md\:grid-cols-3 > .space-y-0.py-2 .flex.w-full.overflow-hidden > span.truncate:first-child {
+  width: auto !important;
+  flex: 0 0 auto;
+}
+.grid.md\:grid-cols-3 > .space-y-0.py-2 .flex.w-full.overflow-hidden > span.truncate:last-child {
+  width: auto !important;
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+}
