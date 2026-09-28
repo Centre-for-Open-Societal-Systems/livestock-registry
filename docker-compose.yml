@@ -328,6 +328,12 @@ services:
   # Deliberately NOT routed through db-seed's own LOAD_GEO_DATA (that toggle
   # runs the platform's generic/fictional sample geo loader, which would
   # coexist with this real data and pollute the dropdowns).
+  #
+  # The seed's `ON CONFLICT (level_value_mnemonic)` needs a unique index on that
+  # column, which not every master-data image version creates; without it the
+  # load stops at "no unique or exclusion constraint matching the ON CONFLICT
+  # specification". The index is created first, as the db-seed image's own
+  # entrypoint does (docker/db-seed/livestock-entrypoint.sh).
   livestock-registry-geo-seed:
     image: postgres:16
     container_name: livestock-registry-geo-seed
@@ -342,7 +348,14 @@ services:
       PGPASSWORD: ${MASTER_DATA_DB_PASSWORD}
     volumes:
       - ./docker/db-seed/geo/ethiopia_geo_seed.sql.gz:/opt/ethiopia_geo_seed.sql.gz:ro
-    entrypoint: ["sh", "-c", "gunzip -c /opt/ethiopia_geo_seed.sql.gz | psql -v ON_ERROR_STOP=1"]
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        psql -v ON_ERROR_STOP=1 -q -c "CREATE UNIQUE INDEX IF NOT EXISTS ux_geo_level_values_mnemonic ON g2p_geo_level_values(level_value_mnemonic);"
+        gunzip -c /opt/ethiopia_geo_seed.sql.gz | psql -v ON_ERROR_STOP=1 -q
+        psql -At -c "SELECT 'geo seed: ' || count(*) || ' values' FROM g2p_geo_level_values"
     restart: "no"
 
   id-generator:
