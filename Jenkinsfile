@@ -98,12 +98,10 @@ pipeline {
 
                         // The dashboard service, from its own repository (cloned
                         // by 'Checkout dashboard-api'), with its own build context.
-                        // ECR does not create repositories on push.
+                        // Its ECR repository is created outside CI, like the others.
                         def api = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api:${env.IMAGE_TAG}"
                         sh """
                             echo "=== Building and pushing dashboard-api (${env.DASHBOARD_API_REF_USED} @ ${env.DASHBOARD_API_SHA}) ==="
-                            aws ecr describe-repositories --region ${AWS_REGION} --repository-names ${ECR_PATH}/dashboard-api > /dev/null 2>&1 \
-                                || aws ecr create-repository --region ${AWS_REGION} --repository-name ${ECR_PATH}/dashboard-api > /dev/null
                             docker build \
                                 --label org.opencontainers.image.source=${DASHBOARD_API_REPO} \
                                 --label org.opencontainers.image.revision=${env.DASHBOARD_API_SHA} \
