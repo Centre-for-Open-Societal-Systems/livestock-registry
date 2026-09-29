@@ -148,31 +148,51 @@ try:
     import openg2p_registry_core.engine as core_engine
     from sqlalchemy.ext.asyncio import create_async_engine
 
+    # The celery worker and beat get their master-data DB under their own
+    # REGISTRY_CELERY_*_ prefix. Reading only the staff-api / partner-api names
+    # fell back to "postgres", which exists only in the local compose stack: on
+    # a cluster File Import failed with "Name does not resolve" at the partner
+    # lookup.
     _md_host = (
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
         or "postgres"
     )
     _md_port = (
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
         or "5432"
     )
     _md_name = (
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
         or os.environ.get("MASTER_DATA_DB")
         or "master_data"
     )
     _md_user = (
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
         or os.environ.get("MASTER_DATA_DB_USER")
         or "master_data_user"
     )
     _md_pass = (
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
         or os.environ.get("MASTER_DATA_DB_PASSWORD")
         or "master_data_pass"
     )

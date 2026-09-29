@@ -328,6 +328,12 @@ services:
   # Deliberately NOT routed through db-seed's own LOAD_GEO_DATA (that toggle
   # runs the platform's generic/fictional sample geo loader, which would
   # coexist with this real data and pollute the dropdowns).
+  #
+  # The seed's `ON CONFLICT (level_value_mnemonic)` needs a unique index on that
+  # column, which not every master-data image version creates; without it the
+  # load stops at "no unique or exclusion constraint matching the ON CONFLICT
+  # specification". The index is created first, as the db-seed image's own
+  # entrypoint does (docker/db-seed/livestock-entrypoint.sh).
   livestock-registry-geo-seed:
     image: postgres:16
     container_name: livestock-registry-geo-seed
@@ -342,7 +348,14 @@ services:
       PGPASSWORD: ${MASTER_DATA_DB_PASSWORD}
     volumes:
       - ./docker/db-seed/geo/ethiopia_geo_seed.sql.gz:/opt/ethiopia_geo_seed.sql.gz:ro
-    entrypoint: ["sh", "-c", "gunzip -c /opt/ethiopia_geo_seed.sql.gz | psql -v ON_ERROR_STOP=1"]
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        psql -v ON_ERROR_STOP=1 -q -c "CREATE UNIQUE INDEX IF NOT EXISTS ux_geo_level_values_mnemonic ON g2p_geo_level_values(level_value_mnemonic);"
+        gunzip -c /opt/ethiopia_geo_seed.sql.gz | psql -v ON_ERROR_STOP=1 -q
+        psql -At -c "SELECT 'geo seed: ' || count(*) || ' values' FROM g2p_geo_level_values"
     restart: "no"
 
   id-generator:
@@ -697,6 +710,40 @@ services:
         echo "sample data loaded"
     depends_on:
       db-seed:
+        condition: service_completed_successfully
+    restart: 'no'
+
+  reporting-views:
+    image: openg2p/openg2p-livestock-registry-db-seed:${RP_VERSION}
+    <<: *amd64
+    # The lr_rpt_* reporting views livestock-registry-dashboard-api reads, as
+    # the chart's reporting job builds them: geography copied from master_data,
+    # then docker/db-seed/reporting_views.sql. Opt-in, and re-runnable to pick
+    # up new records (the views are materialized):
+    #   docker compose --env-file local/.env --profile reporting up reporting-views
+    profiles: ['reporting']
+    environment:
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGDATABASE: ${REGISTRY_DB}
+      PGUSER: ${REGISTRY_DB_USER}
+      PGPASSWORD: ${REGISTRY_DB_PASSWORD}
+      MDS_DB: ${MASTER_DATA_DB}
+      MDS_PGHOST: postgres
+      MDS_PGPORT: '5432'
+      MDS_PGUSER: ${MASTER_DATA_DB_USER}
+      MDS_PGPASSWORD: ${MASTER_DATA_DB_PASSWORD}
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        /seed/reporting-geo-sync.sh
+        psql -v ON_ERROR_STOP=1 -X -q -f /seed/reporting_views.sql
+        psql -qtAX -c "SELECT 'lr_rpt_holding: ' || count(*) FROM lr_rpt_holding"
+        psql -qtAX -c "SELECT 'lr_rpt_animal: ' || count(*) FROM lr_rpt_animal"
+    depends_on:
+      sample-data:
         condition: service_completed_successfully
     restart: 'no'
 

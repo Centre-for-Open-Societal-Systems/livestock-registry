@@ -7,6 +7,7 @@ from .config import Settings
 _config = Settings.get_config()
 
 from openg2p_fastapi_common.app import Initializer as BaseInitializer
+from openg2p_fastapi_common.context import dbengine
 from openg2p_registry_core.app import Initializer as CoreInitializer
 
 # Two tables that core-patches/apply_patches.py adds to the base image's
@@ -97,6 +98,14 @@ class Initializer(BaseInitializer):
 
         async def migrate():
             _logger.info("Migrating extensions database")
+
+            # The core migration ran in its own asyncio.run() just before this
+            # one, and the shared engine's pool still holds connections bound to
+            # that closed event loop. Reusing one fails the first query here with
+            # "got Future ... attached to a different loop", and every livestock
+            # table goes missing. Dispose of the pool so this loop opens its own.
+            if dbengine.get() is not None:
+                await dbengine.get().dispose()
 
             # The two tables the core patches add (see the import above). No
             # foreign keys point at them and they hold per-attribute-value

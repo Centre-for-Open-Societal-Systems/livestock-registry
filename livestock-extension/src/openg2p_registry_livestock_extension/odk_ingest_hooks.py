@@ -223,6 +223,8 @@ def _get_master_data_engine():
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
         or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
         or os.environ.get("MASTER_DATA_DB_HOSTNAME")
         or "postgres"
     )
@@ -230,6 +232,8 @@ def _get_master_data_engine():
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT")
         or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PORT")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
         or os.environ.get("MASTER_DATA_DB_PORT")
         or "5432"
     )
@@ -237,6 +241,8 @@ def _get_master_data_engine():
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME")
         or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_DBNAME")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
         or os.environ.get("MASTER_DATA_DB_DBNAME")
         or "master_data"
     )
@@ -244,6 +250,8 @@ def _get_master_data_engine():
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME")
         or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_USERNAME")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
         or os.environ.get("MASTER_DATA_DB_USER")
         or "master_data_user"
     )
@@ -251,6 +259,8 @@ def _get_master_data_engine():
         os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD")
         or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
         or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PASSWORD")
+        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
         or os.environ.get("MASTER_DATA_DB_PASSWORD")
         or "master_data_pass"
     )
@@ -1331,12 +1341,15 @@ def _ensure_dbengine_initialized():
         try:
             import openg2p_fastapi_common.app as fc_app
             if hasattr(fc_app, "_config") and hasattr(fc_app._config, "db_hostname"):
-                fc_app._config.db_hostname = "postgres"
-                fc_app._config.db_port = 5432
-                fc_app._config.db_dbname = os.environ.get("REGISTRY_DB", "livestock")
-                fc_app._config.db_username = os.environ.get("REGISTRY_DB_USER", "livestock_user")
-                fc_app._config.db_password = os.environ.get("REGISTRY_DB_PASSWORD", "livestock_pass")
-                fc_app._config.db_datasource = f"postgresql+asyncpg://{fc_app._config.db_username}:{fc_app._config.db_password}@postgres:5432/{fc_app._config.db_dbname}"
+                # From the same env-derived settings as _get_registry_engine();
+                # a hard-coded "postgres" host only resolves in local compose.
+                _reg_url = _get_registry_engine().url
+                fc_app._config.db_hostname = _reg_url.host
+                fc_app._config.db_port = _reg_url.port
+                fc_app._config.db_dbname = _reg_url.database
+                fc_app._config.db_username = _reg_url.username
+                fc_app._config.db_password = _reg_url.password
+                fc_app._config.db_datasource = _reg_url.render_as_string(hide_password=False)
         except Exception:
             pass
 
@@ -1357,15 +1370,21 @@ def _ensure_dbengine_initialized():
         try:
             from openg2p_registry_core.config import Settings as CoreSettings
             _core_cfg = CoreSettings.get_config(strict=False)
-            _core_cfg.master_data_db_hostname = "postgres"
-            _core_cfg.master_data_db_port = 5432
-            _core_cfg.master_data_db_dbname = "master_data"
-            _core_cfg.master_data_db_username = "master_data_user"
-            _core_cfg.master_data_db_password = "master_data_pass"
+            # Same source as _get_master_data_engine() (the service's own
+            # *_MASTER_DATA_DB_* env), not a host that exists only locally.
+            _md_url = _get_master_data_engine().url
+            _core_cfg.master_data_db_hostname = _md_url.host
+            _core_cfg.master_data_db_port = _md_url.port
+            _core_cfg.master_data_db_dbname = _md_url.database
+            _core_cfg.master_data_db_username = _md_url.username
+            _core_cfg.master_data_db_password = _md_url.password
         except Exception:
             pass
 
-        _logger.info("ODK Hook: dbengine and master_data safely wired to postgres:5432")
+        _logger.info(
+            "ODK Hook: dbengine and master_data wired to %s / %s",
+            _get_registry_engine().url.host, _get_master_data_engine().url.host,
+        )
     except Exception as e:
         _logger.warning("ODK Hook: Could not ensure dbengine initialized: %s", e)
 

@@ -32,11 +32,41 @@ pipeline {
         // `far` only and is untouched by this pipeline.
         HELM_NAMESPACE_DEV       = 'live'
         DEV_KUBECONFIG_CRED_ID   = 'gen2-dev-livestock-kubeconfig'
+
+        // livestock-registry-dashboard-api lives in its own (public) repository
+        // and is built here beside the registry images. Each branch builds the
+        // dashboard-api branch of the same name and falls back to develop where
+        // there is none. Set DASHBOARD_API_REF on the job (a branch or tag) to
+        // pin one instead.
+        DASHBOARD_API_REPO = 'https://github.com/Centre-for-Open-Societal-Systems/livestock-registry-dashbaord-api.git'
     }
 
     stages {
         stage('Checkout') {
             steps { checkout scm }
+        }
+
+        stage('Checkout dashboard-api') {
+            steps {
+                script {
+                    // A PR build (BRANCH_NAME PR-<n>) matches on its source branch.
+                    def ref = env.DASHBOARD_API_REF
+                    if (!ref) {
+                        def wanted = env.CHANGE_BRANCH ?: env.BRANCH_NAME
+                        def found = wanted && sh(returnStatus: true,
+                            script: "git ls-remote --exit-code --heads ${DASHBOARD_API_REPO} 'refs/heads/${wanted}' > /dev/null") == 0
+                        ref = found ? wanted : 'develop'
+                    }
+                    // .build/ is git-ignored, so the clone never enters a commit.
+                    sh "rm -rf .build/dashboard-api && git clone --quiet --depth 1 --branch '${ref}' ${DASHBOARD_API_REPO} .build/dashboard-api"
+                    if (!fileExists('.build/dashboard-api/Dockerfile')) {
+                        error("dashboard-api ${ref} has no Dockerfile: merge the service into that branch of ${DASHBOARD_API_REPO}, or set DASHBOARD_API_REF")
+                    }
+                    env.DASHBOARD_API_REF_USED = ref
+                    env.DASHBOARD_API_SHA = sh(returnStdout: true, script: 'git -C .build/dashboard-api rev-parse --short=12 HEAD').trim()
+                    echo "dashboard-api: ${ref} @ ${env.DASHBOARD_API_SHA}"
+                }
+            }
         }
 
         stage('Build & Push Images') {
@@ -65,6 +95,20 @@ pipeline {
                                 docker push ${image}
                             """
                         }
+
+                        // The dashboard service, from its own repository (cloned
+                        // by 'Checkout dashboard-api'), with its own build context.
+                        // Its ECR repository is created outside CI, like the others.
+                        def api = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api:${env.IMAGE_TAG}"
+                        sh """
+                            echo "=== Building and pushing dashboard-api (${env.DASHBOARD_API_REF_USED} @ ${env.DASHBOARD_API_SHA}) ==="
+                            docker build \
+                                --label org.opencontainers.image.source=${DASHBOARD_API_REPO} \
+                                --label org.opencontainers.image.revision=${env.DASHBOARD_API_SHA} \
+                                --label org.opencontainers.image.ref.name=${env.DASHBOARD_API_REF_USED} \
+                                -f .build/dashboard-api/Dockerfile -t ${api} .build/dashboard-api
+                            docker push ${api}
+                        """
                     }
                 }
             }
@@ -80,7 +124,7 @@ pipeline {
             // Gated on the SAME branch as "Deploy to Live" below (not
             // 'develop' anymore) — this stage exists solely to feed that
             // one. See the branch-gating header note above.
-            when { branch 'main' } // ASSUMPTION — confirm the real staging branch name
+            when { branch 'staging' } // ASSUMPTION — confirm the real staging branch name
             steps {
                 sh """
                     cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
@@ -171,6 +215,13 @@ EOF
                                 --set registry.staffUi.image.tag=${env.IMAGE_TAG}
                                 --set registry.sanity.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
                                 --set registry.sanity.image.tag=${env.IMAGE_TAG}
+                                --set reporting.views.enabled=true
+                                --set dashboardApi.enabled=true
+                                --set dashboardApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api
+                                --set dashboardApi.image.tag=${env.IMAGE_TAG}
+                                --set dashboardApi.virtualService.enabled=true
+                                --set dashboardApi.virtualService.host=dashboard-api.${HELM_NAMESPACE_DEV}.openg2p.test
+                                --set dashboardApi.virtualService.gateway=internal
                             "
 
                             helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
@@ -193,6 +244,13 @@ EOF
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui -n \${HELM_NAMESPACE_DEV} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-partner-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
+                            kubectl rollout status deployment/\${HELM_RELEASE}-dashboard-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
+
+                            # The views exist (the reporting hook ran) and the service
+                            # answers: a 500 from a missing lr_rpt_* view fails here,
+                            # not in the dashboards.
+                            echo "=== dashboard-api smoke test ==="
+                            kubectl exec -n \${HELM_NAMESPACE_DEV} deploy/\${HELM_RELEASE}-dashboard-api -- python -c "import json, urllib.request as u; base = 'http://127.0.0.1:8000'; [print(p, 'OK', len(json.load(u.urlopen(base + p, timeout=30)))) for p in ('/health', '/api/v1/charts/livestockKpis', '/api/v1/charts/livestockBySpecies', '/api/v1/charts/livestockKeepersByRegion')]"
                         """
                         archiveArtifacts artifacts: 'dev-rendered-*.yaml', allowEmptyArchive: true
                     }
@@ -208,7 +266,7 @@ EOF
             // name — see the header note at the top of this file). Note
             // this doesn't fix the build #41 db-seed BackoffLimitExceeded
             // failure; it just stops it from being triggered by develop.
-            when { branch 'main' } // ASSUMPTION — confirm the real staging branch name
+            when { branch 'staging' } // ASSUMPTION — confirm the real staging branch name
             steps {
                 withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
                     sh """
