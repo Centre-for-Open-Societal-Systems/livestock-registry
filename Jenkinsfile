@@ -124,7 +124,7 @@ pipeline {
             // Gated on the SAME branch as "Deploy to Live" below (not
             // 'develop' anymore) — this stage exists solely to feed that
             // one. See the branch-gating header note above.
-            when { branch 'main' } // ASSUMPTION — confirm the real staging branch name
+            when { branch 'staging' } // ASSUMPTION — confirm the real staging branch name
             steps {
                 sh """
                     cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
@@ -266,7 +266,7 @@ EOF
             // name — see the header note at the top of this file). Note
             // this doesn't fix the build #41 db-seed BackoffLimitExceeded
             // failure; it just stops it from being triggered by develop.
-            when { branch 'main' } // ASSUMPTION — confirm the real staging branch name
+            when { branch 'staging' } // ASSUMPTION — confirm the real staging branch name
             steps {
                 withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
                     sh """
