@@ -317,4 +317,12 @@ except Exception as e:
     print(f"FAILED TO IMPORT odk_ingest_hooks: {e}", flush=True)
     traceback.print_exc()
 
+try:
+    from .register_domain.services import geo_approver_resolver_service  # noqa: F401
+except Exception as e:
+    import traceback
+    print(f"FAILED TO IMPORT geo_approver_resolver_service: {e}", flush=True)
+    traceback.print_exc()
+
+
 

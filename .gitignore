@@ -220,3 +220,4 @@ __marimo__/
 
 # CI checkout of the dashboard service (Jenkinsfile, stage "Checkout dashboard-api").
 .build/
+odk_choices/
