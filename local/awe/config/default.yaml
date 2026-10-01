@@ -1,0 +1,18 @@
+# Local development AWE configuration
+server:
+  port: 8000
+  host: 0.0.0.0
+
+database:
+  driver: postgresql+asyncpg
+  hostname: postgres
+  port: 5432
+  dbname: awe
+  username: postgres
+  password: postgres_password
+
+keycloak:
+  base_url: http://keycloak.localtest.me:8080
+  realm: staff
+  admin_client_id: admin-cli
+  admin_client_secret: ""

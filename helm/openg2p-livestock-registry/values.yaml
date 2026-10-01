@@ -99,12 +99,14 @@ registry:
       tag: 0.0.0-develop
     envVars:
       CELERY_OPTS: "worker -Q registry_worker_queue --loglevel=info --concurrency=4"
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: "commons-postgresql"
   celeryBeat:
     image:
       repository: openg2p/openg2p-livestock-registry-celery
       tag: 0.0.0-develop
     envVars:
       CELERY_OPTS: "worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db --concurrency=4"
+      REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME: "commons-postgresql"
   dbSeed:
     image:
       repository: openg2p/openg2p-livestock-registry-db-seed
