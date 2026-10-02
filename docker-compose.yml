@@ -305,6 +305,11 @@ services:
       GEN2_MASTER_DATA_API_OPENAPI_ROOT_PATH: /
       COMMON_KEYCLOAK_CLIENT_ID: ${AUTH_CLIENT_ID}
       COMMON_AUTH_PROVIDER_API_URL: http://iam:8000
+      # master-data reads its settings with the MASTER_DATA_API_ prefix, so the
+      # COMMON_ variable above never reaches it: without this it cannot resolve
+      # any token issuer ("Unknown Issuer"), rejects every signed-in request and
+      # the staff UI's location dropdowns stay empty.
+      MASTER_DATA_API_AUTH_PROVIDER_API_URL: http://iam:8000
     ports:
       - '${MASTER_DATA_PORT}:${MASTER_DATA_PORT}'
     depends_on:
