@@ -18,7 +18,41 @@ try:
 except Exception:
     pass
 
-# Bridge staff-api / platform settings to iam_core common_ settings
+
+# The platform entry points (openg2p_registry_staff_api.main and the
+# partner-api / celery equivalents) import this module through
+# REGISTRY_EXTENSION_MODULE and only afterwards create their own Settings.
+# Core modules capture Settings.get_config(strict=False) at import time, and
+# that returns the FIRST registered instance of the core Settings class, so
+# whichever core Settings exists first serves the whole process. The bridges
+# below import openg2p_registry_core.engine and friends, each creating a plain
+# registry_core_ Settings; made here, before the app's registry_staff_portal_api_
+# one, every core module read that empty instance: awe_callback_hmac_secret was
+# None, every AWE decision webhook answered 401, and approved submissions never
+# reached the register. Create the running app's Settings first, which is the
+# order the platform's own entry points establish.
+def _create_app_settings_first():
+    import importlib
+
+    for pkg in (
+        "openg2p_registry_staff_api",
+        "openg2p_registry_partner_api",
+        "openg2p_registry_celery_worker",
+        "openg2p_registry_celery_beat",
+    ):
+        if pkg in sys.modules:
+            try:
+                importlib.import_module(f"{pkg}.config").Settings.get_config()
+            except Exception:
+                pass
+            return
+
+
+_create_app_settings_first()
+
+# Bridge staff-api / platform settings to iam_core common_ settings. Plain
+# environment copies: iam_core's own Settings (created later by the app)
+# read COMMON_* from the environment, so every process needs these.
 _redis_url = os.environ.get("REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL") or os.environ.get("COMMON_AUTH_REDIS_URL")
 if _redis_url:
     os.environ["COMMON_AUTH_REDIS_URL"] = _redis_url
@@ -31,17 +65,25 @@ _client_id = os.environ.get("REGISTRY_STAFF_PORTAL_API_KEYCLOAK_CLIENT_ID") or o
 if _client_id:
     os.environ["COMMON_KEYCLOAK_CLIENT_ID"] = _client_id
 
-try:
-    from iam_core.user_auth.config import Settings as IamSettings
-    _iam_cfg = IamSettings.get_config(strict=False)
-    if _redis_url:
-        _iam_cfg.auth_redis_url = _redis_url
-    if _auth_provider_url:
-        _iam_cfg.auth_provider_api_url = _auth_provider_url
-    if _client_id:
-        _iam_cfg.keycloak_client_id = _client_id
-except Exception:
-    pass
+# ODK ingestion support (odk_ingest_hooks, imported further down) patches the
+# platform's ingest controller, ingest service and celery ingest workers at
+# import time. That is only wanted in the processes that run ODK / partner
+# ingestion. Opt in per process with ODK_HOOKS_ENABLED (docker-compose.yml /
+# helm values set it on partner-api and the celery images, never on staff-api).
+ODK_HOOKS_ENABLED = os.environ.get("ODK_HOOKS_ENABLED", "").strip().lower() in ("1", "true", "yes")
+
+if ODK_HOOKS_ENABLED:
+    try:
+        from iam_core.user_auth.config import Settings as IamSettings
+        _iam_cfg = IamSettings.get_config(strict=False)
+        if _redis_url:
+            _iam_cfg.auth_redis_url = _redis_url
+        if _auth_provider_url:
+            _iam_cfg.auth_provider_api_url = _auth_provider_url
+        if _client_id:
+            _iam_cfg.keycloak_client_id = _client_id
+    except Exception:
+        pass
 
 # Bridge database settings to openg2p_fastapi_common and openg2p_registry_core
 _db_host = (
@@ -95,7 +137,15 @@ os.environ["COMMON_DB_DATASOURCE"] = _db_datasource
 
 try:
     import openg2p_fastapi_common.app as fc_app
-    if hasattr(fc_app, "_config"):
+    from openg2p_fastapi_common.config import Settings as _CommonSettings
+
+    # Only a bare common_ Settings (no DB env of its own) is repointed. With
+    # the app's Settings created first (above) fc_app._config is that app's
+    # own instance, already configured from its REGISTRY_<APP>_DB_* env and
+    # with the driver that app expects: celery-beat runs a sync engine, and
+    # forcing the asyncpg datasource onto it broke every beat producer with
+    # sqlalchemy MissingGreenlet.
+    if hasattr(fc_app, "_config") and type(fc_app._config) is _CommonSettings:
         fc_app._config.db_hostname = _db_host
         fc_app._config.db_port = _db_port
         fc_app._config.db_dbname = _db_name
@@ -310,12 +360,13 @@ try:
 except Exception:
     pass
 
-try:
-    from . import odk_ingest_hooks  # noqa: F401
-except Exception as e:
-    import traceback
-    print(f"FAILED TO IMPORT odk_ingest_hooks: {e}", flush=True)
-    traceback.print_exc()
+if ODK_HOOKS_ENABLED:
+    try:
+        from . import odk_ingest_hooks  # noqa: F401
+    except Exception as e:
+        import traceback
+        print(f"FAILED TO IMPORT odk_ingest_hooks: {e}", flush=True)
+        traceback.print_exc()
 
 try:
     from .register_domain.services import geo_approver_resolver_service  # noqa: F401
