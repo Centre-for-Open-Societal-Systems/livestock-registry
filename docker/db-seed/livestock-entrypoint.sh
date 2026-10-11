@@ -136,18 +136,23 @@ register_import_partner() {
     echo "[db-seed] import partner: skipped (MD_PGHOST/MD_PGDATABASE not set)."
     return
   fi
-  mnemonic="${IMPORT_FILE_SENDER_ID:-Staff Portal}"
   export PGHOST="$MD_PGHOST" PGPORT="${MD_PGPORT:-5432}" PGDATABASE="$MD_PGDATABASE" PGUSER="${MD_PGUSER:-}" PGPASSWORD="${MD_PGPASSWORD:-}"
-  if psql -v ON_ERROR_STOP=1 -q -v m="$mnemonic" <<'SQL'
+  # Two senders: File Import ("Staff Portal", the celery worker's
+  # import_file_sender_id) and the ODK connector, whose envelope carries
+  # sender_id "Livestock" (odk_ingest_hooks.py; the connector pipeline's
+  # g2p_sender_id in local/postgres/seed_connector_pipelines.sql).
+  for mnemonic in "${IMPORT_FILE_SENDER_ID:-Staff Portal}" "${ODK_SENDER_ID:-Livestock}"; do
+    if psql -v ON_ERROR_STOP=1 -q -v m="$mnemonic" <<'SQL'
 INSERT INTO g2p_partners (partner_id, partner_mnemonic, keymanager_reference_id, is_active)
 SELECT md5('livestock-import-partner:' || :'m'), :'m', 'livestock-import:' || :'m', true
 WHERE NOT EXISTS (SELECT 1 FROM g2p_partners WHERE partner_mnemonic = :'m');
 SQL
-  then
-    echo "[db-seed] import partner: '${mnemonic}' registered."
-  else
-    echo "[db-seed] import partner: FAILED (see errors above) — File Import rows will fail with PARTNER_NOT_REGISTERED."
-  fi
+    then
+      echo "[db-seed] import partner: '${mnemonic}' registered."
+    else
+      echo "[db-seed] import partner: '${mnemonic}' FAILED (see errors above) — its ingests will fail with PARTNER_NOT_REGISTERED."
+    fi
+  done
 }
 
 load_ethiopia_geo
