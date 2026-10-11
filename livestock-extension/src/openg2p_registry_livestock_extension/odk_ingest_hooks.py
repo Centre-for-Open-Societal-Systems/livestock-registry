@@ -4,6 +4,7 @@ Intercepts ingestion requests, ensures database connections, transforms ODK Cent
 wraps payloads into OpenG2P standard envelopes, and ensures complete storage into
 both Intake Forms and primary Livestock Registry tables without datetime serialization errors.
 """
+import importlib
 import json
 import logging
 import os
@@ -334,34 +335,37 @@ async def resolve_geo_label(code: str | None, level_prefix: str = "") -> str | N
 
         session_maker = async_sessionmaker(engine, expire_on_commit=False)
         async with session_maker() as session:
-            candidates = [
+            # The form's location CSVs carry the Master Data id without its
+            # level prefix and, for kebeles, without the leading "ET0"
+            # (kebele_odk.csv 10101101001 is kebele-ET010101101001; a
+            # 12-digit code 100101101001 is kebele-ET100101101001). Exact
+            # candidates are tried first and on their own: the suffix match
+            # below is only a last resort, because 147 of the form's kebele
+            # codes end the same as a kebele of another region (ET02... vs
+            # ET12...) and a suffix match with LIMIT 1 could pick either.
+            exact = [
                 code_str,
                 f"{level_prefix}-{code_str}" if level_prefix else code_str,
+                f"{level_prefix}-ET{code_str}" if level_prefix else code_str,
+                f"{level_prefix}-ET0{code_str}" if level_prefix else code_str,
                 f"zone-{code_str}",
                 f"woreda-{code_str}",
                 f"kebele-{code_str}",
                 f"region-{code_str}",
             ]
-            q = text(
+            q_exact = text(
                 "SELECT level_value_mnemonic FROM g2p_geo_level_values "
-                "WHERE level_value_id = :c1 OR level_value_id = :c2 OR level_value_id = :c3 "
-                "OR level_value_id = :c4 OR level_value_id = :c5 OR level_value_id = :c6 "
-                "OR level_value_id ILIKE :c_like "
-                "LIMIT 1"
+                "WHERE level_value_id = ANY(:ids) LIMIT 1"
             )
-            res = await session.execute(
-                q,
-                {
-                    "c1": candidates[0],
-                    "c2": candidates[1],
-                    "c3": candidates[2],
-                    "c4": candidates[3],
-                    "c5": candidates[4],
-                    "c6": candidates[5],
-                    "c_like": f"%{code_str}",
-                },
-            )
+            res = await session.execute(q_exact, {"ids": exact})
             row = res.fetchone()
+            if not (row and row[0]):
+                q_like = text(
+                    "SELECT level_value_mnemonic FROM g2p_geo_level_values "
+                    "WHERE level_value_id ILIKE :c_like LIMIT 1"
+                )
+                res = await session.execute(q_like, {"c_like": f"%{code_str}"})
+                row = res.fetchone()
             if row and row[0]:
                 _GEO_LABEL_CACHE[code_str] = row[0]
                 return row[0]
@@ -662,6 +666,63 @@ def normalize_vaccine(vaccine_val: str | None, species_val: str | None = None) -
     return v.upper()
 
 
+# Form `disease` choice (livestock_registry.xlsx, choices sheet) -> registry
+# LIVESTOCK_DISEASE attribute value. Mirrors disease_map in
+# templates/ls_odk_transform.j2; keep the two in step.
+_DISEASE_CANONICAL_MAP = {
+    "anthrax": "LIVESTOCK_DISEASE_ANTHRAX",
+    "blackleg": "LIVESTOCK_DISEASE_BLACKLEG",
+    "contagious_bovine_pleuropneumonia": "LIVESTOCK_DISEASE_CBPP",
+    "cbpp": "LIVESTOCK_DISEASE_CBPP",
+    "contagious_caprine_pleuropneumonia": "LIVESTOCK_DISEASE_CCPP",
+    "ccpp": "LIVESTOCK_DISEASE_CCPP",
+    "foot_and_mouth_disease": "LIVESTOCK_DISEASE_FMD",
+    "fmd": "LIVESTOCK_DISEASE_FMD",
+    "lumpy_skin_disease": "LIVESTOCK_DISEASE_LSD",
+    "lsd": "LIVESTOCK_DISEASE_LSD",
+    "peste_des_petits_ruminants": "LIVESTOCK_DISEASE_PPR",
+    "ppr": "LIVESTOCK_DISEASE_PPR",
+    "sheep_and_goat_pox": "LIVESTOCK_DISEASE_SHEEP_GOAT_POX",
+    "newcastle_disease": "LIVESTOCK_DISEASE_NEWCASTLE_DISEASE",
+    "gumboro": "LIVESTOCK_DISEASE_GUMBORO_DISEASE",
+    "fowl_typhoid": "LIVESTOCK_DISEASE_FOWL_TYPHOID_DISEASE",
+    "fowl_pox": "LIVESTOCK_DISEASE_FOWL_POX_DISEASE",
+    "rabies": "LIVESTOCK_DISEASE_RABIES",
+    "brucellosis": "LIVESTOCK_DISEASE_BRUCELLOSIS",
+    "trypanosomiasis": "LIVESTOCK_DISEASE_TRYPANOSOMIASIS",
+    "mastitis": "LIVESTOCK_DISEASE_MASTITIS",
+    "internal_parasites": "LIVESTOCK_DISEASE_INTERNAL_PARASITES",
+    "external_parasites": "LIVESTOCK_DISEASE_EXTERNAL_PARASITES",
+    "pasteurellosis": "LIVESTOCK_DISEASE_PASTEURELLOSIS",
+    "bovine_tuberculosis": "LIVESTOCK_DISEASE_BOVINE_TB",
+    "camel_pox": "LIVESTOCK_DISEASE_CAMEL_POX",
+    "african_horse_sickness": "LIVESTOCK_DISEASE_AFRICAN_HORSE_SICKNESS",
+    "enterotoxaemia": "LIVESTOCK_DISEASE_ENTEROTOXAEMIA_DISEASE",
+    "coccidiosis": "LIVESTOCK_DISEASE_COCCIDIOSIS",
+    "foot_rot": "LIVESTOCK_DISEASE_FOOT_ROT",
+    "bloat": "LIVESTOCK_DISEASE_BLOAT",
+    "diarrhoea": "LIVESTOCK_DISEASE_DIARRHOEA",
+    "retained_placenta": "LIVESTOCK_DISEASE_RETAINED_PLACENTA",
+    "other": "LIVESTOCK_DISEASE_OTHER_DISEASE",
+}
+
+
+def normalize_disease(disease_val: str | None) -> str | None:
+    """Normalize a raw disease string into the LIVESTOCK_DISEASE attribute value_id.
+
+    Unlike normalize_species/normalize_vaccine there is no fallback guess: a
+    value that is not a known form choice or an existing code is returned as
+    is, so the health/vital-event validation rejects the row with the same
+    message a staff entry would get, instead of relabelling it."""
+    if not disease_val:
+        return None
+    d = str(disease_val).strip()
+    if not d:
+        return None
+    if d.upper().startswith("LIVESTOCK_DISEASE_"):
+        return d.upper()
+    return _DISEASE_CANONICAL_MAP.get(d.lower(), d)
+
 
 def _alias_extension_submodules():
     """Alias all openg2p_registry_livestock_extension submodules as openg2p_registry_extensions."""
@@ -724,6 +785,40 @@ def _ensure_domain_factory_initialized():
             G2PTemplateService()
     except Exception:
         pass
+
+    # Finalizing an ingested submission starts its AWE approval, which goes
+    # through G2PAwePolicyConfigurationService (find_effective_policy_
+    # configuration, cached with fastapi-cache), AweHelper and the services
+    # the staff-api's Initializer creates but the celery worker's does not.
+    # Without them every ODK ingest failed at finalize with "'NoneType' object
+    # has no attribute 'find_effective_policy_configuration'" and no approval
+    # request was ever created. Same set the farmer registry's worker patch
+    # creates; each one is optional so a platform version without it still
+    # imports (G2PAttributeValueValidator, for instance, is newer than 296).
+    try:
+        from fastapi_cache import FastAPICache
+        from openg2p_registry_core.cache import init_cache
+        try:
+            FastAPICache.get_backend()
+        except Exception:
+            init_cache()
+    except Exception:
+        pass
+    for _module, _name in (
+        ("openg2p_registry_core.helpers.awe_helper", "AweHelper"),
+        ("openg2p_registry_core.services.g2p_awe_policy_configuration_service", "G2PAwePolicyConfigurationService"),
+        ("openg2p_registry_core.services.g2p_completion_score_service", "G2PCompletionScoreService"),
+        ("openg2p_registry_core.services.g2p_register_history_service", "G2PRegisterHistoryService"),
+        ("openg2p_registry_core.services.g2p_score_compute_service", "G2PScoreComputeService"),
+        ("openg2p_registry_core.services.g2p_verification_service", "G2PRegisterVerificationService"),
+        ("openg2p_registry_core.services.g2p_attribute_value_validator", "G2PAttributeValueValidator"),
+    ):
+        try:
+            _cls = getattr(importlib.import_module(_module), _name)
+            if _cls.get_component() is None:
+                _cls()
+        except Exception as _exc:
+            _logger.debug("ODK Hook: optional worker component %s not created: %s", _name, _exc)
 
 
 
@@ -835,8 +930,16 @@ def _patch_celery_ingest_worker():
                     intake_row,
                     session,
                 ):
-                    # Sanitize attributes on intake_row to conform to livestock register schema enums
-                    if hasattr(intake_row, "state") and getattr(intake_row, "state", None) not in ("DRAFT", "CONFIRMED", "DONE"):
+                    # Sanitize attributes on intake_row to conform to livestock register schema enums.
+                    # Only an Animal row has the DRAFT/CONFIRMED/DONE state: the Livestock
+                    # holding's `state` is the Kebele -> Region approval ladder
+                    # (LivestockStateEnum) and must not be rewritten here, or every ODK
+                    # record would skip the ladder it is meant to go through.
+                    if (
+                        getattr(register_class, "__tablename__", "") == "g2p_register_animals"
+                        and hasattr(intake_row, "state")
+                        and getattr(intake_row, "state", None) not in ("DRAFT", "CONFIRMED", "DONE")
+                    ):
                         intake_row.state = "CONFIRMED"
                     if hasattr(intake_row, "event_type"):
                         et = str(getattr(intake_row, "event_type", "") or "").upper()
@@ -1162,6 +1265,8 @@ def _patch_celery_ingest_worker():
                                         sp = ev["species"]
                                     if ev_sec == "ls_vaccination_details" and ev.get("vaccine_type"):
                                         ev["vaccine_type"] = normalize_vaccine(ev["vaccine_type"], sp)
+                                    if ev_sec in ("ls_health_event_details", "ls_vital_event_details") and ev.get("disease_type"):
+                                        ev["disease_type"] = normalize_disease(ev["disease_type"])
                 except Exception as ex_enrich:
                     _logger.warning("ODK Hook: Error enriching transformed_data: %s", ex_enrich)
 
@@ -1340,7 +1445,13 @@ def _ensure_dbengine_initialized():
 
         try:
             import openg2p_fastapi_common.app as fc_app
-            if hasattr(fc_app, "_config") and hasattr(fc_app._config, "db_hostname"):
+            from openg2p_fastapi_common.config import Settings as _CommonSettings
+            # Only a bare common_ Settings is repointed; the app's own Settings
+            # (first in the registry since __init__ creates it) already carries
+            # its REGISTRY_<APP>_DB_* env and the driver that app runs with.
+            # celery-beat's sync engine fed this asyncpg datasource failed
+            # every beat producer with sqlalchemy MissingGreenlet.
+            if hasattr(fc_app, "_config") and type(fc_app._config) is _CommonSettings:
                 # From the same env-derived settings as _get_registry_engine();
                 # a hard-coded "postgres" host only resolves in local compose.
                 _reg_url = _get_registry_engine().url
@@ -1427,15 +1538,16 @@ def _patch_ingest_service():
             _ensure_dbengine_initialized()
             _patch_request_response_helper()
 
-            target_data_model = "MY_DATA_MODEL"
+            # Seeded by meta_data/data-models/data_models.sql (+ key paths and
+            # semantic pattern); patch_livestock_odk_ingestion.sql for older DBs.
+            target_data_model = "LIVESTOCK_ODK_MODEL"
             livestock_register_id = "997676d3-7008-59f9-b23e-613ad79bbb08"
             livestock_intake_form_id = "e92e8be1-207f-518e-99c2-8bc21cc1f112"
 
             # File Import (celery import_file_process_worker) sends each row as
             # {"headers": {...}, "body": <row>} with the import's own data model,
             # register and intake form. It is not an ODK submission: rewriting it
-            # onto MY_DATA_MODEL (which is only the connector's label, not a
-            # registry data model) failed every row with DATA_MODEL_NOT_FOUND.
+            # onto the ODK data model failed every row with DATA_MODEL_NOT_FOUND.
             is_file_import = (
                 isinstance(data, dict)
                 and isinstance(data.get("headers"), dict)
