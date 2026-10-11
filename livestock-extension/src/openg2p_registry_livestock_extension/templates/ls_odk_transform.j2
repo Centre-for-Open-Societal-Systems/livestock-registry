@@ -66,6 +66,48 @@
   'bee': 'LIVESTOCK_SPECIES_BEEHIVE'
 } %}
 
+{# Form `disease` choice (choices sheet of livestock_registry.xlsx) -> registry
+   LIVESTOCK_DISEASE attribute value. Mirrors normalize_disease() in
+   odk_ingest_hooks.py; keep the two in step. A value not listed here is passed
+   through unchanged so the health/vital-event validation rejects it with the
+   same message a staff entry would get, instead of silently relabelling it. #}
+{% set disease_map = {
+  'anthrax': 'LIVESTOCK_DISEASE_ANTHRAX',
+  'blackleg': 'LIVESTOCK_DISEASE_BLACKLEG',
+  'contagious_bovine_pleuropneumonia': 'LIVESTOCK_DISEASE_CBPP',
+  'cbpp': 'LIVESTOCK_DISEASE_CBPP',
+  'contagious_caprine_pleuropneumonia': 'LIVESTOCK_DISEASE_CCPP',
+  'ccpp': 'LIVESTOCK_DISEASE_CCPP',
+  'foot_and_mouth_disease': 'LIVESTOCK_DISEASE_FMD',
+  'fmd': 'LIVESTOCK_DISEASE_FMD',
+  'lumpy_skin_disease': 'LIVESTOCK_DISEASE_LSD',
+  'lsd': 'LIVESTOCK_DISEASE_LSD',
+  'peste_des_petits_ruminants': 'LIVESTOCK_DISEASE_PPR',
+  'ppr': 'LIVESTOCK_DISEASE_PPR',
+  'sheep_and_goat_pox': 'LIVESTOCK_DISEASE_SHEEP_GOAT_POX',
+  'newcastle_disease': 'LIVESTOCK_DISEASE_NEWCASTLE_DISEASE',
+  'gumboro': 'LIVESTOCK_DISEASE_GUMBORO_DISEASE',
+  'fowl_typhoid': 'LIVESTOCK_DISEASE_FOWL_TYPHOID_DISEASE',
+  'fowl_pox': 'LIVESTOCK_DISEASE_FOWL_POX_DISEASE',
+  'rabies': 'LIVESTOCK_DISEASE_RABIES',
+  'brucellosis': 'LIVESTOCK_DISEASE_BRUCELLOSIS',
+  'trypanosomiasis': 'LIVESTOCK_DISEASE_TRYPANOSOMIASIS',
+  'mastitis': 'LIVESTOCK_DISEASE_MASTITIS',
+  'internal_parasites': 'LIVESTOCK_DISEASE_INTERNAL_PARASITES',
+  'external_parasites': 'LIVESTOCK_DISEASE_EXTERNAL_PARASITES',
+  'pasteurellosis': 'LIVESTOCK_DISEASE_PASTEURELLOSIS',
+  'bovine_tuberculosis': 'LIVESTOCK_DISEASE_BOVINE_TB',
+  'camel_pox': 'LIVESTOCK_DISEASE_CAMEL_POX',
+  'african_horse_sickness': 'LIVESTOCK_DISEASE_AFRICAN_HORSE_SICKNESS',
+  'enterotoxaemia': 'LIVESTOCK_DISEASE_ENTEROTOXAEMIA_DISEASE',
+  'coccidiosis': 'LIVESTOCK_DISEASE_COCCIDIOSIS',
+  'foot_rot': 'LIVESTOCK_DISEASE_FOOT_ROT',
+  'bloat': 'LIVESTOCK_DISEASE_BLOAT',
+  'diarrhoea': 'LIVESTOCK_DISEASE_DIARRHOEA',
+  'retained_placenta': 'LIVESTOCK_DISEASE_RETAINED_PLACENTA',
+  'other': 'LIVESTOCK_DISEASE_OTHER_DISEASE'
+} %}
+
 {% set fayda_val = d.get('fayda_id') or f.get('fayda_fan_id') or f.get('fayda_id') or d.get('fayda_fan_id') or '' %}
 {% set farmer_name_val = d.get('owner_id') or f.get('farmer_name') or ((f.get('first_name', '') ~ ' ' ~ f.get('middle_name', '') ~ ' ' ~ f.get('last_name', '')) | trim) %}
 {% set farmer_id_val = f.get('farmer_id') or d.get('farmer_id') or '' %}
@@ -87,7 +129,7 @@
       "first_name": {{ f.get('first_name') | tojson }},
       "middle_name": {{ f.get('middle_name') | tojson }},
       "last_name": {{ f.get('last_name') | tojson }},
-      "gender": {{ f.get('gender') | tojson }},
+      "gender": {{ ((f.get('gender') | upper) if f.get('gender') else none) | tojson }},
       "date_of_birth": {{ f.get('date_of_birth') | tojson }},
       "mobile_number": {{ f.get('mobile_number') | tojson }},
       "registration_date": {{ submission_date | tojson }},
@@ -123,7 +165,7 @@
       "total_animals": {{ livestock_list | length }},
       "registration_date": {{ submission_date | tojson }},
       "status": "ACTIVE",
-      "state": "CONFIRMED"
+      "state": "DRAFT"
     }
   ],
   "ls_livestock_location": [
@@ -198,13 +240,12 @@
       "colour": {{ a.get('colour') | tojson }},
       "weight": {{ a.get('weight') | tojson }},
       "quantity": {{ a.get('quantity') | tojson }},
-      "gender": {{ (a.get('gender') or 'male') | upper | tojson }},
+      "gender": {{ ((a.get('gender') | upper) if a.get('gender') else none) | tojson }},
       "date_of_birth": {{ a.get('date_of_birth') | tojson }},
       "age": {{ a.get('age') | tojson }},
       "health_status": {{ (a.get('health_status') or 'healthy') | upper | tojson }},
       "vaccination_status": {{ (a.get('vaccination_status') or 'up_to_date') | upper | tojson }},
-      "registration_date": {{ (a.get('registration_date') or submission_date) | tojson }},
-      "state": "CONFIRMED"
+      "registration_date": {{ (a.get('registration_date') or submission_date) | tojson }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   ],
@@ -221,7 +262,7 @@
           "species": a_sp,
           "age": a.get('age'),
           "event_type": (he.get('event_type') or he.get('health_event_type') or 'treatment') | upper,
-          "disease_type": he.get('disease_type') or 'GENERAL',
+          "disease_type": (he.get('disease_type') | upper) if (he.get('disease_type') | string | lower).startswith('livestock_disease_') else (disease_map.get(he.get('disease_type') | string | lower | trim, he.get('disease_type')) if he.get('disease_type') else none),
           "date_onset": he.get('date_onset'),
           "date_resolution": he.get('date_resolution'),
           "is_notifiable": (he.get('is_notifiable') == true or he.get('is_notifiable') == 'true' or he.get('is_notifiable') == 'yes'),
@@ -275,21 +316,24 @@
           {% endif %}
         {% elif 'blackleg' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_BLACKLEG' %}
-        {% elif 'cbpp' in raw_v %}
+        {# The form's `vaccines` choices use the full disease names
+           (contagious_bovine_pleuropneumonia, foot_and_mouth_disease, ...),
+           so each short code below also matches its long spelling. #}
+        {% elif 'cbpp' in raw_v or 'contagious_bovine' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_CBPP' %}
-        {% elif 'ccpp' in raw_v %}
+        {% elif 'ccpp' in raw_v or 'contagious_caprine' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_CCPP' %}
-        {% elif 'fmd' in raw_v %}
+        {% elif 'fmd' in raw_v or 'foot_and_mouth' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_FMD_CATTLE' %}
-        {% elif 'lsd' in raw_v %}
+        {% elif 'lsd' in raw_v or 'lumpy' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_LSD' %}
         {% elif 'brucellosis' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_BRUCELLOSIS_S19' %}
         {% elif 'rabies' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_RABIES_DONKEY' if a_sp == 'LIVESTOCK_SPECIES_DONKEY' else 'VACCINE_TYPE_RABIES_CATTLE' %}
-        {% elif 'ppr' in raw_v %}
+        {% elif 'ppr' in raw_v or 'peste_des_petits' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_PPR_SHEEP' if a_sp == 'LIVESTOCK_SPECIES_SHEEP' else 'VACCINE_TYPE_PPR_GOAT' %}
-        {% elif 'sgp' in raw_v %}
+        {% elif 'sgp' in raw_v or 'sheep_and_goat_pox' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_SGP_SHEEP' if a_sp == 'LIVESTOCK_SPECIES_SHEEP' else 'VACCINE_TYPE_SGP_GOAT' %}
         {% elif 'enterotoxaemia' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_ENTEROTOXAEMIA' %}
@@ -305,7 +349,7 @@
           {% set v_type = 'VACCINE_TYPE_FOWL_POX' %}
         {% elif 'marek' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_MAREK' %}
-        {% elif 'ahs' in raw_v %}
+        {% elif 'ahs' in raw_v or 'african_horse' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_AHS_DONKEY' if a_sp == 'LIVESTOCK_SPECIES_DONKEY' else 'VACCINE_TYPE_AHS' %}
         {% elif 'tetanus' in raw_v %}
           {% set v_type = 'VACCINE_TYPE_TETANUS_HORSE' %}
@@ -337,8 +381,12 @@
     {% for a in livestock_list %}
       {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
       {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {# offspring_gender comes from the form's Birth group (sex_of_offspring);
+         no silent default — a BIRTH without it is rejected by the vital-event
+         validation, like a staff entry would be. #}
       {% for ve in a.get('vital_events', []) %}
         {% set dd = ve.get('disease_details', {}) or {} %}
+        {% set vd = dd.get('disease_type') or ve.get('disease_type') %}
         {% set bd = ve.get('birth_details', {}) or {} %}
         {% set raw_loc = ((ve.get('location') or 'HOME') | string) | upper %}
         {% set _ = ns.items.append({
@@ -352,7 +400,7 @@
           "location": "HOME" if "HOME" in raw_loc else ("VETERINARY" if "VET" in raw_loc else ("MARKET" if "MARKET" in raw_loc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_loc else ("FIELD" if "FIELD" in raw_loc else "OTHER")))),
           "location_details": ve.get('location_details'),
           "reporting_officer": ve.get('reporting_officer') or ve.get('reporting_officer_id'),
-          "disease_type": dd.get('disease_type') or ve.get('disease_type'),
+          "disease_type": (vd | upper) if (vd | string | lower).startswith('livestock_disease_') else (disease_map.get(vd | string | lower | trim, vd) if vd else none),
           "date_onset": dd.get('vital_date_onset') or dd.get('date_onset') or ve.get('date_onset'),
           "date_resolution": dd.get('vital_date_resolution') or dd.get('date_resolution') or ve.get('date_resolution'),
           "treatment": dd.get('treatment') or ve.get('treatment'),
@@ -360,8 +408,8 @@
           "is_notifiable": (dd.get('vital_is_notifiable') == true or dd.get('vital_is_notifiable') == 'true' or dd.get('vital_is_notifiable') == 'yes' or ve.get('is_notifiable') == true or ve.get('is_notifiable') == 'true' or ve.get('is_notifiable') == 'yes'),
           "offspring_count": bd.get('offspring_count') or ve.get('offspring_count'),
           "offspring_ear_tag_prefix": bd.get('offspring_ear_tag_prefix') or ve.get('offspring_ear_tag_prefix'),
-          "offspring_gender": (bd.get('offspring_gender') or ve.get('offspring_gender') or ve.get('gender') or 'FEMALE') | upper,
-          "notes": ve.get('notes')
+          "offspring_gender": ((bd.get('sex_of_offspring') or bd.get('offspring_gender') or ve.get('sex_of_offspring') or ve.get('offspring_gender')) | upper) if (bd.get('sex_of_offspring') or bd.get('offspring_gender') or ve.get('sex_of_offspring') or ve.get('offspring_gender')) else none,
+          "notes": ve.get('vital_event_details') or ve.get('notes')
         }) %}
       {% endfor %}
     {% endfor %}
@@ -386,7 +434,7 @@
           "event_type": "AI" if ("AI" in raw_et or "INSEMINATION" in raw_et) else "NATURAL",
           "breeding_date": be.get('breeding_date'),
           "sire_or_semen_id": be.get('sire_or_semen_id'),
-          "location": "HOME" if "HOME" in raw_bloc else ("VETERINARY" if "VET" in raw_bloc else ("MARKET" if "MARKET" in raw_bloc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_bloc else ("FIELD" if "FIELD" in raw_loc else "OTHER")))),
+          "location": "HOME" if "HOME" in raw_bloc else ("VETERINARY" if "VET" in raw_bloc else ("MARKET" if "MARKET" in raw_bloc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_bloc else ("FIELD" if "FIELD" in raw_bloc else "OTHER")))),
           "location_details": be.get('location_details'),
           "ai_technician_name": ai.get('ai_technician_name') or ai.get('ai_technician_id') or be.get('ai_technician_name'),
           "ai_technique": ai.get('ai_technique') or be.get('ai_technique'),
