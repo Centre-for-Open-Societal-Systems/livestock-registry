@@ -80,6 +80,8 @@ registry:
       tag: 0.0.0-develop
     envVars:
       REGISTRY_PARTNER_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
+      # /partner/ingest_data is patched by the ODK hooks (see celeryWorker).
+      ODK_HOOKS_ENABLED: "true"
   # Celery prefork concurrency. Celery's default is one worker process per CPU
   # core of the HOST, not per the container's CPU limit — so on a 48-core node
   # both pods fork 48 Python processes and the memory they need has nothing to
@@ -100,6 +102,31 @@ registry:
     envVars:
       CELERY_OPTS: "worker -Q registry_worker_queue --loglevel=info --concurrency=4"
       REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: "commons-postgresql"
+      # ODK / partner ingestion hooks (livestock-extension __init__.py): loaded
+      # only by the ingestion processes (celery, partner-api), never staff-api.
+      ODK_HOOKS_ENABLED: "true"
+      # Token the worker starts an ingested (ODK / File Import) submission's
+      # AWE approval with (docker/celery/core-patches, _awe_service_token):
+      # client-credentials on the portal client, which therefore needs
+      # "Service accounts enabled" in Keycloak. Unset = old behaviour (the
+      # submission is finalized without an approval request).
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_URL: "{{ tpl .Values.global.keycloakBaseUrl $ }}/realms/{{ tpl .Values.global.keycloakRealm $ }}/protocol/openid-connect/token"
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_ISSUER_BASE_URL: '{{ tpl .Values.global.keycloakBaseUrl $ }}'
+      REGISTRY_CELERY_WORKERS_AWE_CLIENT_ID: '{{ tpl .Values.global.authClientId $ }}'
+      # The AWE client the worker creates that approval request with. The
+      # subchart hands the global.awe* values to staff-api only; the worker
+      # reads them under its own prefix. No HMAC secret: the worker never
+      # receives AWE's decision webhooks.
+      REGISTRY_CELERY_WORKERS_AWE_ENABLED: '{{ .Values.global.aweEnabled }}'
+      REGISTRY_CELERY_WORKERS_AWE_BASE_URL: '{{ tpl .Values.global.aweBaseUrl $ }}'
+      REGISTRY_CELERY_WORKERS_AWE_HTTP_TIMEOUT_SECONDS: '{{ .Values.global.aweHttpTimeoutSeconds }}'
+      REGISTRY_CELERY_WORKERS_AWE_DEFAULT_CALLBACK_URL: '{{ tpl .Values.global.aweDefaultCallbackUrl $ }}'
+      REGISTRY_CELERY_WORKERS_AWE_CALLBACK_SECRET_ID: '{{ tpl .Values.global.aweCallbackSecretId $ }}'
+    envVarsFrom:
+      REGISTRY_CELERY_WORKERS_AWE_CLIENT_SECRET:
+        secretKeyRef:
+          name: '{{ tpl .Values.global.authClientSecret $ }}'
+          key: '{{ tpl .Values.global.authClientSecretKey $ }}'
   celeryBeat:
     image:
       repository: openg2p/openg2p-livestock-registry-celery
@@ -107,6 +134,7 @@ registry:
     envVars:
       CELERY_OPTS: "worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db --concurrency=4"
       REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME: "commons-postgresql"
+      ODK_HOOKS_ENABLED: "true"
   dbSeed:
     image:
       repository: openg2p/openg2p-livestock-registry-db-seed
