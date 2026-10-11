@@ -509,6 +509,9 @@ services:
       REGISTRY_PARTNER_API_MINIO_BUCKET_NAME: ${DOCUMENTS_BUCKET}
       REGISTRY_PARTNER_API_TEMPLATE_BUCKET_NAME: ${TEMPLATE_BUCKET}
       REGISTRY_PARTNER_API_AUDIT_ENABLED: ${AUDIT_ENABLED}
+      # Partner ingest (/partner/ingest_data) is patched by the ODK hooks; the
+      # staff-api never loads them (see livestock-extension __init__.py).
+      ODK_HOOKS_ENABLED: "true"
     # The base image's gunicorn binds 0.0.0.0:8000 regardless of
     # REGISTRY_PARTNER_API_PORT, so the container port is fixed at 8000. Nothing
     # inside the network calls the partner API, so an unequal mapping is fine.
@@ -564,6 +567,24 @@ services:
       REGISTRY_CELERY_WORKERS_ID_GENERATION_ALLOCATION_PATH: '/idgenerator/{id_type}/id'
       CELERY_APP: openg2p_registry_celery_worker.main.celery_app
       CELERY_OPTS: worker -Q registry_worker_queue --loglevel=info
+
+      # ODK / partner ingestion hooks (livestock-extension __init__): only the
+      # ingestion processes load them; see ODK_HOOKS_ENABLED in __init__.py.
+      ODK_HOOKS_ENABLED: "true"
+      # Token the worker starts an ingested submission's AWE approval with
+      # (docker/celery/core-patches: _awe_service_token). The client needs
+      # "Service accounts enabled" in Keycloak; local/.env ODK_INGEST_CLIENT_*.
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_ISSUER_BASE_URL: http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}
+      REGISTRY_CELERY_WORKERS_AWE_CLIENT_ID: ${ODK_INGEST_CLIENT_ID:-${AUTH_CLIENT_ID}}
+      REGISTRY_CELERY_WORKERS_AWE_CLIENT_SECRET: ${ODK_INGEST_CLIENT_SECRET:-${AUTH_CLIENT_SECRET}}
+      # The AWE client the worker creates that approval request with (the
+      # platform chart only gives these to staff-api). No HMAC secret here:
+      # the worker never receives AWE's decision webhooks.
+      REGISTRY_CELERY_WORKERS_AWE_ENABLED: ${AWE_ENABLED}
+      REGISTRY_CELERY_WORKERS_AWE_BASE_URL: http://awe:8000
+      REGISTRY_CELERY_WORKERS_AWE_DEFAULT_CALLBACK_URL: http://staff-api:8000/awe/webhooks/decision
+      REGISTRY_CELERY_WORKERS_AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
     depends_on:
       staff-api:
         condition: service_healthy
@@ -611,6 +632,7 @@ services:
       CALVING_REMINDER_FALLBACK_EMAILS: ${CALVING_REMINDER_FALLBACK_EMAILS:-vet.duty-officer@example.com}
       CELERY_APP: openg2p_registry_celery_beat.main.celery_app
       CELERY_OPTS: worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db
+      ODK_HOOKS_ENABLED: "true"
     depends_on:
       staff-api:
         condition: service_healthy

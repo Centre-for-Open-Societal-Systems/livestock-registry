@@ -203,4 +203,82 @@ apply(
     "intake_form_register_ingest_worker.py: process a submission's intake rows in creation order",
 )
 
+# ─── Fix: an ingested (ODK / partner) submission's approval workflow never
+# started. ingest_data_worker finalizes the submission it saved, and
+# finalize_submission_with_session starts the AWE approval request for it —
+# but the worker passed no bearer token (a worker has no logged-in user), so
+# AWE refused with AWE_BEARER_TOKEN_REQUIRED or, with AWE disabled on the
+# worker, the submission was finalized with no approval request at all: FINAL
+# and PENDING forever, with no task for any approver. A staff "Submit" sends
+# the user's token; the worker now sends a client-credentials token of its
+# own Keycloak client (REGISTRY_CELERY_WORKERS_AWE_CLIENT_ID, a client with
+# Service accounts enabled), the same way the farmer registry's worker does.
+# Unset settings leave the old behaviour (no token), so a deployment that
+# has not configured the client is not broken by this patch, only unchanged.
+apply(
+    f"{WORKER_BASE}/tasks/ingest_data_worker.py",
+    '''async def _finalize_submission_async(submission_id: str, session) -> None:
+    await G2PIntakeFormDataService.get_component().finalize_submission_with_session(
+        submission_id,
+        session,
+    )''',
+    '''async def _finalize_submission_async(submission_id: str, session) -> None:
+    await G2PIntakeFormDataService.get_component().finalize_submission_with_session(
+        submission_id,
+        session,
+        bearer_token=await _awe_service_token(),
+    )
+
+
+_awe_token_cache: dict = {}
+
+
+async def _awe_service_token() -> str | None:
+    """Client-credentials token the ingested submission's approval workflow is
+    started with (REGISTRY_CELERY_WORKERS_AWE_TOKEN_URL / _CLIENT_ID /
+    _CLIENT_SECRET). None when those are unset. Cached until shortly before
+    it expires. REGISTRY_CELERY_WORKERS_AWE_TOKEN_ISSUER_BASE_URL, when set,
+    is presented as X-Forwarded-* so a token fetched over Keycloak's
+    in-cluster address still carries the public issuer AWE trusts."""
+    import os
+    import time
+
+    import httpx
+
+    token_url = os.environ.get("REGISTRY_CELERY_WORKERS_AWE_TOKEN_URL")
+    client_id = os.environ.get("REGISTRY_CELERY_WORKERS_AWE_CLIENT_ID")
+    client_secret = os.environ.get("REGISTRY_CELERY_WORKERS_AWE_CLIENT_SECRET")
+    if not (token_url and client_id and client_secret):
+        return None
+    if _awe_token_cache.get("expires_at", 0) > time.time() + 30:
+        return _awe_token_cache["token"]
+    headers = {}
+    issuer_base = os.environ.get("REGISTRY_CELERY_WORKERS_AWE_TOKEN_ISSUER_BASE_URL")
+    if issuer_base:
+        from urllib.parse import urlsplit
+
+        public = urlsplit(issuer_base)
+        headers = {
+            "X-Forwarded-Host": public.hostname or "",
+            "X-Forwarded-Proto": public.scheme or "https",
+            "X-Forwarded-Port": str(public.port or (443 if public.scheme != "http" else 80)),
+        }
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            token_url,
+            headers=headers,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+        )
+        response.raise_for_status()
+        body = response.json()
+    _awe_token_cache["token"] = body["access_token"]
+    _awe_token_cache["expires_at"] = time.time() + int(body.get("expires_in", 60))
+    return body["access_token"]''',
+    "ingest_data_worker.py: start the ingested submission's approval workflow with a service-account token",
+)
+
 print("ALL PATCHES APPLIED")
