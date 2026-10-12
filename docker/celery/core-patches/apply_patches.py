@@ -400,4 +400,79 @@ apply(
     "ingest_data_worker.py: sections saved by the ODK user too",
 )
 
+# ─── File Import: one Livestock record per farmer, not one per row. The
+# livestock import template has one row per animal; the worker sent every
+# row to ingestion on its own, so a farmer with three animals became three
+# separate records. Rows that name the same farmer (Farmer ID, else Fayda
+# FAN ID) are now merged into one record whose `livestock` list holds every
+# animal (the shape ls_odk_transform.j2 reads); the farmer and location
+# columns come from the first row that fills them. Excel date cells, which
+# arrive as "YYYY-MM-DD 00:00:00", are cut back to the date. Files without
+# both farmer and animal columns are left exactly as parsed.
+apply(
+    f"{WORKER_BASE}/tasks/import_file_process_worker.py",
+    """            all_records = parse_file_to_records(
+                file_content, catalog_doc.source_filename
+            )
+""",
+    """            all_records = parse_file_to_records(
+                file_content, catalog_doc.source_filename
+            )
+            all_records = _group_livestock_rows(all_records)
+""",
+    "import_file_process_worker.py: group a farmer's animal rows into one record",
+)
+apply(
+    f"{WORKER_BASE}/tasks/import_file_process_worker.py",
+    """def parse_file_to_records(file_content: bytes, filename: str) -> list[dict[str, Any]]:
+""",
+    """_LIVESTOCK_ANIMAL_COLUMNS = (
+    "ear_tag_id", "secondary_identifier", "species", "breed", "colour", "weight",
+    "quantity", "gender", "date_of_birth", "age", "health_status",
+    "vaccination_status", "registration_date",
+)
+
+
+def _group_livestock_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    \"\"\"Merge the animal rows of one farmer into one record with a `livestock` list.\"\"\"
+    import re
+
+    if not records:
+        return records
+    columns = set(records[0].keys())
+    if not ({"farmer_id", "fayda_fan_id"} & columns) or not ({"ear_tag_id", "species"} & columns):
+        return records
+    date_only = re.compile(r"^(\\d{4}-\\d{2}-\\d{2})[ T]00:00:00$")
+
+    def blank(value):
+        return value is None or str(value).strip() == ""
+
+    grouped: list[dict[str, Any]] = []
+    by_farmer: dict[str, dict[str, Any]] = {}
+    for row in records:
+        row = {k: (date_only.sub(r"\\1", v.strip()) if isinstance(v, str) else v) for k, v in row.items()}
+        animal = {c: row[c] for c in _LIVESTOCK_ANIMAL_COLUMNS if c in row and not blank(row[c])}
+        holding = {k: v for k, v in row.items() if k not in _LIVESTOCK_ANIMAL_COLUMNS}
+        key = str(row.get("farmer_id") or row.get("fayda_fan_id") or "").strip().upper()
+        target = by_farmer.get(key) if key else None
+        if target is None:
+            target = dict(holding)
+            target["livestock"] = []
+            grouped.append(target)
+            if key:
+                by_farmer[key] = target
+        for k, v in holding.items():
+            if blank(target.get(k)) and not blank(v):
+                target[k] = v
+        if animal:
+            target["livestock"].append(animal)
+    _logger.info("File import: %s row(s) grouped into %s record(s)", len(records), len(grouped))
+    return grouped
+
+
+def parse_file_to_records(file_content: bytes, filename: str) -> list[dict[str, Any]]:
+""",
+    "import_file_process_worker.py: helper that groups livestock rows by farmer",
+)
+
 print("ALL PATCHES APPLIED")

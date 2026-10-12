@@ -1139,6 +1139,16 @@ def _patch_ingest_service():
                     }
                     if animal.get("ear_tag_id") or animal.get("species"):
                         row = dict(row, livestock=[animal])
+                # Registration Date is required on an animal; the portal's
+                # dialog fills it with today, so an import row that leaves it
+                # empty gets today too (the template documents this).
+                if isinstance(row, dict) and isinstance(row.get("livestock"), list):
+                    today = date.today().isoformat()
+                    row = dict(row, livestock=[
+                        dict(a, registration_date=today)
+                        if isinstance(a, dict) and _is_blank_cell(a.get("registration_date")) else a
+                        for a in row["livestock"]
+                    ])
                 data = {
                     "body": {
                         "header": {
