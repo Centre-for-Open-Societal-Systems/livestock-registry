@@ -378,123 +378,99 @@ def normalize_species(val: str | None) -> str:
     return "LIVESTOCK_SPECIES_CATTLE"
 
 
+# The ODK form's breed choices (choices sheet, list `breed`, filtered by
+# species) and the LIVESTOCK_BREED value each one stands for. Only these
+# names are translated: anything else is passed through unchanged so the
+# registry's breed check rejects it with a message, instead of being
+# relabelled to some breed of that species. Keep in step with
+# odk/livestock_registry.xlsx and the code list (see odk/test_transform.py).
+_ODK_BREED_CHOICES = {
+    "cattle": {
+        "boran": "LIVESTOCK_BREED_BORAN",
+        "fogera": "LIVESTOCK_BREED_FOGERA",
+        "horro": "LIVESTOCK_BREED_HORRO",
+        "sheko": "LIVESTOCK_BREED_SHEKO",
+        "begait": "LIVESTOCK_BREED_BEGAIT",
+        "arsi": "LIVESTOCK_BREED_ARSI",
+        "barka": "LIVESTOCK_BREED_BARKA",
+        "local_zebu": "LIVESTOCK_BREED_LOCAL_ZEBU",
+        "holstein_friesian_cross": "LIVESTOCK_BREED_HOLSTEIN_CROSS",
+        "jersey_cross": "LIVESTOCK_BREED_JERSEY_CROSS",
+    },
+    "sheep": {
+        "menz": "LIVESTOCK_BREED_MENZ",
+        "afar": "LIVESTOCK_BREED_AFAR_SHEEP",
+        "blackhead_somali": "LIVESTOCK_BREED_BLACKHEAD_SOMALI",
+        "horro": "LIVESTOCK_BREED_HORRO_SHEEP",
+        "bonga": "LIVESTOCK_BREED_BONGA",
+        "washera": "LIVESTOCK_BREED_WASHERA",
+        "dorper_cross": "LIVESTOCK_BREED_DORPER_CROSS",
+        "local": "LIVESTOCK_BREED_LOCAL_SHEEP",
+    },
+    "goat": {
+        "afar": "LIVESTOCK_BREED_AFAR_GOAT",
+        "abergele": "LIVESTOCK_BREED_LOCAL_GOAT",
+        "begait": "LIVESTOCK_BREED_BEGAIT_GOAT",
+        "central_highland": "LIVESTOCK_BREED_CENTRAL_HIGHLAND",
+        "long_eared_somali": "LIVESTOCK_BREED_LONG_EARED_SOMALI",
+        "woito_guji": "LIVESTOCK_BREED_WOITO_GUJI",
+        "boer_cross": "LIVESTOCK_BREED_BOER_CROSS",
+        "local": "LIVESTOCK_BREED_LOCAL_GOAT",
+    },
+    "camel": {
+        "somali": "LIVESTOCK_BREED_SOMALI_CAMEL",
+        "afar": "LIVESTOCK_BREED_AFAR_CAMEL",
+        "local": "LIVESTOCK_BREED_LOCAL_CAMEL",
+    },
+    "donkey": {
+        "abyssinian": "LIVESTOCK_BREED_ABYSSINIAN_DONKEY",
+        "sinnar": "LIVESTOCK_BREED_SINNAR",
+        "local": "LIVESTOCK_BREED_LOCAL_DONKEY",
+    },
+    "horse": {
+        "abyssinian": "LIVESTOCK_BREED_ABYSSINIAN_HORSE",
+        "oromo": "LIVESTOCK_BREED_OROMO_HORSE",
+        "local": "LIVESTOCK_BREED_LOCAL_HORSE",
+    },
+    "mule": {
+        "local": "LIVESTOCK_BREED_LOCAL_MULE",
+    },
+    "poultry": {
+        "bovans_brown": "LIVESTOCK_BREED_BOVANS_BROWN",
+        "isa_brown": "LIVESTOCK_BREED_ISA_BROWN",
+        "sasso": "LIVESTOCK_BREED_SASSO",
+        "koekoek": "LIVESTOCK_BREED_KOEKOEK",
+        "white_leghorn_cross": "LIVESTOCK_BREED_WHITE_LEGHORN_CROSS",
+        "local_chicken": "LIVESTOCK_BREED_LOCAL_CHICKEN",
+    },
+    "pig": {
+        "large_white": "LIVESTOCK_BREED_LARGE_WHITE",
+        "landrace": "LIVESTOCK_BREED_LANDRACE",
+        "local": "LIVESTOCK_BREED_LOCAL_PIG",
+    },
+    "beehive": {
+        "apis_mellifera_scutellata": "LIVESTOCK_BREED_APIS_MELLIFERA",
+    },
+}
+
+
 def normalize_breed(breed_val: str | None, species_val: str | None = None) -> str | None:
-    """Normalize a raw breed string into canonical OpenG2P attribute value_id based on species."""
+    """Translate an ODK breed choice into its LIVESTOCK_BREED value id.
+
+    A value id is returned as is. A form choice name is looked up for the
+    animal's species. Anything else (a breed of another species, a typo, a
+    list the form gained without this map) comes back unchanged, so domain
+    validation rejects the submission rather than the registry storing a
+    different breed than the one recorded in the field.
+    """
     if not breed_val:
         return None
     b = str(breed_val).strip()
-    b_upper = b.upper()
-    b_lower = b.lower()
+    if b.upper().startswith("LIVESTOCK_BREED_"):
+        return b.upper()
     sp = normalize_species(species_val) if species_val else None
-
-    if b_upper.startswith("LIVESTOCK_BREED_"):
-        return b_upper
-
-    if sp == "LIVESTOCK_SPECIES_GOAT":
-        if "begait" in b_lower:
-            return "LIVESTOCK_BREED_BEGAIT_GOAT"
-        if "abergelle" in b_lower:
-            return "LIVESTOCK_BREED_ABERGELLE"
-        if "afar" in b_lower:
-            return "LIVESTOCK_BREED_AFAR_GOAT"
-        if "boer" in b_lower:
-            return "LIVESTOCK_BREED_BOER_CROSS"
-        if "central" in b_lower or "highland" in b_lower:
-            return "LIVESTOCK_BREED_CENTRAL_HIGHLAND"
-        if "somali" in b_lower or "long" in b_lower:
-            return "LIVESTOCK_BREED_LONG_EARED_SOMALI"
-        if "woito" in b_lower or "guji" in b_lower:
-            return "LIVESTOCK_BREED_WOITO_GUJI"
-        return "LIVESTOCK_BREED_LOCAL_GOAT"
-
-    elif sp == "LIVESTOCK_SPECIES_CATTLE":
-        if "begait" in b_lower:
-            return "LIVESTOCK_BREED_BEGAIT"
-        if "boran" in b_lower:
-            return "LIVESTOCK_BREED_BORAN"
-        if "fogera" in b_lower:
-            return "LIVESTOCK_BREED_FOGERA"
-        if "horro" in b_lower:
-            return "LIVESTOCK_BREED_HORRO"
-        if "sheko" in b_lower:
-            return "LIVESTOCK_BREED_SHEKO"
-        if "arsi" in b_lower:
-            return "LIVESTOCK_BREED_ARSI"
-        if "barka" in b_lower:
-            return "LIVESTOCK_BREED_BARKA"
-        if "holstein" in b_lower:
-            return "LIVESTOCK_BREED_HOLSTEIN_CROSS"
-        if "jersey" in b_lower:
-            return "LIVESTOCK_BREED_JERSEY_CROSS"
-        return "LIVESTOCK_BREED_LOCAL_ZEBU"
-
-    elif sp == "LIVESTOCK_SPECIES_SHEEP":
-        if "menz" in b_lower:
-            return "LIVESTOCK_BREED_MENZ"
-        if "afar" in b_lower:
-            return "LIVESTOCK_BREED_AFAR_SHEEP"
-        if "blackhead" in b_lower or "somali" in b_lower:
-            return "LIVESTOCK_BREED_BLACKHEAD_SOMALI"
-        if "bonga" in b_lower:
-            return "LIVESTOCK_BREED_BONGA"
-        if "horro" in b_lower:
-            return "LIVESTOCK_BREED_HORRO_SHEEP"
-        if "washera" in b_lower:
-            return "LIVESTOCK_BREED_WASHERA"
-        if "dorper" in b_lower:
-            return "LIVESTOCK_BREED_DORPER_CROSS"
-        return "LIVESTOCK_BREED_LOCAL_SHEEP"
-
-    elif sp == "LIVESTOCK_SPECIES_CAMEL":
-        if "afar" in b_lower:
-            return "LIVESTOCK_BREED_AFAR_CAMEL"
-        if "somali" in b_lower:
-            return "LIVESTOCK_BREED_SOMALI_CAMEL"
-        return "LIVESTOCK_BREED_LOCAL_CAMEL"
-
-    elif sp == "LIVESTOCK_SPECIES_DONKEY":
-        if "abyssinian" in b_lower:
-            return "LIVESTOCK_BREED_ABYSSINIAN_DONKEY"
-        if "sinnar" in b_lower:
-            return "LIVESTOCK_BREED_SINNAR"
-        return "LIVESTOCK_BREED_LOCAL_DONKEY"
-
-    elif sp == "LIVESTOCK_SPECIES_HORSE":
-        if "abyssinian" in b_lower:
-            return "LIVESTOCK_BREED_ABYSSINIAN_HORSE"
-        if "oromo" in b_lower:
-            return "LIVESTOCK_BREED_OROMO_HORSE"
-        return "LIVESTOCK_BREED_LOCAL_HORSE"
-
-    elif sp == "LIVESTOCK_SPECIES_MULE":
-        return "LIVESTOCK_BREED_LOCAL_MULE"
-
-    elif sp == "LIVESTOCK_SPECIES_PIG":
-        if "landrace" in b_lower:
-            return "LIVESTOCK_BREED_LANDRACE"
-        if "white" in b_lower or "large" in b_lower:
-            return "LIVESTOCK_BREED_LARGE_WHITE"
-        return "LIVESTOCK_BREED_LOCAL_PIG"
-
-    elif sp == "LIVESTOCK_SPECIES_POULTRY":
-        if "bovans" in b_lower:
-            return "LIVESTOCK_BREED_BOVANS_BROWN"
-        if "isa" in b_lower:
-            return "LIVESTOCK_BREED_ISA_BROWN"
-        if "koekoek" in b_lower:
-            return "LIVESTOCK_BREED_KOEKOEK"
-        if "sasso" in b_lower:
-            return "LIVESTOCK_BREED_SASSO"
-        if "leghorn" in b_lower or "white" in b_lower:
-            return "LIVESTOCK_BREED_WHITE_LEGHORN_CROSS"
-        return "LIVESTOCK_BREED_LOCAL_CHICKEN"
-
-    elif sp == "LIVESTOCK_SPECIES_BEEHIVE":
-        return "LIVESTOCK_BREED_APIS_MELLIFERA"
-
-    if "begait" in b_lower:
-        return "LIVESTOCK_BREED_BEGAIT"
-    return b
+    species_key = (sp or "").replace("LIVESTOCK_SPECIES_", "").lower()
+    return _ODK_BREED_CHOICES.get(species_key, {}).get(b.lower(), b)
 
 
 def normalize_vaccine(vaccine_val: str | None, species_val: str | None = None) -> str:
