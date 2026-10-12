@@ -165,6 +165,18 @@ services:
       - ./local/keycloak/realm-staff.json:/opt/keycloak/data/import/realm-staff.json:ro
     ports:
       - '${KEYCLOAK_PORT}:8080'
+    # awe waits on service_healthy. The image ships no curl/wget, so probe
+    # /health/ready (served on 8080 in 24.x, enabled by KC_HEALTH_ENABLED)
+    # over bash's /dev/tcp.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q '"UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -427,6 +439,12 @@ services:
       REGISTRY_STAFF_PORTAL_API_AWE_DEFAULT_CALLBACK_URL: http://staff-api:8000/awe/webhooks/decision
       REGISTRY_STAFF_PORTAL_API_AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
       REGISTRY_STAFF_PORTAL_API_AWE_CALLBACK_HMAC_SECRET: ${AWE_CALLBACK_HMAC_SECRET}
+      # The decision-webhook verifier (core g2p_awe_webhook_service) reads these
+      # under the CORE prefix; without them every AWE callback is a 401
+      # ("AWE webhook HMAC secret is not configured") and submissions stay
+      # PENDING forever.
+      REGISTRY_CORE_AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
+      REGISTRY_CORE_AWE_CALLBACK_HMAC_SECRET: ${AWE_CALLBACK_HMAC_SECRET}
       # Application reference (the "2026SEP18-27264x" id on every submission):
       # the platform default is date + seconds-of-day + ONE random digit, so
       # two submissions in the same second collide 1 in 10 and the second one
@@ -450,6 +468,28 @@ services:
       # images and PDF. Add the spreadsheet types (Excel can be sniffed as zip).
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ${DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS:-png,jpg,jpeg,webp,pdf,csv,xlsx,xls}
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: ${DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES:-image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip}
+      # Farmer Registry enrichment of the intake form's Farmer section
+      # (farmer_registry_enrichment.py): a consent-signed DCI search by Farmer
+      # ID whose result replaces the typed name/gender/DOB/mobile. Off unless
+      # FARMER_REGISTRY_ENRICHMENT_ENABLED=true. The Farmer Registry runs as
+      # its own stack, reached through the host. SENDER_ID is the Partner
+      # Management partner id WITHOUT its PARTNER_ prefix (the registry adds
+      # it); the private key is a file under local/secrets/ (gitignored).
+      FARMER_REGISTRY_ENRICHMENT_ENABLED: ${FARMER_REGISTRY_ENRICHMENT_ENABLED:-false}
+      FARMER_REGISTRY_DCI_SEARCH_URL: ${FARMER_REGISTRY_DCI_SEARCH_URL:-http://host.docker.internal:8006/dci/registry/sync/search}
+      FARMER_REGISTRY_SENDER_ID: ${FARMER_REGISTRY_SENDER_ID:-LIVESTOCK_TEST}
+      FARMER_REGISTRY_RECEIVER_ID: ${FARMER_REGISTRY_RECEIVER_ID:-farmer-registry}
+      FARMER_REGISTRY_SIGNING_KEY_PATH: /run/secrets/livestock/${FARMER_REGISTRY_SIGNING_KEY_FILE:-farmer-registry-partner.pem}
+      FARMER_REGISTRY_SIGNING_KEY_KID: ${FARMER_REGISTRY_SIGNING_KEY_KID:-}
+      FARMER_REGISTRY_SIGNING_ALGORITHM: ${FARMER_REGISTRY_SIGNING_ALGORITHM:-RS256}
+      FARMER_REGISTRY_CONSENT_AUDIENCE: ${FARMER_REGISTRY_CONSENT_AUDIENCE:-https://farmer.registry}
+      FARMER_REGISTRY_CONSENT_DATA_CONTROLLER: ${FARMER_REGISTRY_CONSENT_DATA_CONTROLLER:-farmer-registry}
+      FARMER_REGISTRY_CONSENT_SCOPES: ${FARMER_REGISTRY_CONSENT_SCOPES:-farmer_personal_details}
+      FARMER_REGISTRY_CONSENT_PURPOSE: ${FARMER_REGISTRY_CONSENT_PURPOSE:-loan_origination}
+    volumes:
+      - ./local/secrets:/run/secrets/livestock:ro
+    extra_hosts:
+      - host.docker.internal:host-gateway
     ports:
       - '${STAFF_API_PORT}:8000'
     depends_on:
@@ -885,7 +925,7 @@ services:
       CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
       CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
       CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
-      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+      CONNECTOR_PARTNER_INGEST_BASE_URL: ${CONNECTOR_PARTNER_INGEST_BASE_URL:-http://partner-api:8000}
       CONNECTOR_APP_HOST: 0.0.0.0
       CONNECTOR_APP_PORT: 8050
       CONNECTOR_CORS_ORIGINS: "*"
@@ -916,12 +956,41 @@ services:
       CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
       CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
       CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
-      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+      CONNECTOR_PARTNER_INGEST_BASE_URL: ${CONNECTOR_PARTNER_INGEST_BASE_URL:-http://partner-api:8000}
     depends_on:
       connector-api:
         condition: service_healthy
       redis:
         condition: service_healthy
+  # Consumes farmer change-request events from Kafka (see farmer-events-kafka/).
+  # Opt-in: `docker compose --env-file local/.env --profile events up -d connector-consumer`
+  # after `docker network create oan-events` and starting the broker. It sits
+  # behind a profile so the default `up` does not need that network to exist.
+  connector-consumer:
+    profiles: ["events"]
+    build:
+      context: ./openg2p-connector-service
+      dockerfile: Dockerfile
+      args:
+        CONNECTOR_PIP_EXTRAS: kafka
+    command: ["consumer"]
+    restart: unless-stopped
+    environment:
+      CONNECTOR_DB_HOSTNAME: postgres
+      CONNECTOR_DB_PORT: 5432
+      CONNECTOR_DB_DBNAME: ${CONNECTOR_DB:-connector}
+      CONNECTOR_DB_USERNAME: ${CONNECTOR_DB_USER:-connector_user}
+      CONNECTOR_DB_PASSWORD: ${CONNECTOR_DB_PASSWORD:-connector_pass}
+      CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
+      CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
+      CONNECTOR_PARTNER_INGEST_BASE_URL: ${CONNECTOR_PARTNER_INGEST_BASE_URL:-http://partner-api:8000}
+    depends_on:
+      connector-api:
+        condition: service_healthy
+    networks:
+      - default
+      - oan-events
   connector-ui:
     build:
       context: ./openg2p-connector-ui
@@ -935,3 +1004,8 @@ services:
 volumes:
   postgres-data:
   minio-data:
+
+networks:
+  oan-events:
+    external: true
+    name: oan-events

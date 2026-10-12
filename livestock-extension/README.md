@@ -47,6 +47,25 @@ person held elsewhere".
 `farmer_id` is validated as `FR-` followed by exactly ten digits, matching
 `_check_farmer_id_format` in the Odoo module.
 
+### Enriched from the Farmer Registry
+
+When staff submit (finalize) an intake form whose Farmer section has a Farmer
+ID, the registry looks that farmer up in the Farmer Registry and overwrites the
+typed first / middle / last name, gender, date of birth and mobile number with
+the Farmer Registry's values (`farmer_registry_enrichment.py`, called from
+`G2PRegisterDomainServiceFarmer.pre_finalize`, a hook added by
+`docker/staff-api/core-patches/apply_patches.py` Fix 7). Saving a section does
+not call the Farmer Registry. The lookup is a DCI
+`idtype-value` search signed with this registry's partner key from Partner
+Management, carrying a freshly signed consent object for the Consent Manager.
+Only the cleaned fields are kept; the raw response is not stored.
+
+It applies to web intake only (ODK and File Import do not pass through that
+hook), is off unless `FARMER_REGISTRY_ENRICHMENT_ENABLED=true` (see the
+`FARMER_REGISTRY_*` settings in `docker-compose.yml` / the chart values), and
+fails open: if the Farmer Registry is unreachable, rejects the call, or does
+not return exactly one farmer, the operator's entries stand.
+
 ### Two identifiers for a holding
 
 * **`oan_id`** is the OAN identifier built from the farmer code and first name,
