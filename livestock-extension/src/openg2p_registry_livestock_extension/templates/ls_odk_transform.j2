@@ -109,7 +109,16 @@
 } %}
 
 {% set fayda_val = d.get('fayda_id') or f.get('fayda_fan_id') or f.get('fayda_id') or d.get('fayda_fan_id') or '' %}
-{% set farmer_name_val = d.get('owner_id') or f.get('farmer_name') or ((f.get('first_name', '') ~ ' ' ~ f.get('middle_name', '') ~ ' ' ~ f.get('last_name', '')) | trim) %}
+{# Farmer fields: the ODK form's `farmer` group, or the flat columns of a
+   File Import row (first_name, last_name, ... on the row itself). A blank or
+   missing part is left out of the full name, never rendered as "None". #}
+{% set fn_val = f.get('first_name') or d.get('first_name') or '' %}
+{% set mn_val = f.get('middle_name') or d.get('middle_name') or '' %}
+{% set ln_val = f.get('last_name') or d.get('last_name') or '' %}
+{% set f_gender_val = f.get('gender') or d.get('gender') or '' %}
+{% set f_dob_val = f.get('date_of_birth') or d.get('farmer_date_of_birth') or none %}
+{% set f_mobile_val = f.get('mobile_number') or d.get('mobile_number') or none %}
+{% set farmer_name_val = d.get('owner_id') or f.get('farmer_name') or d.get('farmer_name') or ([fn_val, mn_val, ln_val] | map('string') | map('trim') | select | join(' ')) %}
 {% set farmer_id_val = f.get('farmer_id') or d.get('farmer_id') or '' %}
 {% set submission_date = f.get('registration_date') or sys.get('submissionDate') or (d.get('start', '').split('T')[0]) or '' %}
 
@@ -126,12 +135,12 @@
       "farmer_id": {{ farmer_id_val | tojson }},
       "fayda_fan_id": {{ fayda_val | tojson }},
       "farmer_name": {{ farmer_name_val | tojson }},
-      "first_name": {{ f.get('first_name') | tojson }},
-      "middle_name": {{ f.get('middle_name') | tojson }},
-      "last_name": {{ f.get('last_name') | tojson }},
+      "first_name": {{ (fn_val or none) | tojson }},
+      "middle_name": {{ (mn_val or none) | tojson }},
+      "last_name": {{ (ln_val or none) | tojson }},
       "gender": {{ ((f.get('gender') | upper) if f.get('gender') else none) | tojson }},
-      "date_of_birth": {{ f.get('date_of_birth') | tojson }},
-      "mobile_number": {{ f.get('mobile_number') | tojson }},
+      "date_of_birth": {{ f_dob_val | tojson }},
+      "mobile_number": {{ f_mobile_val | tojson }},
       "registration_date": {{ submission_date | tojson }},
       "status": "ACTIVE",
       "region": {{ fl_region_val | tojson }},

@@ -34,6 +34,13 @@ except Exception:
 _logger = logging.getLogger("openg2p.odk_ingest_hooks")
 
 
+def _full_name(*parts) -> str | None:
+    """Join the non-blank name parts; None when there are none. A missing part
+    used to be formatted in as the text "None" ("None None None")."""
+    name = " ".join(str(p).strip() for p in parts if p is not None and str(p).strip() and str(p).strip() != "None")
+    return name or None
+
+
 def _make_json_serializable(obj):
     """Recursively convert dates/datetimes to ISO strings for JSON serialization."""
     if isinstance(obj, dict):
@@ -720,7 +727,7 @@ def _patch_celery_ingest_worker():
                             farmer_id = None
                             fayda_fan_id = None
                             if f_row:
-                                farmer_name = f_row.farmer_name or f"{f_row.first_name or ''} {f_row.middle_name or ''} {f_row.last_name or ''}".strip() or None
+                                farmer_name = f_row.farmer_name or _full_name(f_row.first_name, f_row.middle_name, f_row.last_name)
                                 farmer_id = f_row.farmer_id
                                 fayda_fan_id = f_row.fayda_fan_id
 
@@ -913,7 +920,7 @@ def _patch_celery_ingest_worker():
                     f_id_rows = transformed_data.get("ls_farmer_identity") or []
                     if f_id_rows and isinstance(f_id_rows[0], dict):
                         f0 = f_id_rows[0]
-                        f_name = f0.get("farmer_name") or f"{f0.get('first_name', '')} {f0.get('middle_name', '')} {f0.get('last_name', '')}".strip() or None
+                        f_name = f0.get("farmer_name") or _full_name(f0.get("first_name"), f0.get("middle_name"), f0.get("last_name"))
                         f_id = f0.get("farmer_id")
                         f_fan = f0.get("fayda_fan_id")
 
