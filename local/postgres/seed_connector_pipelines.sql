@@ -65,3 +65,38 @@ ON CONFLICT (connector_id) DO UPDATE SET
     auth_type = EXCLUDED.auth_type,
     auth_secret_json = EXCLUDED.auth_secret_json,
     webhook_verifier = EXCLUDED.webhook_verifier;
+
+-- Farmer registry change-request events (Kafka). Read by `connector-consumer`
+-- (compose profile `events`). Starts paused: unpause it once the broker is up
+-- and the farmer-exists check in the livestock extension is in place, since
+-- until then every event would be ingested whether or not the farmer is known.
+-- The broker is farmer-events-kafka/ (network oan-events, host kafka:9094).
+INSERT INTO connector_definitions (
+    connector_id, name, platform, transport_type, enabled, paused, data_model_mnemonic,
+    g2p_sender_id, g2p_register_mnemonic,
+    source_config_json, auth_type, webhook_verifier
+) VALUES
+(
+    '22b33c44d55e66f77a88b99c00d11e22',
+    'Livestock Registry - Farmer CR Events',
+    'farmer_registry_events',
+    'kafka_consumer',
+    true,
+    true,
+    'MY_DATA_MODEL',
+    'Livestock',
+    'Farmer',
+    '{"bootstrap_servers": "kafka:9094", "topic": "openg2p.farmer.cr.approved", "consumer_group": "livestock-registry", "idempotency_key_path": "event_id", "max_poll_records": 50, "target_url": "http://partner-api:8000/partner/ingest_data", "target_headers": {"partner-id": "livestock-partner", "Content-Type": "application/json"}}',
+    'none',
+    'hmac_sha256'
+)
+ON CONFLICT (connector_id) DO UPDATE SET
+    name = EXCLUDED.name,
+    platform = EXCLUDED.platform,
+    transport_type = EXCLUDED.transport_type,
+    data_model_mnemonic = EXCLUDED.data_model_mnemonic,
+    g2p_sender_id = EXCLUDED.g2p_sender_id,
+    g2p_register_mnemonic = EXCLUDED.g2p_register_mnemonic,
+    source_config_json = EXCLUDED.source_config_json,
+    auth_type = EXCLUDED.auth_type,
+    webhook_verifier = EXCLUDED.webhook_verifier;

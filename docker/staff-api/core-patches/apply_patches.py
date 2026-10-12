@@ -1268,4 +1268,72 @@ if os.path.exists(STAFF_API_MAIN):
 else:
     print("SKIP: openg2p_registry_staff_api not installed in this image (partner-api) — Fix 6 not applicable")
 
+# ─── Fix 7: new domain-service extension hook, pre_finalize, called once per
+# section when staff click "Submit" on an intake form
+# (finalize_intake_form_submission) — after the submission is marked FINAL but
+# BEFORE its section payloads are built and handed to AWE as source_data, so
+# whatever the hook writes onto the still-draft intake rows is what approvers
+# see and what is later ingested. Added so the Farmer section's Farmer
+# Registry enrichment runs once, on submit, instead of on every section save
+# (post_intake_upsert) — see the livestock extension's
+# g2p_register_domain_service_farmer.py for the override.
+apply(
+    f"{BASE}/services/g2p_register_domain_service.py",
+    '''    async def populate_link_internal_record_id_for_intake_form(self, session: AsyncSession):''',
+    '''    async def pre_finalize(self, rows: list, session: AsyncSession) -> None:
+        """Optional extension hook: runs when an intake-form submission is
+        finalized (staff "Submit"), once per section, with that section's
+        intake-draft ORM rows -- after the submission is marked FINAL and
+        BEFORE its section payloads are built for the AWE approval workflow,
+        so anything set here is what approvers see and what is ingested.
+        No-op by default."""
+        pass
+
+    async def populate_link_internal_record_id_for_intake_form(self, session: AsyncSession):''',
+    "g2p_register_domain_service.py: add pre_finalize hook",
+)
+
+apply(
+    f"{BASE}/services/intake_form_data_service.py",
+    '''        submission.draft_status = IntakeFormStatusEnum.FINAL.value
+        submission.finalized_at = now
+        submission.last_updated_at = now
+        session.add(submission)
+        await session.flush()
+        section_payloads = await self._build_section_payloads(submission, session)''',
+    '''        submission.draft_status = IntakeFormStatusEnum.FINAL.value
+        submission.finalized_at = now
+        submission.last_updated_at = now
+        session.add(submission)
+        await session.flush()
+
+        module = importlib.import_module("openg2p_registry_extensions.register_domain.factory")
+        domain_factory = getattr(module, "G2PRegisterDomainFactory").get_component()
+        for section in await self._get_form_sections(submission.form_id, session):
+            section_register_definition = await self._get_register_definition(section.section_register_id, session)
+            domain_service = domain_factory.get_domain_service(section_register_definition.register_mnemonic)
+            if not domain_service:
+                continue
+            _register_definition, intake_class, _register_class, _schema_class, _history_class = (
+                await self._resolve_submission_models(section.section_register_id, session)
+            )
+            rows = (
+                await session.execute(
+                    select(intake_class).where(
+                        *self._submission_section_filters(
+                            intake_class,
+                            submission.submission_id,
+                            section.section_id,
+                        )
+                    )
+                )
+            ).scalars().all()
+            if rows:
+                await domain_service.pre_finalize(list(rows), session)
+        await session.flush()
+
+        section_payloads = await self._build_section_payloads(submission, session)''',
+    "intake_form_data_service.py: call pre_finalize on submit",
+)
+
 print("ALL PATCHES APPLIED")
