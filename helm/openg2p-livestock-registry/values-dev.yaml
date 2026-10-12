@@ -58,6 +58,15 @@ global: &global
   # live /api/login redirect from livestock-registry-development.oanstaging.com.
   keycloakBaseUrl: "https://keycloak-livestock-development.oanstaging.com"
 
+  # registry-platform 1.2 adds in-app notifications through the commons Novu.
+  # The staff UI gets the public Novu hosts from these two keys; the chart
+  # default 'novu-api.{{ .Release.Namespace }}.openg2p.org' resolves nowhere
+  # and trips the Jenkins placeholder guard. Dev has no public Novu (the
+  # commons-novu secret is optional, so the UI simply shows no notifications);
+  # keep them on the internal domain until a public Novu host exists.
+  notificationApiHostname: "novu-api.live.openg2p.test"
+  notificationWsHostname: "novu-ws.live.openg2p.test"
+
   # Where AWE posts its decision callback. Derived from
   # 'https://staff-{{ registryHostname }}/...' — which now follows the public
   # hostname onto "staff-livestock-registry-development.oanstaging.com", a name
