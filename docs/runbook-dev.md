@@ -99,6 +99,35 @@ users.
 6. **Rejection.** A value the registry does not know (for example an animal
    sex outside Male/Female/Mixed) is rejected with a message, not saved.
 
+## 5a. Repairing records from before the fix (one time)
+
+Two kinds of old records need a one-time repair after the first deploy that
+carries the worker AWE settings and the webhook fix. Do this after section 5
+passes for a fresh record.
+
+**Finalized intakes with no approval workflow** (ODK / File Import records
+that show `FINAL / PENDING` and no task for anyone). In the celery worker pod:
+
+```
+python3 /app/scripts/backfill_awe_workflows.py            # list only, changes nothing
+python3 /app/scripts/backfill_awe_workflows.py --apply    # attach workflows
+```
+
+The list marks each record `WOULD ATTACH`, `INVALID` (fails today's
+validation; the reason is printed), `DUPLICATE` (several intakes from one ODK
+submission) or `NO_SOURCE` (no linked ingestion message). Only the first kind
+is processed by `--apply`. Decide the others with the team, then process a
+chosen record with `--apply --submission-id <id>`. Running it twice creates
+nothing twice: AWE keys the request by the submission.
+
+**Records AWE approved or rejected but the registry still shows PENDING**
+(the AWE callback was refused before the webhook fix). Re-send those
+callbacks from AWE: list the failed deliveries with
+`GET /v1/awe/admin/deliveries?status=<failed status>` and re-queue each with
+`POST /v1/awe/admin/deliveries/{id}/retry` (role `AWE_ADMIN`; the AWE admin
+UI shows the same deliveries). The registry then applies the decision as it
+does for a new one.
+
 ## 6. Where to look when something fails
 
 | Symptom | Likely cause | Where to look |

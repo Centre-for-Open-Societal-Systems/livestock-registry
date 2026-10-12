@@ -17,6 +17,9 @@ ENV REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension
 COPY livestock-extension/ /app/livestock-extension/
 RUN pip install --no-cache-dir /app/livestock-extension
 
+# One-off repair scripts, run by hand in the worker pod (see each file).
+COPY docker/celery/scripts/ /app/scripts/
+
 # Registers the livestock extension's audit-log-retention, outbreak-alert
 # and reminder-email (vaccination/approval/calving) tasks onto celery-beat's
 # own task registry and schedule — see core-patches/apply_patches.py for why
