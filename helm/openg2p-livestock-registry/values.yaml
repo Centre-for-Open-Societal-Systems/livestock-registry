@@ -154,7 +154,10 @@ registry:
     # loads the real Ethiopia hierarchy itself (docker/db-seed/livestock-entrypoint.sh).
     loadGeoData: false
     loadSampleData: false
-    loadImages: true
+    # Off: registry-platform 1.2's db-seed image ships no upload_images.py and
+    # exits 1 when this is on. The images only belong to sample data, which is
+    # off as well (loadSampleData above).
+    loadImages: false
     loadTemplates: true
     envVars:
       # See staffApi.envVars.APPROVER_RESOLVER_SECRET. The resolver's base URL
