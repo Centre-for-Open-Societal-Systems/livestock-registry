@@ -285,6 +285,15 @@
     setter.call(el, value);
     el.dispatchEvent(new Event(el.tagName === "SELECT" ? "change" : "input", { bubbles: true }));
   }
+  // Run fn after the event that triggered it has been fully handled. A value
+  // set on another field from inside a "change" / "input" listener dispatches
+  // that field's own event in the middle of the first one: registry-platform
+  // 1.2's React form then re-renders from state that has not taken the first
+  // change yet, and the first field snaps back (a Vaccine picked on the
+  // Vaccination dialog came back as "Select" because Next Due Date was filled
+  // from inside the Vaccine's change event). Deferring lets React apply the
+  // user's change first.
+  function soon(fn) { return function () { setTimeout(fn, 0); }; }
   function restrictOptions(select, allowed) {
     var opts = select.options;
     for (var i = 0; i < opts.length; i++) {
@@ -313,7 +322,7 @@
     attributeValues(BREED_ATTR).then(function (list) {
       var map = byParent(list);
       var apply = function () { var s = species.value; restrictOptions(breed, s ? (map[s] || {}) : null); };
-      species.addEventListener("change", apply);
+      species.addEventListener("change", soon(apply));
       observeOptions(breed, apply);
       apply();
     });
@@ -384,7 +393,7 @@
     };
     attributeValuesWithConfig("LIVESTOCK_SPECIES").then(function (list) {
       list.forEach(function (v) { if (v && v.value_id) byId[v.value_id] = v; });
-      species.addEventListener("change", apply);
+      species.addEventListener("change", soon(apply));
       if (sex) observeOptions(sex, apply);
       apply();
     });
@@ -467,17 +476,17 @@
       var d = readDate(given), now = new Date();
       if (d && d > new Date(now.getFullYear(), now.getMonth(), now.getDate())) setValue(given, writeDate(given, now));
     };
-    given.addEventListener("change", clampToToday);
-    given.addEventListener("blur", clampToToday);
+    given.addEventListener("change", soon(clampToToday));
+    given.addEventListener("blur", soon(clampToToday));
     var apply = function () {
       var n = days[vaccine.value], base = readDate(given);
       if (!n || !base) return;
       var want = writeDate(next, new Date(base.getFullYear(), base.getMonth(), base.getDate() + n));
       if (next.value !== want) setValue(next, want);
     };
-    vaccine.addEventListener("change", apply);
-    given.addEventListener("input", apply);
-    given.addEventListener("change", apply);
+    vaccine.addEventListener("change", soon(apply));
+    given.addEventListener("input", soon(apply));
+    given.addEventListener("change", soon(apply));
     // the platform fills the "today" default after the dialog first renders
     var timer = setInterval(function () {
       if (!document.body.contains(dialog)) { clearInterval(timer); return; }
@@ -557,8 +566,8 @@
     if (!dialog.__lrOutcomeObserver) {
       dialog.__lrOutcomeObserver = new MutationObserver(apply);
       dialog.__lrOutcomeObserver.observe(dialog, { childList: true, subtree: true });
-      dialog.addEventListener("input", apply);
-      dialog.addEventListener("change", apply);
+      dialog.addEventListener("input", soon(apply));
+      dialog.addEventListener("change", soon(apply));
     }
     apply();
   }
