@@ -213,10 +213,15 @@ _VALID_SPECIES_SET = {
 }
 
 
-def normalize_species(val: str | None) -> str:
-    """Normalize a raw species string into canonical OpenG2P attribute value_id."""
-    if not val:
-        return "LIVESTOCK_SPECIES_CATTLE"
+def normalize_species(val: str | None) -> str | None:
+    """Normalize a raw species string into canonical OpenG2P attribute value_id.
+
+    A missing species stays None and an unrecognised one comes back as given,
+    so the registry's own checks refuse the record (species is required, and
+    must be a value of LIVESTOCK_SPECIES). Both used to become Cattle, which
+    stored a wrong species without a word."""
+    if val is None or not str(val).strip():
+        return None
     s = str(val).strip()
     if s.upper() in _VALID_SPECIES_SET:
         return s.upper()
@@ -233,7 +238,7 @@ def normalize_species(val: str | None) -> str:
     for k, v in _SPECIES_CANONICAL_MAP.items():
         if k in s_low:
             return v
-    return "LIVESTOCK_SPECIES_CATTLE"
+    return s
 
 
 # The ODK form's breed choices (choices sheet, list `breed`, filtered by

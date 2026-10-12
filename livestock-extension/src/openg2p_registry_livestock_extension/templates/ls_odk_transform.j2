@@ -190,10 +190,13 @@
       "kebele": {{ loc_kebele_val | tojson }}
     }
   ],
+{# A missing species stays empty (the registry then refuses the record) and an
+   unknown one is passed on as LIVESTOCK_SPECIES_<NAME> (refused by the code-list
+   check); neither is turned into Cattle any more. #}
   "ls_animal_details": [
     {% for a in livestock_list %}
-    {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
-    {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+    {% set a_sp_raw = ((a.get('species_id') or a.get('species') or '') | string) | lower | trim %}
+    {% set a_sp = (species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper))) if a_sp_raw else none %}
     {% set a_br_raw = ((a.get('breed') or '') | string) | lower | trim %}
     {% set a_br = a_br_raw %}
     {% if a_sp == 'LIVESTOCK_SPECIES_GOAT' %}
@@ -261,8 +264,8 @@
   "ls_health_event_details": [
     {% set ns = namespace(items=[]) %}
     {% for a in livestock_list %}
-      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
-      {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or '') | string) | lower | trim %}
+      {% set a_sp = (species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper))) if a_sp_raw else none %}
       {% for he in a.get('health_events', []) %}
         {% set raw_loc = ((he.get('location') or 'FIELD') | string) | upper %}
         {% set _ = ns.items.append({
@@ -290,8 +293,8 @@
   "ls_vaccination_details": [
     {% set ns = namespace(items=[]) %}
     {% for a in livestock_list %}
-      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
-      {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or '') | string) | lower | trim %}
+      {% set a_sp = (species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper))) if a_sp_raw else none %}
       {% for v in a.get('vaccinations', []) %}
         {% set raw_v = ((v.get('vaccine_type') or v.get('vaccine') or v.get('type') or 'ROUTINE') | string) | lower | trim %}
         {% set v_type = raw_v %}
@@ -388,8 +391,8 @@
   "ls_vital_event_details": [
     {% set ns = namespace(items=[]) %}
     {% for a in livestock_list %}
-      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
-      {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or '') | string) | lower | trim %}
+      {% set a_sp = (species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper))) if a_sp_raw else none %}
       {# offspring_gender comes from the form's Birth group (sex_of_offspring);
          no silent default — a BIRTH without it is rejected by the vital-event
          validation, like a staff entry would be. #}
@@ -429,8 +432,8 @@
   "ls_breeding_details": [
     {% set ns = namespace(items=[]) %}
     {% for a in livestock_list %}
-      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or 'cattle') | string) | lower | trim %}
-      {% set a_sp = species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper)) %}
+      {% set a_sp_raw = ((a.get('species_id') or a.get('species') or '') | string) | lower | trim %}
+      {% set a_sp = (species_map.get(a_sp_raw, ('LIVESTOCK_SPECIES_' ~ a_sp_raw | upper) if not a_sp_raw.startswith('livestock_species_') else (a_sp_raw | upper))) if a_sp_raw else none %}
       {% for be in a.get('breeding_events', []) %}
         {% set ai = be.get('artificial_insemination_tab', {}) or {} %}
         {% set raw_et = ((be.get('event_type') or be.get('breeding_event_type') or 'NATURAL') | string) | upper %}
