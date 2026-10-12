@@ -198,18 +198,26 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
         farmer_id = getattr(row, "farmer_id", None)
         if is_blank(farmer_id) or not _FARMER_ID_PATTERN.match(str(farmer_id).strip().upper()):
             return
-        personal = await fetch_farmer_record(farmer_id)
-        if not personal:
-            return
+        # Best-effort: a config, lookup, or field-conversion problem must not
+        # block Submit — log and keep the operator's typed values. Only in-memory
+        # row attributes are touched here; the DB write
+        # (sync_farmer_identity_to_livestock in pre_finalize) is OUTSIDE this
+        # guard, so a genuine save failure still rolls back.
+        try:
+            personal = await fetch_farmer_record(farmer_id)
+            if not personal:
+                return
 
-        fields = to_farmer_fields(personal)
-        # A registry number in another format would fail this register's own
-        # Ethiopian-mobile check on the next save, so keep the typed one.
-        mobile = fields.get("mobile_number")
-        if mobile and not _MOBILE_NUMBER_PATTERN.match(mobile):
-            fields.pop("mobile_number")
-        for field, value in fields.items():
-            setattr(row, field, value)
-        if "first_name" in fields:
-            row.farmer_name = compose_farmer_name(row.first_name, row.middle_name, row.last_name)
-        _logger.info("Enriched farmer %s from the Farmer Registry: %s", farmer_id, ", ".join(sorted(fields)))
+            fields = to_farmer_fields(personal)
+            # A registry number in another format would fail this register's own
+            # Ethiopian-mobile check on the next save, so keep the typed one.
+            mobile = fields.get("mobile_number")
+            if mobile and not _MOBILE_NUMBER_PATTERN.match(mobile):
+                fields.pop("mobile_number")
+            for field, value in fields.items():
+                setattr(row, field, value)
+            if "first_name" in fields:
+                row.farmer_name = compose_farmer_name(row.first_name, row.middle_name, row.last_name)
+            _logger.info("Enriched farmer %s from the Farmer Registry: %s", farmer_id, ", ".join(sorted(fields)))
+        except Exception as exc:
+            _logger.warning("Farmer Registry enrichment skipped for %s (kept typed values): %r", farmer_id, exc)

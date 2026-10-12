@@ -73,6 +73,20 @@ def _config() -> dict | None:
             _logger.warning("Farmer Registry enrichment: cannot read signing key %s: %s", key_path, exc)
             return None
 
+    # Parse the timeout defensively: a bad value like "10s" would otherwise raise
+    # ValueError out of _config and escape into Submit. Skip enrichment instead.
+    raw_timeout = _setting("TIMEOUT_SECONDS", "10") or "10"
+    try:
+        timeout = float(raw_timeout)
+    except (TypeError, ValueError):
+        timeout = 0.0
+    if not (timeout > 0 and timeout != float("inf")):
+        _logger.warning(
+            "Farmer Registry enrichment: invalid FARMER_REGISTRY_TIMEOUT_SECONDS %r — skipping",
+            raw_timeout,
+        )
+        return None
+
     cfg = {
         "search_url": _setting("DCI_SEARCH_URL"),
         "sender_id": _setting("SENDER_ID"),
@@ -84,7 +98,7 @@ def _config() -> dict | None:
         "consent_data_controller": _setting("CONSENT_DATA_CONTROLLER", "farmer-registry"),
         "consent_scopes": [s.strip() for s in _setting("CONSENT_SCOPES", "farmer_personal_details").split(",") if s.strip()],
         "consent_purpose": _setting("CONSENT_PURPOSE"),
-        "timeout": float(_setting("TIMEOUT_SECONDS", "10") or 10),
+        "timeout": timeout,
     }
     missing = [
         name
@@ -186,55 +200,71 @@ async def fetch_farmer_record(farmer_id: str) -> dict | None:
     column), and the record it returns carries the farmer's foundational id,
     not the Farmer ID — so the match cannot be confirmed from the record
     itself, and an ambiguous result is safer ignored than applied."""
-    cfg = _config()
-    if cfg is None or is_blank(farmer_id):
+    if is_blank(farmer_id):
         return None
-    farmer_id = str(farmer_id).strip().upper()
 
+    # Config parse, the HTTP call, AND response-shape parsing are all inside the
+    # fail-open guard: a bad setting, a non-dict envelope (e.g. an upstream "[]"),
+    # or a missing nested field must never escape into Submit — they log and skip.
     try:
+        cfg = _config()
+        if cfg is None:
+            return None
+        farmer_id = str(farmer_id).strip().upper()
+
         request_body = build_search_request(farmer_id, cfg)
         async with httpx.AsyncClient(timeout=cfg["timeout"]) as client:
             response = await client.post(cfg["search_url"], json=request_body)
         response.raise_for_status()
         envelope = response.json()
+
+        if not isinstance(envelope, dict):
+            _logger.warning("Farmer Registry lookup for %s: unexpected response shape %s — not enriching", farmer_id, type(envelope).__name__)
+            return None
+
+        header = envelope.get("header")
+        header = header if isinstance(header, dict) else {}
+        if header.get("status") != "succ":
+            _logger.warning(
+                "Farmer Registry rejected the lookup for %s: %s %s",
+                farmer_id, header.get("status_reason_code"), header.get("status_reason_message"),
+            )
+            return None
+
+        message = envelope.get("message")
+        message = message if isinstance(message, dict) else {}
+        items = message.get("search_response")
+        items = items if isinstance(items, list) else []
+        item = items[0] if items and isinstance(items[0], dict) else {}
+        data = item.get("data")
+        data = data if isinstance(data, dict) else {}
+        records = data.get("reg_records")
+        records = records if isinstance(records, list) else []
+        pagination = item.get("pagination")
+        pagination = pagination if isinstance(pagination, dict) else {}
+        total = pagination.get("total_count")
+        if item.get("status") != "succ" or len(records) != 1 or total not in (None, 1):
+            _logger.warning(
+                "Farmer Registry lookup for %s returned %s record(s) (status=%s) — not enriching",
+                farmer_id, total if total is not None else len(records), item.get("status"),
+            )
+            return None
+
+        record0 = records[0] if isinstance(records[0], dict) else {}
+        personal = record0.get("farmer_personal_details")
+        if not isinstance(personal, dict) or not personal:
+            # Present but clamped to nothing: the consent's effective scopes do
+            # not include farmer_personal_details (Consent Manager policy).
+            _logger.warning(
+                "Farmer Registry returned no farmer_personal_details for %s — check the consent scopes",
+                farmer_id,
+            )
+            return None
+        return personal
     except Exception as exc:
         # repr, not str: httpx timeouts stringify to "".
         _logger.warning("Farmer Registry lookup for %s failed: %r", farmer_id, exc)
         return None
-
-    header = envelope.get("header") or {}
-    if header.get("status") != "succ":
-        _logger.warning(
-            "Farmer Registry rejected the lookup for %s: %s %s",
-            farmer_id,
-            header.get("status_reason_code"),
-            header.get("status_reason_message"),
-        )
-        return None
-
-    items = (envelope.get("message") or {}).get("search_response") or []
-    item = items[0] if items else {}
-    records = (item.get("data") or {}).get("reg_records") or []
-    total = (item.get("pagination") or {}).get("total_count")
-    if item.get("status") != "succ" or len(records) != 1 or total not in (None, 1):
-        _logger.warning(
-            "Farmer Registry lookup for %s returned %s record(s) (status=%s) — not enriching",
-            farmer_id,
-            total if total is not None else len(records),
-            item.get("status"),
-        )
-        return None
-
-    personal = (records[0] or {}).get("farmer_personal_details")
-    if not personal:
-        # Present but clamped to nothing: the consent's effective scopes do
-        # not include farmer_personal_details (Consent Manager policy).
-        _logger.warning(
-            "Farmer Registry returned no farmer_personal_details for %s — check the consent scopes",
-            farmer_id,
-        )
-        return None
-    return personal
 
 
 def _text(value) -> str | None:
@@ -247,9 +277,13 @@ def to_farmer_fields(personal: dict) -> dict:
     (a blank one as None) so the registry's full name replaces the typed one;
     gender, date_of_birth and mobile_number only when the registry has a
     usable value."""
-    demographic = personal.get("demographic_info") or {}
-    name = demographic.get("name") or {}
     fields: dict = {}
+    if not isinstance(personal, dict):
+        return fields
+    demographic = personal.get("demographic_info")
+    demographic = demographic if isinstance(demographic, dict) else {}
+    name = demographic.get("name")
+    name = name if isinstance(name, dict) else {}
 
     if not is_blank(name.get("given_name")) or not is_blank(name.get("surname")):
         fields["first_name"] = _text(name.get("given_name"))

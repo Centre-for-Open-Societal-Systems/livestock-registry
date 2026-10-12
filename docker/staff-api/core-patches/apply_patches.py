@@ -1301,7 +1301,24 @@ apply(
         session.add(submission)
         await session.flush()
         section_payloads = await self._build_section_payloads(submission, session)''',
-    '''        submission.draft_status = IntakeFormStatusEnum.FINAL.value
+    '''        # Lock the submission row and read its status under the lock, so two
+        # concurrent Submits (or a re-submit) cannot both run enrichment. Only the
+        # DRAFT -> FINAL transition finalises and enriches; an already-FINAL
+        # submission is returned unchanged (no row edits, no re-enrichment) so AWE
+        # keeps reusing its original approval request. Reopening stays a separate
+        # explicit action with its own lifecycle.
+        _locked = (
+            await session.execute(
+                select(type(submission))
+                .where(type(submission).submission_id == submission.submission_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        ).scalars().first()
+        if _locked is not None and _locked.draft_status == IntakeFormStatusEnum.FINAL.value:
+            return submission
+
+        submission.draft_status = IntakeFormStatusEnum.FINAL.value
         submission.finalized_at = now
         submission.last_updated_at = now
         session.add(submission)
