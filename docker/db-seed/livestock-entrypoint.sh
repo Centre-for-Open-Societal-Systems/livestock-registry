@@ -58,10 +58,16 @@ migrate_geo_columns() {
     return
   fi
   echo "[db-seed] geo columns: checking ${PGDATABASE}@${PGHOST}:${PGPORT:-5432} ..."
-  if psql -v ON_ERROR_STOP=1 -q -f /seed/migrate_geo_columns.sql 2>&1 | sed 's/^/[db-seed]   /'; then
+  # Not "psql | sed": in a pipe the status is sed's, so a failed migration
+  # passed unnoticed. A failure fails the job (seed_failed).
+  out=$(psql -v ON_ERROR_STOP=1 -q -f /seed/migrate_geo_columns.sql 2>&1)
+  status=$?
+  [ -n "$out" ] && printf '%s\n' "$out" | sed 's/^/[db-seed]   /'
+  if [ "$status" -eq 0 ]; then
     echo "[db-seed] geo columns: done."
   else
     echo "[db-seed] geo columns: FAILED (see above)."
+    return 1
   fi
 }
 
@@ -212,9 +218,17 @@ SQL
   done
 }
 
-migrate_geo_columns
+# A failed geo column migration or code-list load fails the job: without them
+# saves with coordinates fail and every coded value is refused ("Master Data
+# has no attribute values"), so a "Completed" job must not hide them.
+seed_failed=0
+migrate_geo_columns || seed_failed=1
 load_ethiopia_geo
-load_code_lists
+load_code_lists || seed_failed=1
 rewrite_approver_rules
 register_import_partner
+if [ "$rc" -eq 0 ] && [ "$seed_failed" -ne 0 ]; then
+  echo "[db-seed] FAILED: geo column migration or code lists (see above)." >&2
+  rc=1
+fi
 exit $rc
