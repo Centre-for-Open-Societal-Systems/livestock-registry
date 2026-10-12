@@ -21,6 +21,8 @@ from .domain_validation_utils import (
     intake_rows_as_records,
     tables_for,
     submission_ids_of,
+    attribute_value_known,
+    live_rows,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -60,9 +62,18 @@ _REQUIRED_FIELDS = {
 }
 
 
+# The values of models/enums.py GenderEnum. Not imported from there: this
+# module is loaded under the extension's real package name while the platform
+# loads the models through the "openg2p_registry_extensions" alias, and
+# importing ..models here would declare every table a second time (see
+# _extension_models in g2p_register_domain_service_livestock.py).
+_ANIMAL_SEX_VALUES = frozenset({"MALE", "FEMALE", "MIXED"})
+
+
 class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        records = live_rows(records)
         for record in records:
             # The dialog's Registration Date defaults to the literal string
             # "today" on the official staff-ui; resolve it before any check.
@@ -72,6 +83,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             # Breed is a plain (unfiltered) list in the dialog; keep a goat breed
             # off a cattle record here, server-side.
             await validate_belongs_to_species(record.get("breed"), record.get("species"), "Breed")
+            await self._validate_breed_known(record)
             self._validate_identifier_required(record, requires_ear_tag)
             self._validate_gender_for_species(record, requires_ear_tag)
             self._validate_ear_tag_id(record)
@@ -138,6 +150,14 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 "has no ear to attach an ear tag to."
             )
 
+    async def _validate_breed_known(self, record: dict) -> None:
+        """The breed must be a value of the Breed list. The dialog only offers
+        those; ODK, File Import and API rows can carry anything, and an
+        unknown breed was stored as typed."""
+        breed = record.get("breed")
+        if not is_blank(breed) and not await attribute_value_known(breed, "LIVESTOCK_BREED"):
+            validation_error(f"Breed '{breed}' is not in the breed list.")
+
     def _validate_gender_for_species(self, record: dict, requires_ear_tag: bool) -> None:
         """Sex is Male or Female for every ear-tagged species; "Mixed / Not
         Applicable" (GenderEnum.MIXED) exists for the species that have no ear
@@ -146,6 +166,14 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         species (livestock-dialog-overlay.js); this is the same rule for API
         and bulk-import clients."""
         gender = str(record.get("gender") or "").strip().upper()
+        if gender and gender not in _ANIMAL_SEX_VALUES:
+            # The dialog only offers Male / Female / Mixed; this is the same
+            # rule for ODK, File Import and API clients ("other" came from an
+            # ODK form whose animal list was copied from the farmer gender list).
+            validation_error(
+                f"Sex '{record.get('gender')}' is not allowed for an animal — "
+                "use Male, Female or Mixed / Not Applicable."
+            )
         if gender == "MIXED" and requires_ear_tag:
             validation_error(
                 "Sex 'Mixed / Not Applicable' is only for species without an ear tag "

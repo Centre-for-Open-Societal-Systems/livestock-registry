@@ -16,6 +16,7 @@ from .domain_validation_utils import (
     intake_rows_as_records,
     tables_for,
     submission_ids_of,
+    live_rows,
 )
 
 # Kept as its own import line rather than folded into the block above: the
@@ -63,6 +64,7 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
         # scopes the ear-tag check to this submission's own animals.
@@ -79,6 +81,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             await validate_species_matches(record)
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
+            self._validate_not_in_future(record, "date_resolution")
         await self._validate_no_duplicate_events(records)
 
     def _validate_required_fields(self, record: dict) -> None:

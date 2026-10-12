@@ -622,6 +622,55 @@ def resolve_today_default(record: dict, field: str) -> None:
         record[field] = date.today().isoformat()
 
 
+def live_rows(records: list[dict]) -> list[dict]:
+    """The rows of a section save that stay in the record.
+
+    A dialog row the user removed on screen is still sent with the save, with
+    edit_action DELETE, so the platform can drop it. It is not part of the
+    record any more and must not be validated: checked with the rest, a
+    removed animal and its re-added replacement were reported as "more than
+    one animal" with the same ear tag, and a removed health or vaccination row
+    as an event "already recorded" (G2R-229 points 9 and 27, G2R-232 point 3).
+    """
+    return [r for r in records if str(r.get("edit_action") or "").strip().upper() != "DELETE"]
+
+
+async def attribute_value_known(value_id, attribute_id: str) -> bool:
+    """True when value_id is a value of the attribute (code list) attribute_id,
+    or when the list cannot be read or is empty: an unreadable list must not
+    block every save, it only means this check cannot be made."""
+    if is_blank(value_id):
+        return True
+    try:
+        from openg2p_fastapi_common.context import dbengine
+        from openg2p_registry_core.models.g2p_attributes import G2PAttributeValue
+        from sqlalchemy import func, select
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
+        async with session_maker() as session:
+            total = (
+                await session.execute(
+                    select(func.count()).select_from(G2PAttributeValue).where(
+                        G2PAttributeValue.attribute_id == attribute_id
+                    )
+                )
+            ).scalar()
+            if not total:
+                return True
+            found = (
+                await session.execute(
+                    select(func.count()).select_from(G2PAttributeValue).where(
+                        G2PAttributeValue.attribute_id == attribute_id,
+                        G2PAttributeValue.value_id == str(value_id).strip(),
+                    )
+                )
+            ).scalar()
+            return bool(found)
+    except Exception:
+        return True
+
+
 async def attribute_value_parent(value_id) -> str | None:
     """parent_value_id of an attribute value (e.g. LIVESTOCK_BREED_BORAN ->
     LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->

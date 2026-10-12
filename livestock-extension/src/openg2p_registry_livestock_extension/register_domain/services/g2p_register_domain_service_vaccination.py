@@ -18,6 +18,7 @@ from .domain_validation_utils import (
     resolve_today_default,
     validate_belongs_to_species,
     ensure_ear_tags_belong_to_submission,
+    live_rows,
 )
 
 # Kept as its own import line rather than folded into the block above: the
@@ -51,6 +52,7 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
         # scopes the ear-tag check to this submission's own animals.

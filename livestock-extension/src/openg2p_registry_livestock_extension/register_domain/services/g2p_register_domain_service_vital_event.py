@@ -31,6 +31,7 @@ from .domain_validation_utils import (
     intake_rows_as_records,
     tables_for,
     submission_ids_of,
+    live_rows,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -60,6 +61,7 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
         # scopes the ear-tag check to this submission's own animals.
@@ -80,6 +82,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             self._validate_not_in_future(record, "event_date")
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
+            self._validate_not_in_future(record, "date_resolution")
             self._validate_offspring_count(record)
             await self._validate_birth_female_only(record)
         # Run only once every record above has passed — so by this point
