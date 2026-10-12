@@ -4,8 +4,43 @@ __variant__ = "livestock"
 import os
 import sys
 
-# Alias so the core platform can import from openg2p_registry_extensions
-# (the generic name) while the actual package is openg2p_registry_livestock_extension.
+# The platform imports the domain extension by the generic name
+# openg2p_registry_extensions (and, by importlib, its submodules such as
+# openg2p_registry_extensions.register_domain.models); the installed package
+# is openg2p_registry_livestock_extension. Aliasing only the package objects in
+# sys.modules is not enough: a submodule the platform asks for by the generic
+# name that is not yet in sys.modules is found through the aliased parent's
+# __path__ and loaded as a SECOND module object, so every SQLAlchemy model in
+# it is declared twice ("Table 'g2p_register_farmers' is already defined").
+# The finder below answers any generic-name import with the real module
+# object instead, so both names share one module.
+import importlib
+import importlib.abc
+import importlib.util
+
+_GENERIC = "openg2p_registry_extensions"
+_REAL = "openg2p_registry_livestock_extension"
+
+
+class _ExtensionAliasFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == _GENERIC or fullname.startswith(_GENERIC + "."):
+            return importlib.util.spec_from_loader(fullname, self)
+        return None
+
+    def create_module(self, spec):
+        real_name = _REAL + spec.name[len(_GENERIC):]
+        module = importlib.import_module(real_name)
+        sys.modules[spec.name] = module
+        return module
+
+    def exec_module(self, module):
+        return None
+
+
+if not any(isinstance(f, _ExtensionAliasFinder) for f in sys.meta_path):
+    sys.meta_path.insert(0, _ExtensionAliasFinder())
+
 try:
     import openg2p_registry_livestock_extension
     sys.modules["openg2p_registry_extensions"] = openg2p_registry_livestock_extension
@@ -161,11 +196,23 @@ try:
     def _get_registry_engine():
         global _registry_engine
         if _registry_engine is None:
-            _registry_engine = create_async_engine(
-                _db_datasource,
-                pool_pre_ping=True,
-                pool_recycle=1800,
-            )
+            # A celery process runs every task in its own event loop; a pooled
+            # asyncpg connection checked out in one loop fails in the next
+            # ("got Future attached to a different loop"), which is how one
+            # of seven ODK ingests in a batch ended FAILED on registry-platform
+            # 1.2. No pool there: a connection per checkout, like the ODK
+            # hooks' own engine. The API processes keep the pool.
+            _celery = any(m in sys.modules for m in ("openg2p_registry_celery_worker", "openg2p_registry_celery_beat"))
+            if _celery:
+                from sqlalchemy.pool import NullPool
+
+                _registry_engine = create_async_engine(_db_datasource, poolclass=NullPool)
+            else:
+                _registry_engine = create_async_engine(
+                    _db_datasource,
+                    pool_pre_ping=True,
+                    pool_recycle=1800,
+                )
         return _registry_engine
 
     _orig_dbengine_get = dbengine.get
@@ -194,78 +241,6 @@ try:
 except Exception:
     pass
 
-try:
-    import openg2p_registry_core.engine as core_engine
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    # The celery worker and beat get their master-data DB under their own
-    # REGISTRY_CELERY_*_ prefix. Reading only the staff-api / partner-api names
-    # fell back to "postgres", which exists only in the local compose stack: on
-    # a cluster File Import failed with "Name does not resolve" at the partner
-    # lookup.
-    _md_host = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
-        or "postgres"
-    )
-    _md_port = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
-        or "5432"
-    )
-    _md_name = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("MASTER_DATA_DB")
-        or "master_data"
-    )
-    _md_user = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("MASTER_DATA_DB_USER")
-        or "master_data_user"
-    )
-    _md_pass = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("MASTER_DATA_DB_PASSWORD")
-        or "master_data_pass"
-    )
-    _md_datasource = f"postgresql+asyncpg://{_md_user}:{_md_pass}@{_md_host}:{_md_port}/{_md_name}"
-
-    _md_engine = create_async_engine(_md_datasource, pool_pre_ping=True, pool_recycle=1800)
-    if core_engine._engines is None:
-        core_engine._engines = {}
-    core_engine._engines["db_engine_master_data"] = _md_engine
-
-    _orig_get_engine = getattr(core_engine, "get_engine", None)
-    if _orig_get_engine:
-        def _safe_get_engine(name="db_engine_master_data"):
-            if name == "db_engine_master_data":
-                return _md_engine
-            res = _orig_get_engine(name)
-            if res is None or getattr(getattr(res, "url", None), "host", None) in ("localhost", "127.0.0.1", None):
-                res = _get_registry_engine()
-            return res
-        core_engine.get_engine = _safe_get_engine
-except Exception:
-    pass
-
 # Ensure JSONResponse safely serializes datetime objects without failing
 try:
     import json
@@ -287,23 +262,6 @@ try:
             ).encode("utf-8")
 
     starlette.responses.JSONResponse.render = _safe_json_render
-except Exception:
-    pass
-
-# Register G2PAttributeValueSpeciesConfig model
-try:
-    from openg2p_fastapi_common.models import BaseORMModel
-    from sqlalchemy import Column, String, Boolean
-    import openg2p_registry_core.models as core_models
-
-    class G2PAttributeValueSpeciesConfig(BaseORMModel):
-        __tablename__ = "g2p_attribute_value_species_configs"
-        __table_args__ = {"extend_existing": True}
-        value_id = Column(String, primary_key=True)
-        requires_ear_tag = Column(Boolean, nullable=True)
-        is_flock_species = Column(Boolean, nullable=True)
-
-    core_models.G2PAttributeValueSpeciesConfig = G2PAttributeValueSpeciesConfig
 except Exception:
     pass
 

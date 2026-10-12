@@ -228,6 +228,25 @@ registry:
       virtualservice:
         host: "partner-livestock-registry.live.openg2p.test"
 
+  # Same CA trust as staffApi above, for the same reason. The celery worker now
+  # starts the AWE approval of an ingested (ODK / File Import) submission
+  # itself, at global.aweBaseUrl = https://awe.live.openg2p.test, whose
+  # certificate is signed by the box's local CA. Without the bundle that call
+  # fails with CERTIFICATE_VERIFY_FAILED and the submission is finalized with
+  # no approval request. live-ca-bundle is a full bundle (SSL_CERT_FILE
+  # replaces Python's default), so the public Keycloak token URL still verifies.
+  celeryWorker:
+    envVars:
+      SSL_CERT_FILE: /etc/ssl/local-ca/ca-bundle.pem
+    extraVolumes:
+      - name: live-ca-bundle
+        configMap:
+          name: live-ca-bundle
+    extraVolumeMounts:
+      - name: live-ca-bundle
+        mountPath: /etc/ssl/local-ca
+        readOnly: true
+
   # NOTE: the celery memory bumps that were here (worker 4Gi, beat 3Gi) have
   # been removed. They treated the symptom. Both pods were OOMKilled because
   # celery forks one prefork process per CPU core of the NODE — 48 on this box

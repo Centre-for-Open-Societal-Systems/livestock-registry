@@ -28,23 +28,6 @@ except Exception:
     pass
 
 try:
-    from openg2p_fastapi_common.models import BaseORMModel
-    from sqlalchemy import Column, String, Boolean
-    import openg2p_registry_core.models as core_models
-
-    class G2PAttributeValueSpeciesConfig(BaseORMModel):
-        __tablename__ = "g2p_attribute_value_species_configs"
-        __table_args__ = {"extend_existing": True}
-        value_id = Column(String, primary_key=True)
-        requires_ear_tag = Column(Boolean, nullable=True)
-        is_flock_species = Column(Boolean, nullable=True)
-
-    core_models.G2PAttributeValueSpeciesConfig = G2PAttributeValueSpeciesConfig
-    sys.modules["openg2p_registry_core.models"].G2PAttributeValueSpeciesConfig = G2PAttributeValueSpeciesConfig
-except Exception:
-    pass
-
-try:
     from openg2p_registry_core.helpers.template_helper import TemplateHelper
     if TemplateHelper.get_component() is None:
         TemplateHelper()
@@ -208,66 +191,7 @@ def _get_registry_engine():
     return _registry_engine
 
 
-_master_data_engine = None
 
-
-def _get_master_data_engine():
-    """Construct or reuse an AsyncEngine connected to the master_data database."""
-    global _master_data_engine
-    if _master_data_engine is not None:
-        return _master_data_engine
-
-    from sqlalchemy.ext.asyncio import create_async_engine
-    from sqlalchemy.pool import NullPool
-
-    md_hostname = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("MASTER_DATA_DB_HOSTNAME")
-        or "postgres"
-    )
-    md_port = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
-        or os.environ.get("MASTER_DATA_DB_PORT")
-        or "5432"
-    )
-    md_dbname = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("MASTER_DATA_DB_DBNAME")
-        or "master_data"
-    )
-    md_user = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("MASTER_DATA_DB_USER")
-        or "master_data_user"
-    )
-    md_pass = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("MASTER_DATA_DB_PASSWORD")
-        or "master_data_pass"
-    )
-    md_dsn = f"postgresql+asyncpg://{md_user}:{md_pass}@{md_hostname}:{md_port}/{md_dbname}"
-    _master_data_engine = create_async_engine(md_dsn, poolclass=NullPool)
-    return _master_data_engine
 
 
 _GEO_LABEL_CACHE = {
@@ -319,7 +243,9 @@ _GEO_LABEL_CACHE = {
 
 
 async def resolve_geo_label(code: str | None, level_prefix: str = "") -> str | None:
-    """Resolve an administrative code or mnemonic to a human-readable display label."""
+    """Resolve an administrative code or mnemonic to its display name, from
+    Master Data (the platform reads geography over the Master Data API since
+    registry-platform 1.2; there is no Master Data database connection)."""
     if not code:
         return None
     code_str = str(code).strip()
@@ -329,46 +255,36 @@ async def resolve_geo_label(code: str | None, level_prefix: str = "") -> str | N
         return _GEO_LABEL_CACHE[code_str]
 
     try:
-        engine = _get_master_data_engine()
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-        from sqlalchemy import text
+        from . import master_data_lists
 
-        session_maker = async_sessionmaker(engine, expire_on_commit=False)
-        async with session_maker() as session:
-            # The form's location CSVs carry the Master Data id without its
-            # level prefix and, for kebeles, without the leading "ET0"
-            # (kebele_odk.csv 10101101001 is kebele-ET010101101001; a
-            # 12-digit code 100101101001 is kebele-ET100101101001). Exact
-            # candidates are tried first and on their own: the suffix match
-            # below is only a last resort, because 147 of the form's kebele
-            # codes end the same as a kebele of another region (ET02... vs
-            # ET12...) and a suffix match with LIMIT 1 could pick either.
-            exact = [
-                code_str,
-                f"{level_prefix}-{code_str}" if level_prefix else code_str,
-                f"{level_prefix}-ET{code_str}" if level_prefix else code_str,
-                f"{level_prefix}-ET0{code_str}" if level_prefix else code_str,
-                f"zone-{code_str}",
-                f"woreda-{code_str}",
-                f"kebele-{code_str}",
-                f"region-{code_str}",
-            ]
-            q_exact = text(
-                "SELECT level_value_mnemonic FROM g2p_geo_level_values "
-                "WHERE level_value_id = ANY(:ids) LIMIT 1"
-            )
-            res = await session.execute(q_exact, {"ids": exact})
-            row = res.fetchone()
-            if not (row and row[0]):
-                q_like = text(
-                    "SELECT level_value_mnemonic FROM g2p_geo_level_values "
-                    "WHERE level_value_id ILIKE :c_like LIMIT 1"
-                )
-                res = await session.execute(q_like, {"c_like": f"%{code_str}"})
-                row = res.fetchone()
-            if row and row[0]:
-                _GEO_LABEL_CACHE[code_str] = row[0]
-                return row[0]
+        # The form's location CSVs carry the Master Data id without its
+        # level prefix and, for kebeles, without the leading "ET0"
+        # (kebele_odk.csv 10101101001 is kebele-ET010101101001; a
+        # 12-digit code 100101101001 is kebele-ET100101101001). Exact
+        # candidates are tried first and on their own: the suffix match
+        # below is only a last resort, because 147 of the form's kebele
+        # codes end the same as a kebele of another region (ET02... vs
+        # ET12...) and an ambiguous suffix match is refused.
+        exact = [
+            code_str,
+            f"{level_prefix}-{code_str}" if level_prefix else code_str,
+            f"{level_prefix}-ET{code_str}" if level_prefix else code_str,
+            f"{level_prefix}-ET0{code_str}" if level_prefix else code_str,
+            f"zone-{code_str}",
+            f"woreda-{code_str}",
+            f"kebele-{code_str}",
+            f"region-{code_str}",
+        ]
+        label = None
+        for candidate in dict.fromkeys(exact):
+            label = await master_data_lists.geo_label(candidate)
+            if label:
+                break
+        if not label:
+            label = await master_data_lists.geo_label_by_suffix(code_str)
+        if label:
+            _GEO_LABEL_CACHE[code_str] = label
+            return label
     except Exception as e:
         _logger.warning("ODK Hook: Geo resolution error for %s: %s", code_str, e)
 
@@ -1407,13 +1323,12 @@ def _patch_vital_event_offspring_gender():
 
 
 def _ensure_dbengine_initialized():
-    """Ensure dbengine and master-data engines point to the container PostgreSQL instance."""
+    """Ensure dbengine points to the registry PostgreSQL instance."""
     _ensure_domain_factory_initialized()
     _patch_celery_transformation_worker()
     _patch_vital_event_offspring_gender()
     try:
         from openg2p_fastapi_common.context import dbengine
-        import openg2p_registry_core.engine as core_engine
 
         # Wrap dbengine.get and dbengine.set so it NEVER falls back to localhost:5432
         _orig_dbengine_get = dbengine.get
@@ -1464,38 +1379,7 @@ def _ensure_dbengine_initialized():
         except Exception:
             pass
 
-        if core_engine._engines is None:
-            core_engine._engines = {}
-
-        _orig_get_engine = getattr(core_engine, "get_engine", None)
-        if _orig_get_engine:
-            def _safe_get_engine(name="db_engine_master_data"):
-                if name == "db_engine_master_data":
-                    return _get_master_data_engine()
-                res = _orig_get_engine(name)
-                if res is None or getattr(getattr(res, "url", None), "host", None) in ("localhost", "127.0.0.1", None):
-                    res = _get_registry_engine()
-                return res
-            core_engine.get_engine = _safe_get_engine
-
-        try:
-            from openg2p_registry_core.config import Settings as CoreSettings
-            _core_cfg = CoreSettings.get_config(strict=False)
-            # Same source as _get_master_data_engine() (the service's own
-            # *_MASTER_DATA_DB_* env), not a host that exists only locally.
-            _md_url = _get_master_data_engine().url
-            _core_cfg.master_data_db_hostname = _md_url.host
-            _core_cfg.master_data_db_port = _md_url.port
-            _core_cfg.master_data_db_dbname = _md_url.database
-            _core_cfg.master_data_db_username = _md_url.username
-            _core_cfg.master_data_db_password = _md_url.password
-        except Exception:
-            pass
-
-        _logger.info(
-            "ODK Hook: dbengine and master_data wired to %s / %s",
-            _get_registry_engine().url.host, _get_master_data_engine().url.host,
-        )
+        _logger.info("ODK Hook: dbengine wired to %s", _get_registry_engine().url.host)
     except Exception as e:
         _logger.warning("ODK Hook: Could not ensure dbengine initialized: %s", e)
 

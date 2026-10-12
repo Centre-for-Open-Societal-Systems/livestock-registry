@@ -131,9 +131,45 @@ SQL
 # (New Intake -> File Import) sends as the celery worker's import_file_sender_id,
 # "Staff Portal" by default. Nothing seeded that row, so every imported row
 # failed with PARTNER_NOT_REGISTERED. Idempotent (keyed on the mnemonic).
+load_code_lists() {
+  # The livestock code lists (species, breed, vaccine, disease, approval
+  # status) live in Master Data since registry-platform 1.2: the registry reads
+  # them over the Master Data API and keeps no copy. Upsert them into the Master
+  # Data database the geo load already writes to (MD_PG*), so a fresh and an
+  # upgraded environment end up with the same lists. LOAD_CODE_LISTS=false skips.
+  if [ "${LOAD_CODE_LISTS:-true}" != "true" ]; then
+    echo "[db-seed] code lists: skipped (LOAD_CODE_LISTS=${LOAD_CODE_LISTS})."
+    return
+  fi
+  if [ -z "${MD_PGHOST:-}" ] || [ -z "${MD_PGDATABASE:-}" ]; then
+    echo "[db-seed] code lists: skipped (MD_PGHOST/MD_PGDATABASE not set)."
+    return
+  fi
+  dir=/seed/master_data/code_lists
+  if [ ! -d "$dir" ]; then
+    echo "[db-seed] code lists: no $dir in this image, skipped."
+    return
+  fi
+  echo "[db-seed] code lists: loading into ${MD_PGDATABASE}@${MD_PGHOST}:${MD_PGPORT:-5432} ..."
+  export PGHOST="$MD_PGHOST" PGPORT="${MD_PGPORT:-5432}" PGDATABASE="$MD_PGDATABASE" PGUSER="${MD_PGUSER:-}" PGPASSWORD="${MD_PGPASSWORD:-}"
+  for f in $(find "$dir" -name '*.sql' -type f | sort); do
+    echo "[db-seed]   -> $(basename "$f")"
+    psql -v ON_ERROR_STOP=1 -q -f "$f" || { echo "[db-seed] code lists: FAILED on $(basename "$f")"; return 1; }
+  done
+  psql -At -c "select '[db-seed] code lists: '||count(*)||' values in '||count(distinct attribute_id)||' lists' from g2p_attribute_values where attribute_id in ('LIVESTOCK_SPECIES','LIVESTOCK_BREED','VACCINE_TYPE','LIVESTOCK_DISEASE','APPROVAL_STATUS');"
+}
+
 register_import_partner() {
   if [ -z "${MD_PGHOST:-}" ] || [ -z "${MD_PGDATABASE:-}" ]; then
     echo "[db-seed] import partner: skipped (MD_PGHOST/MD_PGDATABASE not set)."
+    return
+  fi
+  # registry-platform 1.2 validates the ingest sender against Partner
+  # Management (no partner table in Master Data); with Partner Management not
+  # configured the sender is accepted as is. Only an older Master Data that
+  # still has the table gets the rows.
+  if ! PGHOST="$MD_PGHOST" PGPORT="${MD_PGPORT:-5432}" PGDATABASE="$MD_PGDATABASE" PGUSER="${MD_PGUSER:-}" PGPASSWORD="${MD_PGPASSWORD:-}" psql -At -c "select to_regclass('public.g2p_partners')" 2>/dev/null | grep -q g2p_partners; then
+    echo "[db-seed] import partner: Master Data has no g2p_partners table (Partner Management owns partners on registry-platform 1.2); skipped."
     return
   fi
   export PGHOST="$MD_PGHOST" PGPORT="${MD_PGPORT:-5432}" PGDATABASE="$MD_PGDATABASE" PGUSER="${MD_PGUSER:-}" PGPASSWORD="${MD_PGPASSWORD:-}"
@@ -156,6 +192,7 @@ SQL
 }
 
 load_ethiopia_geo
+load_code_lists
 rewrite_approver_rules
 register_import_partner
 exit $rc

@@ -20,6 +20,7 @@ RUN rm -rf /seed/meta_data/* /seed/awe_meta_data/* /seed/templates/* /seed/seed-
 COPY livestock-extension/src/openg2p_registry_livestock_extension/meta_data/     /seed/meta_data/
 COPY livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/ /seed/awe_meta_data/
 COPY livestock-extension/src/openg2p_registry_livestock_extension/templates/     /seed/templates/
+COPY livestock-extension/src/openg2p_registry_livestock_extension/master_data/   /seed/master_data/
 COPY docker/db-seed/sample-data/                                               /seed/sample-data/
 
 # Real Ethiopia geo hierarchy + the wrapper entrypoint that loads it into

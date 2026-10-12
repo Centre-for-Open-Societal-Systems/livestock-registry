@@ -332,28 +332,17 @@ async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None
 
 
 async def humanize_attribute_value(value_id: str | None) -> str:
-    """The human-readable label for an attribute value id (e.g.
+    """The human-readable label for a code-list value id (e.g.
     "LIVESTOCK_SPECIES_SHEEP" -> "Sheep"), for building a validation message
-    a user can actually act on. Falls back to the raw id if it isn't a known
-    attribute value (or is blank) — validation error text should never go
-    silent just because a lookup came up empty.
+    a user can actually act on. Read from Master Data; falls back to the raw
+    id if it isn't a known value (or is blank) — validation error text should
+    never go silent just because a lookup came up empty.
     """
     if is_blank(value_id):
         return str(value_id)
+    from ... import master_data_lists
 
-    from openg2p_fastapi_common.context import dbengine
-    from openg2p_registry_core.models import G2PAttributeValue
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        display = (
-            await session.execute(
-                select(G2PAttributeValue.value_display).where(G2PAttributeValue.value_id == value_id)
-            )
-        ).scalar()
-        return display or value_id
+    return await master_data_lists.display(str(value_id).strip())
 
 
 async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
@@ -361,7 +350,7 @@ async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
     e.g. Poultry/Beehive vs. Cattle/Sheep/... — configurable per species from
     Configuration > Attributes > Species (an Edit Attribute Value's "Requires
     Ear Tag" / "Flock / Group Species" checkboxes), not a hardcoded species
-    list in this codebase. Backed by G2PAttributeValueSpeciesConfig, a
+    list in this codebase. Backed by G2PLivestockSpeciesConfig, a
     per-value side table (see core-patches/apply_patches.py Fix 4) the same
     way G2PAttributeValueSchedule already backs per-value vaccine scheduling
     — most species (and every non-species attribute value) never get a row
@@ -379,19 +368,20 @@ async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
         return requires_ear_tag, is_flock_species
 
     from openg2p_fastapi_common.context import dbengine
-    from openg2p_registry_core.models import G2PAttributeValueSpeciesConfig
     from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from ..models.species_config import G2PLivestockSpeciesConfig
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
-        config = await session.get(G2PAttributeValueSpeciesConfig, species_value_id)
+        config = await session.get(G2PLivestockSpeciesConfig, species_value_id)
         if config is None:
             return requires_ear_tag, is_flock_species
         if config.requires_ear_tag is not None:
             requires_ear_tag = config.requires_ear_tag
         if config.is_flock_species is not None:
             is_flock_species = config.is_flock_species
-        return requires_ear_tag, is_flock_species
+    return requires_ear_tag, is_flock_species
 
 
 async def validate_species_matches(record: dict) -> None:
@@ -623,26 +613,15 @@ def resolve_today_default(record: dict, field: str) -> None:
 
 
 async def attribute_value_parent(value_id) -> str | None:
-    """parent_value_id of an attribute value (e.g. LIVESTOCK_BREED_BORAN ->
+    """parent_value_id of a code-list value (e.g. LIVESTOCK_BREED_BORAN ->
     LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->
-    LIVESTOCK_SPECIES_CATTLE). None when the value is unknown or has no parent."""
+    LIVESTOCK_SPECIES_CATTLE), read from Master Data. None when the value is
+    unknown or has no parent."""
     if is_blank(value_id):
         return None
-    from openg2p_fastapi_common.context import dbengine
-    from openg2p_registry_core.models.g2p_attributes import G2PAttributeValue
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from ... import master_data_lists
 
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        parent = (
-            await session.execute(
-                select(G2PAttributeValue.parent_value_id).where(
-                    G2PAttributeValue.value_id == str(value_id).strip()
-                )
-            )
-        ).scalar()
-    return parent or None
+    return await master_data_lists.parent(str(value_id).strip())
 
 
 async def validate_belongs_to_species(value_id, species, kind: str) -> None:
