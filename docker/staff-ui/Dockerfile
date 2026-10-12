@@ -108,6 +108,12 @@ RUN node /tmp/patch-dialog-overlay.js && rm /tmp/patch-dialog-overlay.js
 COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-form-config-route.js /tmp/patch-form-config-route.js
 RUN node /tmp/patch-form-config-route.js && rm /tmp/patch-form-config-route.js
 
+# Edit Details > Save on a register record: show the registry's reason when a
+# change request is refused (the portal's fetch hook dropped it, so 1.2 showed
+# nothing). See assets/patch-change-request-errors.js.
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-change-request-errors.js /tmp/patch-change-request-errors.js
+RUN node /tmp/patch-change-request-errors.js && rm /tmp/patch-change-request-errors.js
+
 # ── Rename the attribute-value "Sort Order" field label to "Display Order" ──
 # Configuration -> Attributes (and Configuration -> Registry -> Languages,
 # which shares the same i18n key) label the g2p_attribute_values.sort_order
