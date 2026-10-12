@@ -57,7 +57,10 @@ except Exception:
 # Application reference format. The platform default
 # "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:1}" has only ten values per second, so
 # a batch of ODK or File Import submissions saved in the same second collided
-# on the reference. Four random letters/digits are added. This used to be a
+# on the reference. The default here is the format the chart and compose
+# already give the staff and partner APIs (five random digits), so a record
+# keeps the same reference shape whether it came from the web form, ODK or a
+# File Import (the celery worker creates the last two). This used to be a
 # patch of generate_application_reference; registry-platform 1.2 reads the
 # format from settings, so it is a settings default now. Every app's Settings
 # extends the core one under its own prefix, and the first instance created
@@ -72,7 +75,7 @@ for _prefix in (
 ):
     os.environ.setdefault(
         f"{_prefix}APPLICATION_REFERENCE_FORMAT",
-        "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:1}{RAND_ALNUM:4}",
+        "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}",
     )
 
 
