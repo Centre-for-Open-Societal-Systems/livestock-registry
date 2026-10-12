@@ -88,6 +88,38 @@ def require_field(record: dict, field: str, label: str | None = None) -> None:
         validation_error(f"{label or field} is required")
 
 
+async def refresh_total_animals(session, livestock_internal_record_id) -> None:
+    """Set Total Livestock on a register Livestock record to the number of its
+    animals in the Animal register (a flock or hive counts as one row, as the
+    ODK ingest counts it). Called wherever an animal reaches the register:
+    a first approval, an Animal change request, a Birth's offspring and the
+    animal bulk import. Only ODK records used to get the number at all."""
+    if not livestock_internal_record_id:
+        return
+    import importlib
+
+    from sqlalchemy import func, select
+
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    count = (
+        await session.execute(
+            select(func.count())
+            .select_from(models.G2PRegisterAnimal)
+            .where(models.G2PRegisterAnimal.link_internal_record_id == livestock_internal_record_id)
+        )
+    ).scalar() or 0
+    livestock = (
+        await session.execute(
+            select(models.G2PRegisterLivestock).where(
+                models.G2PRegisterLivestock.internal_record_id == livestock_internal_record_id
+            )
+        )
+    ).scalar_one_or_none()
+    if livestock is not None and livestock.total_animals != count:
+        livestock.total_animals = count
+        session.add(livestock)
+
+
 def _animal_models():
     """Import the animal models the same way the platform itself resolves
     the domain extension: through the "openg2p_registry_extensions" alias

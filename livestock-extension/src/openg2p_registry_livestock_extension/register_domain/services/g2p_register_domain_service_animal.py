@@ -23,9 +23,11 @@ from .domain_validation_utils import (
     submission_ids_of,
     attribute_value_known,
     live_rows,
+    refresh_total_animals,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
+_ANIMAL_REGISTER_ID = "041a9f79-2142-548a-a15b-a4c76fc9f6f7"
 
 
 # ET followed by exactly 10 digits, as enforced by _check_ear_tag_format in
@@ -71,6 +73,31 @@ _ANIMAL_SEX_VALUES = frozenset({"MALE", "FEMALE", "MIXED"})
 
 
 class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainService):
+
+    # Total Livestock on the holding follows the Animal register: refreshed
+    # when an animal reaches it on a first approval (post_ingest) or through a
+    # change request (post_approve). See refresh_total_animals.
+    async def post_ingest(self, register_id: str, register_row, session) -> None:
+        if register_id != _ANIMAL_REGISTER_ID:
+            return
+        await refresh_total_animals(session, getattr(register_row, "link_internal_record_id", None))
+
+    async def post_approve(self, change_request, session) -> None:
+        if change_request.section_register_id != _ANIMAL_REGISTER_ID:
+            return
+        import importlib
+
+        from sqlalchemy import select
+
+        animal_model = importlib.import_module("openg2p_registry_extensions.register_domain.models").G2PRegisterAnimal
+        link = (
+            await session.execute(
+                select(animal_model.link_internal_record_id).where(
+                    animal_model.internal_record_id == change_request.internal_record_id
+                )
+            )
+        ).scalar()
+        await refresh_total_animals(session, link)
 
     async def validate_domain_attributes(self, records: list[dict]):
         records = live_rows(records)

@@ -242,6 +242,9 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         if register_id != LIVESTOCK_REGISTER_ID:
             return
         await self._sync_farmer_identity(register_row, session)
+        from .domain_validation_utils import refresh_total_animals
+
+        await refresh_total_animals(session, register_row.internal_record_id)
 
     async def _sync_farmer_identity(self, livestock, session) -> None:
         G2PRegisterFarmer = _extension_models().G2PRegisterFarmer

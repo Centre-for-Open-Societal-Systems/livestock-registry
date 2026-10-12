@@ -590,6 +590,9 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             created_tags.append(ear_tag_id)
 
         await session.flush()
+        from .domain_validation_utils import refresh_total_animals
+
+        await refresh_total_animals(session, vital_event.link_internal_record_id)
         _logger.info(
             "Birth event %s: created %d offspring Animal row(s) under livestock %s: %s",
             vital_event.internal_record_id, count, vital_event.link_internal_record_id, created_tags,
