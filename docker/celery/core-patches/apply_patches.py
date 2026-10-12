@@ -361,10 +361,38 @@ def _odk_submitter(incoming_enriched_transformed_data):
     return None
 
 
+def _import_user(incoming_enriched_transformed_data):
+    \"\"\"The portal user who uploaded a File Import (__imported_by, set on the
+    row by the livestock ingest hooks from the import queue's queued_by).\"\"\"
+    data = incoming_enriched_transformed_data.enriched_data_json
+    if isinstance(data, str):
+        try:
+            import json
+
+            data = json.loads(data)
+        except ValueError:
+            return None
+    for _ in range(6):
+        if not isinstance(data, dict):
+            return None
+        name = data.get("__imported_by")
+        if name and str(name).strip():
+            return str(name).strip()
+        nxt = data.get("body") or data.get("message") or data.get("payload")
+        if nxt is None and isinstance(data.get("search_response"), list) and data["search_response"]:
+            nxt = ((data["search_response"][0] or {}).get("data") or {}).get("reg_records", [None])[0]
+        data = nxt
+    return None
+
+
 def _ingestion_created_by(incoming_classified_data):
-    \"\"\"Who the intake shows as its creator: the ODK user, else the platform default.\"\"\"
+    \"\"\"Who the intake shows as its creator: the ODK user, the portal user who
+    uploaded a File Import, else the platform default.\"\"\"
     submitter = getattr(incoming_classified_data, "_odk_submitter", None)
-    return f"{submitter} (ODK)" if submitter else _INGESTION_CREATED_BY
+    if submitter:
+        return f"{submitter} (ODK)"
+    importer = getattr(incoming_classified_data, "_import_user", None)
+    return f"{importer} (Import)" if importer else _INGESTION_CREATED_BY
 """,
     "ingest_data_worker.py: helpers for the ODK submitter as Created By",
 )
@@ -374,8 +402,9 @@ apply(
 """,
     """                raise ValueError(f"Incoming transformed data not found for ingest_id '{ingest_id}'")
             incoming_classified_data._odk_submitter = _odk_submitter(incoming_enriched_transformed_data)
+            incoming_classified_data._import_user = _import_user(incoming_enriched_transformed_data)
 """,
-    "ingest_data_worker.py: remember who sent the ODK submission",
+    "ingest_data_worker.py: remember who sent the ODK submission or uploaded the import",
 )
 apply(
     f"{WORKER_BASE}/tasks/ingest_data_worker.py",
@@ -473,6 +502,19 @@ def _group_livestock_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]
 def parse_file_to_records(file_content: bytes, filename: str) -> list[dict[str, Any]]:
 """,
     "import_file_process_worker.py: helper that groups livestock rows by farmer",
+)
+
+# ─── File Import: tell ingestion who uploaded the file, so the intake's
+# Created By shows "<user> (Import)" instead of "system" (see
+# _ingestion_created_by above; the livestock ingest hooks copy it onto the row).
+apply(
+    f"{WORKER_BASE}/tasks/import_file_process_worker.py",
+    """                        "signature": _config.import_file_signature,
+                    },""",
+    """                        "signature": _config.import_file_signature,
+                        "queued_by": queue_item.queued_by,
+                    },""",
+    "import_file_process_worker.py: pass the uploading user to ingestion",
 )
 
 print("ALL PATCHES APPLIED")

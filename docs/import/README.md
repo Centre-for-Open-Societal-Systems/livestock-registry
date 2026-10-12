@@ -30,11 +30,11 @@ What happens:
   the file still is. Fix the row and import a file with just those rows.
 - Each created record waits for the Woreda approver of its woreda, then
   reaches the register.
+- Created By on each record shows the person who uploaded the file,
+  as `<name> (Import)`.
 
 Known limits:
 
-- Created By on an imported record shows `system`, not the person who
-  uploaded the file.
 - The reason a row was refused is recorded on the ingestion
   (Incoming Messages), not shown to the uploader on the import screen.
 - Health, vaccination, vital and breeding events are not in the template;
