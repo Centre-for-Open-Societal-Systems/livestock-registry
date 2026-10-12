@@ -925,7 +925,7 @@ services:
       CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
       CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
       CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
-      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+      CONNECTOR_PARTNER_INGEST_BASE_URL: ${CONNECTOR_PARTNER_INGEST_BASE_URL:-http://partner-api:8000}
       CONNECTOR_APP_HOST: 0.0.0.0
       CONNECTOR_APP_PORT: 8050
       CONNECTOR_CORS_ORIGINS: "*"
@@ -956,7 +956,7 @@ services:
       CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
       CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
       CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
-      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+      CONNECTOR_PARTNER_INGEST_BASE_URL: ${CONNECTOR_PARTNER_INGEST_BASE_URL:-http://partner-api:8000}
     depends_on:
       connector-api:
         condition: service_healthy
@@ -984,7 +984,7 @@ services:
       CONNECTOR_CELERY_BROKER_URL: redis://redis:6379/1
       CONNECTOR_CELERY_RESULT_BACKEND: redis://redis:6379/1
       CONNECTOR_CELERY_BACKEND_URL: redis://redis:6379/1
-      CONNECTOR_PARTNER_INGEST_BASE_URL: http://partner-api:8000
+      CONNECTOR_PARTNER_INGEST_BASE_URL: ${CONNECTOR_PARTNER_INGEST_BASE_URL:-http://partner-api:8000}
     depends_on:
       connector-api:
         condition: service_healthy
