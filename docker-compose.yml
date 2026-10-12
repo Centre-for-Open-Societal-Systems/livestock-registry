@@ -463,6 +463,9 @@ services:
       # images and PDF. Add the spreadsheet types (Excel can be sniffed as zip).
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ${DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS:-png,jpg,jpeg,webp,pdf,csv,xlsx,xls}
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: ${DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES:-image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip}
+      # Read by the staff API under its own prefix (see helm values.yaml).
+      REGISTRY_STAFF_PORTAL_API_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ${DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS:-png,jpg,jpeg,webp,pdf,csv,xlsx,xls}
+      REGISTRY_STAFF_PORTAL_API_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: ${DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES:-image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip}
     ports:
       - '${STAFF_API_PORT}:8000'
     depends_on:

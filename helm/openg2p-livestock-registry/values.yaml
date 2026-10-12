@@ -41,6 +41,12 @@ registry:
       # docker-compose.yml.
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: "png,jpg,jpeg,webp,pdf,csv,xlsx,xls"
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: "image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip"
+      # The staff API reads its own Settings first (the extension creates them
+      # before any platform import, see _create_app_settings_first), so the
+      # document service takes these under the app's prefix; the
+      # REGISTRY_CORE_ pair above alone is not read.
+      REGISTRY_STAFF_PORTAL_API_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: "png,jpg,jpeg,webp,pdf,csv,xlsx,xls"
+      REGISTRY_STAFF_PORTAL_API_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: "image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip"
       # Shared secret AWE presents when it asks /livestock/approver-resolver
       # who approves a stage (g2p_approver_resolver_controller.py). The seed
       # writes the same value into the AWE rule URLs (dbSeed.envVars below);
