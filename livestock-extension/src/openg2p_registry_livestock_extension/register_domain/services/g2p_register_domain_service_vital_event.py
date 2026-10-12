@@ -547,7 +547,11 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 "ear_tag_id": ear_tag_id,
                 "species": vital_event.species,
                 "breed": breed,
-                "gender": vital_event.offspring_gender,
+                # validate_domain_attributes requires the offspring sex on a
+                # Birth event; a Birth approved before that rule existed may
+                # still have none, and the animal's gender is not nullable.
+                # FEMALE keeps what the ODK hooks used to set in that case.
+                "gender": vital_event.offspring_gender or "FEMALE",
                 "date_of_birth": vital_event.event_date,
                 "registration_date": vital_event.event_date,
                 "health_status": "HEALTHY",

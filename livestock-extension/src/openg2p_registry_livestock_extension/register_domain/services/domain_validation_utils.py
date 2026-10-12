@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from datetime import date, datetime
 
 from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
@@ -125,6 +126,11 @@ def animal_identified_by(model, identifier: str):
     return or_(model.ear_tag_id == identifier, model.secondary_identifier == identifier)
 
 
+# The ingest worker's database session while it saves an ingested submission
+# (ODK, File Import); None everywhere else. Set by odk_ingest_hooks.
+ingest_session: ContextVar = ContextVar("livestock_ingest_session", default=None)
+
+
 async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = None) -> bool:
     """True if `ear_tag_id` names a real animal — already approved into the
     register, or drafted under an in-progress intake submission. The value
@@ -168,13 +174,23 @@ async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = No
         register_cond = register_cond & G2PRegisterAnimal.link_internal_record_id.in_(holdings_of_submission)
         intake_cond = intake_cond & (G2PIntakeFormAnimal.application_reference == application_reference)
 
+    async def _found(session) -> bool:
+        if (await session.execute(select(exists().where(register_cond)))).scalar():
+            return True
+        return bool((await session.execute(select(exists().where(intake_cond)))).scalar())
+
+    # An ODK or File Import submission is saved by the ingest worker in one
+    # transaction, animals first and events after; a separate connection
+    # cannot see those uncommitted animals, so the event would be rejected.
+    # The worker's own session (set around the save by the ingest hooks) is
+    # used instead when there is one.
+    worker_session = ingest_session.get()
+    if worker_session is not None:
+        return await _found(worker_session)
+
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
-        in_register = (await session.execute(select(exists().where(register_cond)))).scalar()
-        if in_register:
-            return True
-        in_intake = (await session.execute(select(exists().where(intake_cond)))).scalar()
-        return bool(in_intake)
+        return await _found(session)
 
 async def ear_tag_used_by_other_animal(
     ear_tag_id: str,

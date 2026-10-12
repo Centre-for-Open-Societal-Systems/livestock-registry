@@ -54,6 +54,28 @@ except Exception:
     pass
 
 
+# Application reference format. The platform default
+# "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:1}" has only ten values per second, so
+# a batch of ODK or File Import submissions saved in the same second collided
+# on the reference. Four random letters/digits are added. This used to be a
+# patch of generate_application_reference; registry-platform 1.2 reads the
+# format from settings, so it is a settings default now. Every app's Settings
+# extends the core one under its own prefix, and the first instance created
+# serves the process (see below), so the default is offered under each prefix.
+# A value set in the deployment wins.
+for _prefix in (
+    "REGISTRY_CORE_",
+    "REGISTRY_STAFF_PORTAL_API_",
+    "REGISTRY_PARTNER_API_",
+    "REGISTRY_CELERY_WORKERS_",
+    "REGISTRY_CELERY_BEAT_",
+):
+    os.environ.setdefault(
+        f"{_prefix}APPLICATION_REFERENCE_FORMAT",
+        "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:1}{RAND_ALNUM:4}",
+    )
+
+
 # The platform entry points (openg2p_registry_staff_api.main and the
 # partner-api / celery equivalents) import this module through
 # REGISTRY_EXTENSION_MODULE and only afterwards create their own Settings.

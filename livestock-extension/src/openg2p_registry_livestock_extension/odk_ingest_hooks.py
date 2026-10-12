@@ -10,9 +10,6 @@ import logging
 import os
 import sys
 import uuid
-from contextvars import ContextVar
-import threading
-_odk_local = threading.local()
 from datetime import date, datetime
 from jinja2 import Template
 
@@ -35,8 +32,6 @@ except Exception:
     pass
 
 _logger = logging.getLogger("openg2p.odk_ingest_hooks")
-_active_session: ContextVar = ContextVar("odk_active_session", default=None)
-_registry_engine = None
 
 
 def _make_json_serializable(obj):
@@ -48,150 +43,6 @@ def _make_json_serializable(obj):
     elif isinstance(obj, (datetime, date)):
         return obj.isoformat()
     return obj
-
-
-def _patch_request_response_helper():
-    """Patch RequestResponseHelper and JSONResponse in partner API to format errors as jsonable structures."""
-    try:
-        import starlette.responses
-        import json
-        from fastapi.encoders import jsonable_encoder
-
-        orig_render = starlette.responses.JSONResponse.render
-
-        def safe_render(self, content):
-            try:
-                return orig_render(self, content)
-            except TypeError:
-                return json.dumps(
-                    jsonable_encoder(content),
-                    ensure_ascii=False,
-                    allow_nan=False,
-                    indent=None,
-                    separators=(",", ":"),
-                ).encode("utf-8")
-
-        starlette.responses.JSONResponse.render = safe_render
-
-        try:
-            import openg2p_registry_partner_api.ingestion.helpers.request_response_helper as rrh
-            rrh.JSONResponse = starlette.responses.JSONResponse
-
-            orig_construct = rrh.RequestResponseHelper._construct_data_model_response
-            def patched_construct(self, response_template_store_id, response):
-                _logger.error("ODK Hook: Ingestion response constructing: %s", response)
-                if hasattr(response, "model_dump"):
-                    try:
-                        content = response.model_dump(mode="json")
-                    except Exception:
-                        content = jsonable_encoder(response.model_dump())
-                else:
-                    content = jsonable_encoder(response)
-                return rrh.JSONResponse(content=content)
-
-            rrh.RequestResponseHelper._construct_data_model_response = patched_construct
-        except Exception as err_rrh:
-            _logger.warning("ODK Hook: Could not patch RequestResponseHelper method: %s", err_rrh)
-
-        _logger.info("ODK Hook: Successfully patched JSONResponse & RequestResponseHelper")
-    except Exception as e:
-        _logger.warning("ODK Hook: Could not patch RequestResponseHelper: %s", e)
-
-
-def _patch_ingest_controller():
-    """Patch G2PIngestController to log exact ingestion failures and return clean JSON error responses."""
-    try:
-        import functools
-        from openg2p_registry_partner_api.ingestion.controllers.g2p_ingest_controller import G2PIngestController
-        from starlette.responses import JSONResponse
-        from fastapi.encoders import jsonable_encoder
-
-        orig_controller_ingest = G2PIngestController.ingest_data
-
-        @functools.wraps(orig_controller_ingest)
-        async def patched_controller_ingest(self, *args, **kwargs):
-            try:
-                return await orig_controller_ingest(self, *args, **kwargs)
-            except Exception as ex:
-                _logger.exception("ODK Hook: Exception in G2PIngestController.ingest_data:")
-                return JSONResponse(
-                    content=jsonable_encoder({
-                        "response_header": {
-                            "request_id": "",
-                            "response_status": "ERROR",
-                            "response_error_code": "INGESTION_ERROR",
-                            "response_error_message": str(ex),
-                            "response_timestamp": datetime.now().isoformat()
-                        },
-                        "response_body": None
-                    }),
-                    status_code=500
-                )
-
-        G2PIngestController.ingest_data = patched_controller_ingest
-        _logger.info("ODK Hook: Successfully patched G2PIngestController")
-    except Exception as e:
-        _logger.warning("ODK Hook: Could not patch G2PIngestController: %s", e)
-
-
-def _get_registry_engine():
-    """Construct or reuse an AsyncEngine connected to the primary livestock database."""
-    global _registry_engine
-    if _registry_engine is not None:
-        return _registry_engine
-
-    from sqlalchemy.ext.asyncio import create_async_engine
-    hostname = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_HOSTNAME")
-        or os.environ.get("COMMON_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CORE_DB_HOSTNAME")
-        or "postgres"
-    )
-    port = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_PORT")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_PORT")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_PORT")
-        or os.environ.get("COMMON_DB_PORT")
-        or os.environ.get("REGISTRY_CORE_DB_PORT")
-        or "5432"
-    )
-    dbname = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_DBNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_DBNAME")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_DBNAME")
-        or os.environ.get("COMMON_DB_DBNAME")
-        or os.environ.get("REGISTRY_CORE_DB_DBNAME")
-        or "livestock"
-    )
-    username = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_USERNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_USERNAME")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_USERNAME")
-        or os.environ.get("COMMON_DB_USERNAME")
-        or os.environ.get("REGISTRY_CORE_DB_USERNAME")
-        or "livestock_user"
-    )
-    password = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_PASSWORD")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_PASSWORD")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_PASSWORD")
-        or os.environ.get("COMMON_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CORE_DB_PASSWORD")
-        or "livestock_pass"
-    )
-    dsn = f"postgresql+asyncpg://{username}:{password}@{hostname}:{port}/{dbname}"
-    # NullPool, like the master-data engine below: celery tasks drive this engine
-    # from more than one event loop in the same process, and a pooled asyncpg
-    # connection left mid-operation by a failed task made the next File Import
-    # fail with "another operation is in progress".
-    from sqlalchemy.pool import NullPool
-    _registry_engine = create_async_engine(dsn, poolclass=NullPool)
-    return _registry_engine
-
-
-
 
 
 _GEO_LABEL_CACHE = {
@@ -785,27 +636,7 @@ def _patch_celery_ingest_worker():
         import openg2p_registry_livestock_extension.config
         sys.modules["openg2p_registry_extensions.config"] = openg2p_registry_livestock_extension.config
 
-        # 1. Patch application_reference generation to avoid unique constraint collisions
-        try:
-            import openg2p_registry_core.helpers.application_reference_generator as arg_mod
-            if not hasattr(arg_mod, "_ls_orig_gar"):
-                _orig_gar = arg_mod.generate_application_reference
-                arg_mod._ls_orig_gar = _orig_gar
-
-                def _safe_gar(now=None):
-                    base = _orig_gar(now)
-                    return f"{base}-{uuid.uuid4().hex[:4].upper()}"
-
-                arg_mod.generate_application_reference = _safe_gar
-                _logger.info("ODK Hook: Successfully patched generate_application_reference")
-
-            import openg2p_registry_core.models.g2p_intake_form as form_mod
-            if hasattr(form_mod, "_default_application_reference"):
-                form_mod._default_application_reference = arg_mod.generate_application_reference
-        except Exception as err_gar:
-            _logger.warning("ODK Hook: Could not patch application_reference generator: %s", err_gar)
-
-        # 2. Patch G2PIntakeFormDataService._insert_live_register_row to sanitize enums and enrich livestock/child records
+        # Patch G2PIntakeFormDataService._insert_live_register_row to sanitize enums and enrich livestock/child records
         try:
             from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFormDataService
             if not hasattr(G2PIntakeFormDataService, "_ls_orig_insert_live"):
@@ -1009,26 +840,6 @@ def _patch_celery_ingest_worker():
         importlib.import_module("openg2p_registry_celery_worker.tasks.ingest_data_worker")
         worker_mod = sys.modules.get("openg2p_registry_celery_worker.tasks.ingest_data_worker")
 
-        # 3. Patch _prepare_submission_for_ingestion to avoid duplicate ValueError on retries
-        if worker_mod and hasattr(worker_mod, "_prepare_submission_for_ingestion") and not hasattr(worker_mod, "_ls_orig_psfi"):
-            orig_psfi = worker_mod._prepare_submission_for_ingestion
-            worker_mod._ls_orig_psfi = orig_psfi
-
-            async def patched_prepare_submission_for_ingestion(incoming_classified_data, session):
-                try:
-                    from openg2p_registry_core.models.g2p_intake_form import G2PIntakeFormSubmission
-                    sub_id = incoming_classified_data.intake_form_submission_id
-                    if sub_id:
-                        existing = await session.get(G2PIntakeFormSubmission, sub_id)
-                        if existing and existing.draft_status == "FINAL":
-                            _logger.info("ODK Hook: Ingestion %s already linked to finalized submission %s", incoming_classified_data.ingest_id, sub_id)
-                            return sub_id, True
-                except Exception as ex_prep:
-                    _logger.debug("ODK Hook: prep check exception: %s", ex_prep)
-                return await orig_psfi(incoming_classified_data, session)
-
-            worker_mod._prepare_submission_for_ingestion = patched_prepare_submission_for_ingestion
-
         if worker_mod and hasattr(worker_mod, "_validate_transformed_data_json") and not hasattr(worker_mod, "_ls_orig_vtdj"):
             orig_vtdj = worker_mod._validate_transformed_data_json
             worker_mod._ls_orig_vtdj = orig_vtdj
@@ -1162,7 +973,9 @@ def _patch_celery_ingest_worker():
                 except Exception as ex_enrich:
                     _logger.warning("ODK Hook: Error enriching transformed_data: %s", ex_enrich)
 
-                t_session = _active_session.set(session)
+                from .register_domain.services.domain_validation_utils import ingest_session
+
+                t_session = ingest_session.set(session)
                 try:
                     res = await orig_save_sections_async(
                         submission_id,
@@ -1215,7 +1028,7 @@ def _patch_celery_ingest_worker():
 
                     return res
                 finally:
-                    _active_session.reset(t_session)
+                    ingest_session.reset(t_session)
                     if swapped_dbengine and prev_dbengine is not None:
                         try:
                             from openg2p_fastapi_common.context import dbengine
@@ -1228,136 +1041,16 @@ def _patch_celery_ingest_worker():
 
 
 
-        if worker_mod and hasattr(worker_mod, "_process_ingestion_async") and not hasattr(worker_mod, "_ls_orig_process_ingestion_async"):
-            orig_process_ingestion_async = worker_mod._process_ingestion_async
-            worker_mod._ls_orig_process_ingestion_async = orig_process_ingestion_async
-
-            async def resilient_process_ingestion_async(ingest_id: str) -> None:
-                _odk_local.is_odk = True
-                try:
-                    try:
-                        await orig_process_ingestion_async(ingest_id)
-                    except Exception as ex:
-                        from openg2p_registry_core.models import IncomingClassifiedData, ProcessStatusEnum
-                        from sqlalchemy.ext.asyncio import async_sessionmaker
-
-                        err_msg = str(getattr(ex, "message", None) or ex)
-                        _logger.warning("ODK Hook: Ingestion of record %s rejected by validation/deduplication: %s", ingest_id, err_msg)
-
-                        try:
-                            eng = getattr(worker_mod, "_async_engine", None) or _get_registry_engine()
-                            sm = async_sessionmaker(bind=eng, expire_on_commit=False)
-                            async with sm() as fail_session:
-                                icd = await fail_session.get(IncomingClassifiedData, ingest_id)
-                                if icd:
-                                    icd.ingestion_status = ProcessStatusEnum.FAILED.value
-                                    icd.ingestion_latest_error_code = err_msg
-                                    icd.ingestion_date_time = datetime.now()
-                                    icd.ingestion_number_of_attempts += 1
-                                    sub_id = icd.intake_form_submission_id
-                                    if sub_id:
-                                        try:
-                                            await worker_mod._delete_submission_async(sub_id, fail_session)
-                                            icd.intake_form_submission_id = None
-                                        except Exception:
-                                            pass
-                                    fail_session.add(icd)
-                                    await fail_session.commit()
-                        except Exception as ex_mark:
-                            _logger.error("ODK Hook: Could not mark ingestion failure: %s", ex_mark)
-
-                        # Return cleanly without re-raising to Celery.
-                        # This prevents task retries, avoids queue blockage, and stops worker crashes.
-                        return
-                finally:
-                    _odk_local.is_odk = False
-
-            worker_mod._process_ingestion_async = resilient_process_ingestion_async
-            _logger.info("ODK Hook: Successfully patched ingest_data_worker._process_ingestion_async for resilience")
     except Exception as e:
         _logger.warning("ODK Hook: Could not patch ingest_data_worker: %s", e)
 
 
-def _patch_vital_event_offspring_gender():
-    """Ensure newborn animal creation from BIRTH vital event never fails with null gender."""
-    try:
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_vital_event import (
-            G2PRegisterDomainServiceVitalEvent,
-        )
-
-        orig_create = G2PRegisterDomainServiceVitalEvent._create_offspring_animals
-
-        async def patched_create_offspring_animals(self, vital_event, count: int, session):
-            if not getattr(vital_event, "offspring_gender", None):
-                vital_event.offspring_gender = "FEMALE"
-            return await orig_create(self, vital_event, count, session)
-
-        G2PRegisterDomainServiceVitalEvent._create_offspring_animals = patched_create_offspring_animals
-        _logger.info("ODK Hook: Successfully patched G2PRegisterDomainServiceVitalEvent._create_offspring_animals")
-    except Exception as e:
-        _logger.warning("ODK Hook: Could not patch G2PRegisterDomainServiceVitalEvent: %s", e)
-
-
 def _ensure_dbengine_initialized():
-    """Ensure dbengine points to the registry PostgreSQL instance."""
+    """Create the components the celery worker's Initializer does not, and
+    install the transformation patches. The registry database engine itself
+    is wired once, for every process, in the package __init__."""
     _ensure_domain_factory_initialized()
     _patch_celery_transformation_worker()
-    _patch_vital_event_offspring_gender()
-    try:
-        from openg2p_fastapi_common.context import dbengine
-
-        # Wrap dbengine.get and dbengine.set so it NEVER falls back to localhost:5432
-        _orig_dbengine_get = dbengine.get
-        _orig_dbengine_set = dbengine.set
-
-        def _safe_dbengine_get():
-            val = _orig_dbengine_get()
-            if val is None or getattr(getattr(val, "url", None), "host", None) in ("localhost", "127.0.0.1", None):
-                val = _get_registry_engine()
-                _orig_dbengine_set(val)
-            return val
-
-        def _safe_dbengine_set(value):
-            if value is not None and getattr(getattr(value, "url", None), "host", None) in ("localhost", "127.0.0.1", None):
-                value = _get_registry_engine()
-            _orig_dbengine_set(value)
-
-        dbengine.get = _safe_dbengine_get
-        dbengine.set = _safe_dbengine_set
-
-        try:
-            from openg2p_fastapi_common.app import Initializer as BaseInitializer
-            def _patched_init_db(self):
-                e = _get_registry_engine()
-                dbengine.set(e)
-            BaseInitializer.init_db = _patched_init_db
-        except Exception:
-            pass
-
-        try:
-            import openg2p_fastapi_common.app as fc_app
-            from openg2p_fastapi_common.config import Settings as _CommonSettings
-            # Only a bare common_ Settings is repointed; the app's own Settings
-            # (first in the registry since __init__ creates it) already carries
-            # its REGISTRY_<APP>_DB_* env and the driver that app runs with.
-            # celery-beat's sync engine fed this asyncpg datasource failed
-            # every beat producer with sqlalchemy MissingGreenlet.
-            if hasattr(fc_app, "_config") and type(fc_app._config) is _CommonSettings:
-                # From the same env-derived settings as _get_registry_engine();
-                # a hard-coded "postgres" host only resolves in local compose.
-                _reg_url = _get_registry_engine().url
-                fc_app._config.db_hostname = _reg_url.host
-                fc_app._config.db_port = _reg_url.port
-                fc_app._config.db_dbname = _reg_url.database
-                fc_app._config.db_username = _reg_url.username
-                fc_app._config.db_password = _reg_url.password
-                fc_app._config.db_datasource = _reg_url.render_as_string(hide_password=False)
-        except Exception:
-            pass
-
-        _logger.info("ODK Hook: dbengine wired to %s", _get_registry_engine().url.host)
-    except Exception as e:
-        _logger.warning("ODK Hook: Could not ensure dbengine initialized: %s", e)
 
 
 
@@ -1396,7 +1089,6 @@ def _patch_ingest_service():
 
         async def patched_ingest_data(self, data_model_mnemonic: str, data: dict, *, register_id=None, intake_form_id=None):
             _ensure_dbengine_initialized()
-            _patch_request_response_helper()
 
             # Seeded by meta_data/data-models/data_models.sql (+ key paths and
             # semantic pattern); patch_livestock_odk_ingestion.sql for older DBs.
@@ -1499,51 +1191,13 @@ def _patch_ingest_service():
         _logger.error("ODK Hook: Error patching G2PIngestService: %s", e)
 
 
-def _patch_domain_services_for_odk():
-    try:
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_health_event import G2PRegisterDomainServiceHealthEvent
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_vaccination import G2PRegisterDomainServiceVaccination
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_breeding import G2PRegisterDomainServiceBreeding
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_vital_event import G2PRegisterDomainServiceVitalEvent
-
-        services = [
-            G2PRegisterDomainServiceHealthEvent,
-            G2PRegisterDomainServiceVaccination,
-            G2PRegisterDomainServiceBreeding,
-            G2PRegisterDomainServiceVitalEvent
-        ]
-
-        for service in services:
-            if hasattr(service, "_validate_ear_tag_exists") and not hasattr(service, "_ls_orig_validate_ear_tag_exists"):
-                orig_validate = service._validate_ear_tag_exists
-                service._ls_orig_validate_ear_tag_exists = orig_validate
-
-                async def patched_validate_ear_tag_exists(self, record: dict, application_reference: str | None = None, _orig=orig_validate):
-                    is_odk_flag = getattr(_odk_local, "is_odk", False)
-                    print(f"ODK Hook: patched_validate_ear_tag_exists called for {record.get('ear_tag_id')}, is_odk={is_odk_flag}", flush=True)
-                    if is_odk_flag:
-                        # Bypass validation for ODK where animal and event are in the same submission payload
-                        print("ODK Hook: Bypassing ear_tag_exists validation", flush=True)
-                        return
-                    return await _orig(self, record, application_reference)
-
-                service._validate_ear_tag_exists = patched_validate_ear_tag_exists
-
-        print("ODK Hook: Successfully patched domain services for ear tag validation bypass", flush=True)
-    except Exception as e:
-        print(f"ODK Hook: Error patching domain services: {e}", flush=True)
-
-
 def install_odk_hooks():
     funcs = [
-        _patch_request_response_helper,
-        _patch_ingest_controller,
         _ensure_domain_factory_initialized,
         _patch_celery_transformation_worker,
         _patch_celery_ingest_worker,
         _ensure_dbengine_initialized,
         _patch_ingest_service,
-        _patch_domain_services_for_odk,
     ]
     for func in funcs:
         print(f"ODK Hook: Running {func.__name__}", flush=True)
