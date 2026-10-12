@@ -241,6 +241,34 @@ try:
 except Exception:
     pass
 
+# Celery worker on registry-platform 1.2: every task module (ingest, ingest
+# transformation, intake ingest, import, score) runs its coroutines on its own
+# module-level event loop, while all of them share the one pooled asyncpg
+# engine of openg2p_registry_celery_worker.engine.Engine. A connection pooled
+# under one task's loop and checked out by the next task's loop fails with
+# "got Future attached to a different loop"; locally an ODK ingest failed this
+# way right after its transformation task in the same worker process. The
+# worker's async engine therefore gets no pool (a connection per checkout);
+# its sync engine keeps the pool.
+try:
+    if "openg2p_registry_celery_worker" in sys.modules:
+        from openg2p_registry_celery_worker import engine as _cw_engine
+        from sqlalchemy.pool import NullPool as _NullPool
+
+        _orig_cw_pool_kwargs = _cw_engine._pool_kwargs
+
+        def _cw_pool_kwargs(datasource: str) -> dict:
+            if datasource and "+asyncpg" in datasource:
+                return {"poolclass": _NullPool}
+            return _orig_cw_pool_kwargs(datasource)
+
+        _cw_engine._pool_kwargs = _cw_pool_kwargs
+        # Built before this module was imported: rebuild on next use.
+        _cw_engine.Engine._async_engine = None
+        _cw_engine.Engine._async_session_maker = None
+except Exception:
+    pass
+
 # Ensure JSONResponse safely serializes datetime objects without failing
 try:
     import json
