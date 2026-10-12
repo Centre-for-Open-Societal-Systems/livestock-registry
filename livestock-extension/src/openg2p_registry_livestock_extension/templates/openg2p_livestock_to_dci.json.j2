@@ -2,8 +2,9 @@
 {{- (value or '') | string | trim | upper -}}
 {%- endmacro -%}
 
+{#- A code-list value id as a label: LIVESTOCK_SPECIES_CATTLE -> Cattle. -#}
 {%- macro title(value) -%}
-{{- (value or '') | string | trim | replace('_', ' ') | title -}}
+{{- (value or '') | string | trim | replace('LIVESTOCK_SPECIES_', '') | replace('LIVESTOCK_BREED_', '') | replace('LIVESTOCK_DISEASE_', '') | replace('VACCINE_TYPE_', '') | replace('_', ' ') | title -}}
 {%- endmacro -%}
 
 {%- macro sex(value) -%}
@@ -47,9 +48,16 @@
 
 {#- The register hierarchy: farmer -> livestock holding -> the animals and the
     event lines, all children of the holding. -#}
-{%- set d = data if data is defined else {} -%}
+{#- The platform renders outgoing templates with the record as `expanded`
+    (TemplateHelper.render_with_template: jinja_template.render(expanded=...));
+    `data` is kept for callers that pass it under that name. Reading only
+    `data` left every field of every search response empty. -#}
+{%- set d = expanded if expanded is defined else (data if data is defined else {}) -%}
 {%- set livestock_list = d.get('livestock') or [] -%}
-{%- set holding = d if d.get('oan_id') is not none or d.get('animal') is not none else (livestock_list[0] if livestock_list else {}) -%}
+{#- The record itself is the holding whenever it carries holding columns. An
+    expression search returns the holding row alone (no children), so testing
+    only oan_id / animal treated it as "no holding" and returned empty fields. -#}
+{%- set holding = d if (d.get('functional_record_id') is not none or d.get('farmer_id') is not none or d.get('oan_id') is not none or d.get('animal') is not none) else (livestock_list[0] if livestock_list else {}) -%}
 {#- The farmer is a separate register the holding points at by farmer_id, so it
     arrives alongside rather than nested. -#}
 {%- set farmers = d.get('farmer') or holding.get('farmer') or [] -%}
@@ -103,7 +111,7 @@
       "supervisor_mobile_number": {{ (holding.get('supervisor_mobile_number') or '') | tojson }}
     },
     "place": {
-      "name": {{ (holding.get('address_line_2') or holding.get('address_line_1') or '') | tojson }},
+      "name": {{ (holding.get('address_line_2') or holding.get('address_line_1') or ([holding.get('kebele'), holding.get('woreda'), holding.get('zone'), holding.get('region')] | select | join(', ')) or '') | tojson }},
       "geo": {
         "@type": "spdci:GeoLocation",
         "latitude": {{ holding.get('latitude') or 0 }},

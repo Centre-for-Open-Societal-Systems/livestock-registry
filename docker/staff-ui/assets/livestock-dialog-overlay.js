@@ -395,6 +395,11 @@
       var c = current(), blank = function (el) { return !el || !String(el.value || "").trim(); }, problem = "";
       if (species.value) {
         if (c.ear && blank(earInput)) problem = "Livestock Ear Tag is required for this species.";
+        // Same rule and message as the server (G2PRegisterDomainServiceAnimal.
+        // _validate_ear_tag_id). The platform's dialog Save closes the dialog and
+        // the server's error only appears on Next (G2R-229 point 6).
+        else if (c.ear && !/^ET\d{10}$/.test(String(earInput.value || "").replace(/\s+/g, "").toUpperCase()))
+          problem = "Ear tag must be ET followed by exactly 10 digits, e.g. ET0000000013.";
         else if (!c.ear && blank(secInput)) problem = "Secondary Identifier (leg band, wing tag, hive number, ...) is required — this species has no ear tag.";
         else if (c.flock && !(parseInt(qtyInput.value, 10) > 0)) problem = "Quantity (head count) is required for this species.";
         else if (!c.flock && dobInput && blank(dobInput)) problem = "Date of Birth is required for this species.";
