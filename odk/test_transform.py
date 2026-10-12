@@ -110,12 +110,47 @@ def main():
     out = render(template, base)
     check(out["ls_vital_event_details"][0]["disease_type"] == "not_a_disease", "unknown disease was relabelled", failures)
 
+    check_breed_map(failures)
+
     if failures:
         print("FAIL")
         for f in failures:
             print(" -", f)
         sys.exit(1)
     print(f"OK: {len(subs)} sample submissions + targeted cases")
+
+
+def check_breed_map(failures):
+    """Every breed choice in the form must be in odk_ingest_hooks._ODK_BREED_CHOICES
+    and land on a LIVESTOCK_BREED value of the same species in the code list.
+    Read statically, so the test needs neither the platform nor openpyxl."""
+    import ast
+    import re
+
+    root = os.path.join(os.path.dirname(__file__), "..")
+    ext = os.path.join(root, "livestock-extension", "src", "openg2p_registry_livestock_extension")
+    hooks = open(os.path.join(ext, "odk_ingest_hooks.py"), encoding="utf-8").read()
+    node = next(
+        n for n in ast.parse(hooks).body
+        if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == "_ODK_BREED_CHOICES" for t in n.targets)
+    )
+    choices = ast.literal_eval(node.value)
+    values = os.path.join(ext, "meta_data", "lookup-data", "g2p_attribute_values.sql")
+    if not os.path.exists(values):
+        values = os.path.join(ext, "master_data", "code_lists", "20_g2p_attribute_values.sql")
+    parent = {}
+    for line in open(values, encoding="utf-8"):
+        m = re.match(r"\('(LIVESTOCK_BREED_[A-Z0-9_]+)','LIVESTOCK_BREED','[^']*','[^']*','([A-Z_]+)'", line)
+        if m:
+            parent[m.group(1)] = m.group(2)
+    form = os.path.join(os.path.dirname(__file__), "breed_choices.csv")
+    rows = [line.strip().split(",") for line in open(form, encoding="utf-8") if line.strip() and not line.startswith("species")]
+    for species, name in rows:
+        code = choices.get(species, {}).get(name)
+        check(code is not None, f"breed choice {species}/{name} missing from _ODK_BREED_CHOICES", failures)
+        if code:
+            check(parent.get(code) == "LIVESTOCK_SPECIES_" + species.upper(),
+                  f"breed choice {species}/{name} -> {code}, which is not a {species} breed in the code list", failures)
 
 
 if __name__ == "__main__":
