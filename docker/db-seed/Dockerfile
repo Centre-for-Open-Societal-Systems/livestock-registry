@@ -28,6 +28,7 @@ COPY docker/db-seed/sample-data/                                               /
 # chart's LOAD_GEO_DATA stays off).
 COPY docker/db-seed/geo/ethiopia_geo_seed.sql.gz /seed/geo/ethiopia_geo_seed.sql.gz
 COPY docker/db-seed/livestock-entrypoint.sh      /seed/livestock-entrypoint.sh
+COPY docker/db-seed/migrate_geo_columns.sql    /seed/migrate_geo_columns.sql
 RUN chmod +x /seed/livestock-entrypoint.sh
 
 # Reporting layer read by livestock-registry-dashboard-api: the lr_rpt_* views

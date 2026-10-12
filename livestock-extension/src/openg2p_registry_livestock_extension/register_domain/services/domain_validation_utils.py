@@ -626,37 +626,21 @@ def live_rows(records: list[dict]) -> list[dict]:
 
 
 async def attribute_value_known(value_id, attribute_id: str) -> bool:
-    """True when value_id is a value of the attribute (code list) attribute_id,
-    or when the list cannot be read or is empty: an unreadable list must not
-    block every save, it only means this check cannot be made."""
+    """True when value_id is a value of the code list attribute_id in Master
+    Data, or when that list cannot be read or is empty: an unreadable list
+    must not block every save, it only means this check cannot be made. (The
+    platform's own coded-value validation, registry_*_validate_attribute_values,
+    rejects unknown values too; this check names the field in the message.)"""
     if is_blank(value_id):
         return True
     try:
-        from openg2p_fastapi_common.context import dbengine
-        from openg2p_registry_core.models.g2p_attributes import G2PAttributeValue
-        from sqlalchemy import func, select
-        from sqlalchemy.ext.asyncio import async_sessionmaker
+        from ... import master_data_lists
 
-        session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-        async with session_maker() as session:
-            total = (
-                await session.execute(
-                    select(func.count()).select_from(G2PAttributeValue).where(
-                        G2PAttributeValue.attribute_id == attribute_id
-                    )
-                )
-            ).scalar()
-            if not total:
-                return True
-            found = (
-                await session.execute(
-                    select(func.count()).select_from(G2PAttributeValue).where(
-                        G2PAttributeValue.attribute_id == attribute_id,
-                        G2PAttributeValue.value_id == str(value_id).strip(),
-                    )
-                )
-            ).scalar()
-            return bool(found)
+        values = await master_data_lists.get_values(attribute_id)
+        if not values:
+            return True
+        wanted = str(value_id).strip()
+        return any(v.get("value_id") == wanted for v in values)
     except Exception:
         return True
 

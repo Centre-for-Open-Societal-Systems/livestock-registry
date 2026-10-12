@@ -44,6 +44,27 @@ set -u
 /seed/entrypoint.sh "$@"
 rc=$?
 
+migrate_geo_columns() {
+  # registry-platform 1.2 stores latitude/longitude/altitude as double
+  # precision; a database created on 296 has them as varchar, which create_migrate
+  # never alters. Runs against the registry database (PG*), before the steps
+  # below re-point PG* at Master Data. See /seed/migrate_geo_columns.sql.
+  if [ ! -f /seed/migrate_geo_columns.sql ]; then
+    echo "[db-seed] geo columns: no migration script in this image, skipped."
+    return
+  fi
+  if [ -z "${PGHOST:-}" ] || [ -z "${PGDATABASE:-}" ]; then
+    echo "[db-seed] geo columns: skipped (PGHOST/PGDATABASE not set)."
+    return
+  fi
+  echo "[db-seed] geo columns: checking ${PGDATABASE}@${PGHOST}:${PGPORT:-5432} ..."
+  if psql -v ON_ERROR_STOP=1 -q -f /seed/migrate_geo_columns.sql 2>&1 | sed 's/^/[db-seed]   /'; then
+    echo "[db-seed] geo columns: done."
+  else
+    echo "[db-seed] geo columns: FAILED (see above)."
+  fi
+}
+
 load_ethiopia_geo() {
   GEO_FILE="/seed/geo/ethiopia_geo_seed.sql.gz"
   if [ "${LOAD_ETHIOPIA_GEO:-true}" != "true" ]; then
@@ -191,6 +212,7 @@ SQL
   done
 }
 
+migrate_geo_columns
 load_ethiopia_geo
 load_code_lists
 rewrite_approver_rules
