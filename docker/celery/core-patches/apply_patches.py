@@ -281,4 +281,123 @@ async def _awe_service_token() -> str | None:
     "ingest_data_worker.py: start the ingested submission's approval workflow with a service-account token",
 )
 
+# ─── Fix: an ingested submission finalized with no approval workflow was
+# indistinguishable from one awaiting approvers. finalize_submission_with_session
+# returns quietly when AWE is disabled on the worker, so a misconfigured worker
+# left every ODK record FINAL / PENDING with no task for anyone. When the
+# submission's form has an intake approval policy, a finalized submission
+# must now carry its AWE request; otherwise the ingestion fails with a clear
+# reason (and is retried like any other failure), and nothing is committed.
+# Forms with no intake policy are not affected.
+apply(
+    f"{WORKER_BASE}/tasks/ingest_data_worker.py",
+    """        bearer_token=await _awe_service_token(),
+    )
+""",
+    """        bearer_token=await _awe_service_token(),
+    )
+    await _require_approval_workflow(submission_id, session)
+
+
+async def _require_approval_workflow(submission_id: str, session) -> None:
+    \"\"\"Fail the ingestion when the submission's form needs approval but
+    finalizing started no AWE request.\"\"\"
+    from openg2p_registry_core.models.g2p_intake_form import G2PIntakeFormSubmission
+    from openg2p_registry_core.services.g2p_awe_integration_service import REGISTRY_INTAKE_FORM_ARTIFACT
+    from openg2p_registry_core.services.g2p_awe_policy_configuration_service import (
+        G2PAwePolicyConfigurationService,
+    )
+
+    submission = await session.get(G2PIntakeFormSubmission, submission_id)
+    if submission is None or submission.awe_request_id:
+        return
+    policy_service = G2PAwePolicyConfigurationService.get_component() or G2PAwePolicyConfigurationService()
+    policy = await policy_service.find_effective_policy_configuration(
+        session,
+        register_id=submission.register_id,
+        policy_type=REGISTRY_INTAKE_FORM_ARTIFACT,
+        intake_form_id=submission.form_id,
+    )
+    if policy is None:
+        return
+    raise ValueError(
+        "AWE_WORKFLOW_NOT_STARTED: the form needs approval (policy "
+        f"{policy.policy_key}) but no approval request was created. Check "
+        "REGISTRY_CELERY_WORKERS_AWE_ENABLED and the worker's AWE token settings."
+    )
+""",
+    "ingest_data_worker.py: an approval-required submission is never finalized without its AWE request",
+)
+
+# ─── Fix: every ingested intake showed Created By "system". An ODK
+# submission now shows the ODK Central user who sent it, "<name> (ODK)"
+# (__system.submitterName); anything else keeps "system". Same helpers as the
+# farmer registry's worker patch.
+apply(
+    f"{WORKER_BASE}/tasks/ingest_data_worker.py",
+    """_INGESTION_CREATED_BY = "system"
+""",
+    """_INGESTION_CREATED_BY = "system"
+
+
+def _odk_submitter(incoming_enriched_transformed_data):
+    \"\"\"The ODK Central user who sent the submission (__system.submitterName).\"\"\"
+    data = incoming_enriched_transformed_data.enriched_data_json
+    if isinstance(data, str):
+        try:
+            import json
+
+            data = json.loads(data)
+        except ValueError:
+            return None
+    for _ in range(4):
+        if not isinstance(data, dict):
+            return None
+        system = data.get("__system")
+        if isinstance(system, dict):
+            name = (system.get("submitterName") or "").strip()
+            return name or None
+        data = data.get("body") or data.get("message") or data.get("payload")
+    return None
+
+
+def _ingestion_created_by(incoming_classified_data):
+    \"\"\"Who the intake shows as its creator: the ODK user, else the platform default.\"\"\"
+    submitter = getattr(incoming_classified_data, "_odk_submitter", None)
+    return f"{submitter} (ODK)" if submitter else _INGESTION_CREATED_BY
+""",
+    "ingest_data_worker.py: helpers for the ODK submitter as Created By",
+)
+apply(
+    f"{WORKER_BASE}/tasks/ingest_data_worker.py",
+    """                raise ValueError(f"Incoming transformed data not found for ingest_id '{ingest_id}'")
+""",
+    """                raise ValueError(f"Incoming transformed data not found for ingest_id '{ingest_id}'")
+            incoming_classified_data._odk_submitter = _odk_submitter(incoming_enriched_transformed_data)
+""",
+    "ingest_data_worker.py: remember who sent the ODK submission",
+)
+apply(
+    f"{WORKER_BASE}/tasks/ingest_data_worker.py",
+    """        section_payloads=None,
+        created_by=_INGESTION_CREATED_BY,
+""",
+    """        section_payloads=None,
+        created_by=_ingestion_created_by(incoming_classified_data),
+""",
+    "ingest_data_worker.py: the intake's Created By is the ODK user",
+)
+apply(
+    f"{WORKER_BASE}/tasks/ingest_data_worker.py",
+    """            register_id=incoming_classified_data.register_id,
+            created_by=_INGESTION_CREATED_BY,
+            session=session,
+""",
+    """            register_id=incoming_classified_data.register_id,
+            created_by=_ingestion_created_by(incoming_classified_data),
+            session=session,
+""",
+    "ingest_data_worker.py: sections saved by the ODK user too",
+)
+
 print("ALL PATCHES APPLIED")
