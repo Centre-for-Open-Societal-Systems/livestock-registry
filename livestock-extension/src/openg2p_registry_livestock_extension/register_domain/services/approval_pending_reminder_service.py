@@ -2,8 +2,8 @@
 
 Mirrors gen1's `g2p.livestock.registry._cron_send_approval_pending_reminders()`
 (g2p_livestock_registry/models/livestock_registry.py) — emails the next
-approver when a Livestock record has been sitting at the same
-Kebele/Woreda/Zone/Region approval stage for too long (default 3 days)
+approver when a Livestock record has been waiting at its approval stage for
+too long (default 3 days; today the single Woreda stage)
 without moving forward. Gen1 matched `res.users` group membership scoped to
 the record's kebele/woreda/zone/region; gen2 has no equivalent
 approver-directory, so recipients come from env config's district mapping
@@ -30,12 +30,13 @@ _logger = logging.getLogger("g2p-reminder-alerts")
 DEFAULT_STUCK_AFTER_DAYS = 3
 _REMINDER_TYPE = "approval_pending"
 
-# state -> which G2PAdminArea column names the next approver for that stage,
-# mirroring gen1's _APPROVAL_REMINDER_MAP (kebele approver clears DRAFT,
-# woreda approver clears KEBELE_APPROVED, etc.) — VERIFIED/ARCHIVED are
-# terminal, never "stuck".
+# state -> which G2PAdminArea column names the next approver for that stage.
+# Approval is a single Woreda stage (Oct 2026), so a DRAFT waits on the Woreda
+# Approver. The other entries serve records still on gen1's old ladder
+# (KEBELE_APPROVED waits on woreda, WOREDA_APPROVED on zone, ZONE_APPROVED on
+# region). VERIFIED/ARCHIVED are terminal, never "stuck".
 _STAGE_LOCATION_COLUMN = {
-    "DRAFT": "kebele",
+    "DRAFT": "woreda",
     "KEBELE_APPROVED": "woreda",
     "WOREDA_APPROVED": "zone",
     "ZONE_APPROVED": "region",
