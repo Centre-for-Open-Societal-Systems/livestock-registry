@@ -58,6 +58,15 @@ global: &global
   # live /api/login redirect from livestock-registry-development.oanstaging.com.
   keycloakBaseUrl: "https://keycloak-livestock-development.oanstaging.com"
 
+  # registry-platform 1.2 adds in-app notifications through the commons Novu.
+  # The staff UI gets the public Novu hosts from these two keys; the chart
+  # default 'novu-api.{{ .Release.Namespace }}.openg2p.org' resolves nowhere
+  # and trips the Jenkins placeholder guard. Dev has no public Novu (the
+  # commons-novu secret is optional, so the UI simply shows no notifications);
+  # keep them on the internal domain until a public Novu host exists.
+  notificationApiHostname: "novu-api.live.openg2p.test"
+  notificationWsHostname: "novu-ws.live.openg2p.test"
+
   # Where AWE posts its decision callback. Derived from
   # 'https://staff-{{ registryHostname }}/...' — which now follows the public
   # hostname onto "staff-livestock-registry-development.oanstaging.com", a name
@@ -227,6 +236,25 @@ registry:
     istio:
       virtualservice:
         host: "partner-livestock-registry.live.openg2p.test"
+
+  # Same CA trust as staffApi above, for the same reason. The celery worker now
+  # starts the AWE approval of an ingested (ODK / File Import) submission
+  # itself, at global.aweBaseUrl = https://awe.live.openg2p.test, whose
+  # certificate is signed by the box's local CA. Without the bundle that call
+  # fails with CERTIFICATE_VERIFY_FAILED and the submission is finalized with
+  # no approval request. live-ca-bundle is a full bundle (SSL_CERT_FILE
+  # replaces Python's default), so the public Keycloak token URL still verifies.
+  celeryWorker:
+    envVars:
+      SSL_CERT_FILE: /etc/ssl/local-ca/ca-bundle.pem
+    extraVolumes:
+      - name: live-ca-bundle
+        configMap:
+          name: live-ca-bundle
+    extraVolumeMounts:
+      - name: live-ca-bundle
+        mountPath: /etc/ssl/local-ca
+        readOnly: true
 
   # NOTE: the celery memory bumps that were here (worker 4Gi, beat 3Gi) have
   # been removed. They treated the symptom. Both pods were OOMKilled because

@@ -10,28 +10,10 @@ from openg2p_fastapi_common.app import Initializer as BaseInitializer
 from openg2p_fastapi_common.context import dbengine
 from openg2p_registry_core.app import Initializer as CoreInitializer
 
-# Two tables that core-patches/apply_patches.py adds to the base image's
-# openg2p_registry_core at build time. They are core models, not extension
-# models, but nothing in core migrates them — this stack does not use SQLAlchemy
-# create_all(), it migrates an explicit list (see migrate_database below), and
-# core's own list predates these two. Imported here so they can be added to it.
-#
-# Guarded, because this package is installed into THREE images and only two of
-# them carry the patch: staff-api and celery apply it (docker/staff-api and
-# docker/celery both ship a core-patches/), partner-api builds on the stock
-# openg2p-registry-partner-api base and does not. A plain import kills
-# partner-api at module import, before gunicorn can boot a worker — which is
-# exactly what it did. partner-api has no use for these tables either: the
-# attribute controller that reads them lives in staff-api, and without the patch
-# the models are not in its image at all, so there is nothing for it to migrate.
-try:
-    from openg2p_registry_core.models import (
-        G2PAttributeValueSchedule,
-        G2PAttributeValueSpeciesConfig,
-    )
-except ImportError:  # unpatched base image — partner-api
-    G2PAttributeValueSchedule = None
-    G2PAttributeValueSpeciesConfig = None
+# Per-species configuration (ear tag required / flock species) is a table this
+# extension owns: the platform keeps no code lists since registry-platform 1.2
+# (they are read from Master Data), so there is no attribute row to hang it on.
+from .register_domain.models.species_config import G2PLivestockSpeciesConfig
 
 from .register_domain.models import (
     G2PRegisterFarmer, G2PRegisterHistoryFarmer,
@@ -59,7 +41,11 @@ from .register_domain.services import (
     G2PRegisterDomainServiceImportBatch, G2PRegisterDomainServiceAuditLog,
     G2PRegisterDomainServiceRetagging,
 )
-from .register_domain.controllers import G2PAnimalBulkImportController, G2PApproverResolverController
+from .register_domain.controllers import (
+    G2PAnimalBulkImportController,
+    G2PApproverResolverController,
+    G2PLivestockFormConfigController,
+)
 
 _logger = logging.getLogger(_config.logging_default_logger_name)
 
@@ -93,6 +79,11 @@ class Initializer(BaseInitializer):
         # Woreda -> Zone -> Region chain, scoped to the record's own
         # location — see g2p_approver_resolver_controller.py.
         G2PApproverResolverController().post_init()
+        # Per-value configuration the dialog overlay reads (species config,
+        # vaccine intervals): on registry-platform 1.2 the code lists come
+        # from Master Data and carry nothing livestock-specific — see
+        # g2p_form_config_controller.py.
+        G2PLivestockFormConfigController().post_init()
 
     def migrate_database(self, args):
 
@@ -107,23 +98,10 @@ class Initializer(BaseInitializer):
             if dbengine.get() is not None:
                 await dbengine.get().dispose()
 
-            # The two tables the core patches add (see the import above). No
-            # foreign keys point at them and they hold per-attribute-value
-            # config, so they come first and stand alone. Without these the
-            # staff API answers 500 on POST /api/attributes/values with
-            # UndefinedTableError as soon as the intake form loads its
-            # dropdowns — the model is in the image, only the table is missing.
-            #
-            # Skipped in an image without the patch (partner-api), where the
-            # models do not exist and neither does anything that reads them.
-            if G2PAttributeValueSchedule is not None:
-                await G2PAttributeValueSchedule.create_migrate()
-                await G2PAttributeValueSpeciesConfig.create_migrate()
-            else:
-                _logger.info(
-                    "openg2p_registry_core is unpatched in this image; "
-                    "skipping the attribute schedule/species-config tables"
-                )
+            # The species-config table stands alone (nothing references it), so
+            # it comes first. Without it the animal rules answer 500 on the
+            # first save: the model is in the image, only the table is missing.
+            await G2PLivestockSpeciesConfig.create_migrate()
 
             # Farmer first: the livestock record carries the farmer's identifiers.
             await G2PRegisterFarmer.create_migrate()

@@ -33,6 +33,12 @@
  *
  * Data comes only from the portal's own endpoints (same-origin, same session):
  *   POST /api/attributes/values               -> every value with parent_value_id
+ *                                                (Master Data, via the portal)
+ *   POST /api/attributes/values?livestock=form-config
+ *       -> the registry's own per-value facts Master Data does not carry:
+ *          species requires_ear_tag / is_flock_species and vaccine
+ *          interval_days (livestock-extension /livestock/form-config, reached
+ *          through the route switch patch-form-config-route.js adds)
  *   POST /api/intake-form/get-intake-form-submission -> this submission's rows
  * The submission id is read from the URL on a reopened draft, or captured from
  * the response of each section save on a new form.
@@ -59,7 +65,6 @@
   }
 
   var nativeFetch = window.fetch;
-  var attrExtra = null; // set while a Configuration -> Attribute Values dialog carries our extra fields
   // File Import: the upload returns document_id + document_store_id, but the
   // portal enqueues the import with document_store_id only, which the API
   // rejects (it needs document_id). Remember each upload's pair and add the
@@ -84,7 +89,6 @@
 
   window.fetch = function (input, init) {
     var args = arguments;
-    var isAttrSave = false;
     try {
       var reqUrl = typeof input === "string" ? input : (input && input.url) || "";
       if (reqUrl.indexOf("/api/input-mechanism/enqueue-import") > -1 && init && typeof init.body === "string") {
@@ -96,19 +100,7 @@
         });
       }
     } catch (e) { /* never break the portal */ }
-    try {
-      var saveUrl = typeof input === "string" ? input : (input && input.url) || "";
-      if (/configuration\/attributes\/(create|update)-attribute-value/.test(saveUrl)) {
-        isAttrSave = true;
-        if (attrExtra && document.body.contains(attrExtra.dialog) && init && typeof init.body === "string") {
-          var body = JSON.parse(init.body), extra = attrExtra.read();
-          Object.keys(extra).forEach(function (k) { body[k] = extra[k]; });
-          args = [input, Object.assign({}, init, { body: JSON.stringify(body) })];
-        }
-      }
-    } catch (e) { /* never break the portal */ }
     var p = nativeFetch.apply(this, args);
-    if (isAttrSave) p.then(function () { cache.values = {}; }).catch(function () {});
     try {
       if (/upload-document/.test(typeof input === "string" ? input : (input && input.url) || "")) {
         uploadsRead = p.then(function (res) {
@@ -150,6 +142,31 @@
         .catch(function () { return []; });
     }
     return cache.values[attr];
+  }
+  // The registry's per-value facts (species config, vaccine intervals), keyed
+  // by value id. Loaded once; an unreachable endpoint yields no facts, and the
+  // dialogs then fall back to their defaults (ear tag required, no interval).
+  function formConfig() {
+    if (!cache.formConfig) {
+      cache.formConfig = post("/api/attributes/values?livestock=form-config", { attribute_id: "LIVESTOCK_FORM_CONFIG" })
+        .then(function (j) {
+          var rows = Array.isArray(j) ? j : (j && j.attributeValues) || [], out = {};
+          rows.forEach(function (r) { if (r && r.value_id) out[r.value_id] = r; });
+          return out;
+        })
+        .catch(function () { return {}; });
+    }
+    return cache.formConfig;
+  }
+  // The list's values with the registry's facts merged in by value id.
+  function attributeValuesWithConfig(attr) {
+    return Promise.all([attributeValues(attr), formConfig()]).then(function (res) {
+      var list = res[0], cfg = res[1];
+      return list.map(function (v) {
+        var extra = v && v.value_id && cfg[v.value_id];
+        return extra ? Object.assign({}, v, extra) : v;
+      });
+    });
   }
   function submissionAnimals() {
     var id = cache.submissionId;
@@ -268,6 +285,15 @@
     setter.call(el, value);
     el.dispatchEvent(new Event(el.tagName === "SELECT" ? "change" : "input", { bubbles: true }));
   }
+  // Run fn after the event that triggered it has been fully handled. A value
+  // set on another field from inside a "change" / "input" listener dispatches
+  // that field's own event in the middle of the first one: registry-platform
+  // 1.2's React form then re-renders from state that has not taken the first
+  // change yet, and the first field snaps back (a Vaccine picked on the
+  // Vaccination dialog came back as "Select" because Next Due Date was filled
+  // from inside the Vaccine's change event). Deferring lets React apply the
+  // user's change first.
+  function soon(fn) { return function () { setTimeout(fn, 0); }; }
   function restrictOptions(select, allowed) {
     var opts = select.options;
     for (var i = 0; i < opts.length; i++) {
@@ -296,7 +322,7 @@
     attributeValues(BREED_ATTR).then(function (list) {
       var map = byParent(list);
       var apply = function () { var s = species.value; restrictOptions(breed, s ? (map[s] || {}) : null); };
-      species.addEventListener("change", apply);
+      species.addEventListener("change", soon(apply));
       observeOptions(breed, apply);
       apply();
     });
@@ -365,9 +391,9 @@
       if (sex) restrictOptions(sex, c.ear ? { MALE: true, FEMALE: true } : { MALE: true, FEMALE: true, MIXED: true });
       msg.textContent = "";
     };
-    attributeValues("LIVESTOCK_SPECIES").then(function (list) {
+    attributeValuesWithConfig("LIVESTOCK_SPECIES").then(function (list) {
       list.forEach(function (v) { if (v && v.value_id) byId[v.value_id] = v; });
-      species.addEventListener("change", apply);
+      species.addEventListener("change", soon(apply));
       if (sex) observeOptions(sex, apply);
       apply();
     });
@@ -378,6 +404,11 @@
       var c = current(), blank = function (el) { return !el || !String(el.value || "").trim(); }, problem = "";
       if (species.value) {
         if (c.ear && blank(earInput)) problem = "Livestock Ear Tag is required for this species.";
+        // Same rule and message as the server (G2PRegisterDomainServiceAnimal.
+        // _validate_ear_tag_id). The platform's dialog Save closes the dialog and
+        // the server's error only appears on Next (G2R-229 point 6).
+        else if (c.ear && !/^ET\d{10}$/.test(String(earInput.value || "").replace(/\s+/g, "").toUpperCase()))
+          problem = "Ear tag must be ET followed by exactly 10 digits, e.g. ET0000000013.";
         else if (!c.ear && blank(secInput)) problem = "Secondary Identifier (leg band, wing tag, hive number, ...) is required — this species has no ear tag.";
         else if (c.flock && !(parseInt(qtyInput.value, 10) > 0)) problem = "Quantity (head count) is required for this species.";
         else if (!c.flock && dobInput && blank(dobInput)) problem = "Date of Birth is required for this species.";
@@ -423,9 +454,9 @@
       ? d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate())
       : pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) + "/" + d.getFullYear();
   }
-  // The interval is set per vaccine under Configuration -> Attribute Values
-  // (VACCINE_TYPE -> Edit -> Interval / Active). The server recomputes the same
-  // value on save; this only shows it while the dialog is open.
+  // The interval comes from the Vaccine Schedule register (via form-config).
+  // The server recomputes the same value on save; this only shows it while
+  // the dialog is open.
   function wireNextDueDate(dialog, vaccine, vaccineValues) {
     var given = control(dialog, /^Vaccination Date\b/, "input");
     var next = control(dialog, /^Next Due Date\b/, "input");
@@ -445,17 +476,17 @@
       var d = readDate(given), now = new Date();
       if (d && d > new Date(now.getFullYear(), now.getMonth(), now.getDate())) setValue(given, writeDate(given, now));
     };
-    given.addEventListener("change", clampToToday);
-    given.addEventListener("blur", clampToToday);
+    given.addEventListener("change", soon(clampToToday));
+    given.addEventListener("blur", soon(clampToToday));
     var apply = function () {
       var n = days[vaccine.value], base = readDate(given);
       if (!n || !base) return;
       var want = writeDate(next, new Date(base.getFullYear(), base.getMonth(), base.getDate() + n));
       if (next.value !== want) setValue(next, want);
     };
-    vaccine.addEventListener("change", apply);
-    given.addEventListener("input", apply);
-    given.addEventListener("change", apply);
+    vaccine.addEventListener("change", soon(apply));
+    given.addEventListener("input", soon(apply));
+    given.addEventListener("change", soon(apply));
     // the platform fills the "today" default after the dialog first renders
     var timer = setInterval(function () {
       if (!document.body.contains(dialog)) { clearInterval(timer); return; }
@@ -535,8 +566,8 @@
     if (!dialog.__lrOutcomeObserver) {
       dialog.__lrOutcomeObserver = new MutationObserver(apply);
       dialog.__lrOutcomeObserver.observe(dialog, { childList: true, subtree: true });
-      dialog.addEventListener("input", apply);
-      dialog.addEventListener("change", apply);
+      dialog.addEventListener("input", soon(apply));
+      dialog.addEventListener("change", soon(apply));
     }
     apply();
   }
@@ -679,7 +710,7 @@
 
       var vaccine = control(dialog, /^Vaccine\b/, "select");
       if (!vaccine) return;
-      attributeValues(VACCINE_ATTR).then(function (list) {
+      attributeValuesWithConfig(VACCINE_ATTR).then(function (list) {
         var map = byParent(list);
         var apply = function () {
           var tag = String(ear.value || "").trim().toUpperCase();
@@ -716,104 +747,6 @@
           pad2(dob.getDate()) + "/" + pad2(dob.getMonth() + 1) + "/" + dob.getFullYear() + ").";
       }, true);
     });
-  }
-
-  // ---- Configuration -> Attribute Values: Species / Interval / Active / Notes ----
-  // The portal's Add/Edit Attribute Value dialog only has Value Code and Display
-  // Order. The backend already stores parent_value_id (the species), interval_days,
-  // is_active and notes, so the extra fields are added here and merged into the
-  // portal's own create/update request (see the fetch wrapper above).
-  var ATTR_FIELDS = {
-    VACCINE_TYPE: { parent: true, schedule: true },
-    LIVESTOCK_BREED: { parent: true },
-    LIVESTOCK_SPECIES: { speciesConfig: true }
-  };
-  function wireAttributeValue(dialog) {
-    var pathMatch = location.pathname.match(/\/configuration\/attributes\/([^/?#]+)/);
-    var attr = pathMatch && decodeURIComponent(pathMatch[1]);
-    var cfg = attr && ATTR_FIELDS[attr];
-    if (!cfg) return;
-    var order = control(dialog, /^Display Order\b/, "input");
-    var code = control(dialog, /^Value Code\b/, "input");
-    if (!order || !code) return;
-    var labels = dialog.querySelectorAll("label"), label = null;
-    for (var i = 0; i < labels.length; i++) if (/^Display Order\b/.test(labels[i].textContent.trim())) label = labels[i];
-    var anchor = label && label.parentElement;
-    if (!anchor || !anchor.parentNode) return;
-
-    var makeBox = function (text, el) {
-      var b = anchor.cloneNode(false), l = label.cloneNode(false);
-      l.textContent = text; l.removeAttribute("for");
-      b.appendChild(l); b.appendChild(el); return b;
-    };
-    var species = document.createElement("select"); species.className = order.className;
-    var interval = document.createElement("input"); interval.type = "number"; interval.min = "1"; interval.step = "1";
-    interval.className = order.className; interval.placeholder = "Days between doses, e.g. 180";
-    var active = document.createElement("input"); active.type = "checkbox"; active.checked = true;
-    var notes = document.createElement("input"); notes.type = "text"; notes.className = order.className;
-
-    // Species-level switches: an animal of a species without an ear tag (poultry, beehive, ...)
-    // is registered by Secondary Identifier + Quantity instead — see wireAnimal.
-    var needsTag = document.createElement("input"); needsTag.type = "checkbox"; needsTag.checked = true;
-    var isFlock = document.createElement("input"); isFlock.type = "checkbox"; isFlock.checked = false;
-
-    var boxes = [];
-    if (cfg.parent) boxes.push(makeBox("Species", species));
-    if (cfg.speciesConfig) boxes.push(makeBox("Requires Ear Tag", needsTag), makeBox("Flock / Group Species", isFlock));
-    if (cfg.schedule) boxes.push(makeBox("Interval (days)", interval), makeBox("Active", active), makeBox("Notes", notes));
-    var ref = anchor.nextSibling;
-    boxes.forEach(function (b) { anchor.parentNode.insertBefore(b, ref); });
-
-    var blank = document.createElement("option"); blank.value = ""; blank.textContent = "Select species…"; species.appendChild(blank);
-    attributeValues("LIVESTOCK_SPECIES").then(function (list) {
-      list.forEach(function (v) {
-        var o = document.createElement("option"); o.value = v.value_id;
-        o.textContent = v.value_display || pretty(v.value_id, "LIVESTOCK_SPECIES_"); species.appendChild(o);
-      });
-      prefill();
-    });
-
-    // Edit: the dialog opens with the row's Value Code already filled in.
-    var typed = false, tries = 0, filled = false;
-    code.addEventListener("input", function (e) { if (e.isTrusted) typed = true; });
-    var prefill = function () {
-      if (filled || typed || !code.value.trim() || (cfg.parent && species.options.length < 2)) return;
-      attributeValues(attr).then(function (rows) {
-        var row = null, c = code.value.trim();
-        for (var i = 0; i < rows.length; i++) if (rows[i].value_code === c) { row = rows[i]; break; }
-        if (!row || filled) return;
-        filled = true;
-        species.value = row.parent_value_id || "";
-        interval.value = row.interval_days || "";
-        active.checked = row.is_active !== false;
-        notes.value = row.notes || "";
-        needsTag.checked = row.requires_ear_tag !== false;
-        isFlock.checked = row.is_flock_species === true;
-      });
-    };
-    var timer = setInterval(function () {
-      if (!document.body.contains(dialog) || ++tries > 25) { clearInterval(timer); return; }
-      prefill();
-    }, 150);
-
-    attrExtra = {
-      dialog: dialog,
-      read: function () {
-        var out = {};
-        if (cfg.parent && species.value) out.parent_value_id = species.value;
-        if (cfg.speciesConfig) {
-          out.requires_ear_tag = needsTag.checked;
-          out.is_flock_species = isFlock.checked;
-        }
-        if (cfg.schedule) {
-          var n = parseInt(interval.value, 10);
-          if (n > 0) out.interval_days = n;
-          out.is_active = active.checked;
-          if (notes.value.trim()) out.notes = notes.value.trim();
-        }
-        return out;
-      }
-    };
   }
 
   // ---- Intake form -> Farmer section: Registration Date starts as today ------
@@ -1195,7 +1128,6 @@
       try {
         if (control(d, /^Breed\b/, "select")) wireAnimal(d);
         else if (control(d, /Ear Tag\b/, "input")) wireEvent(d);
-        else if (control(d, /^Value Code\b/, "input")) wireAttributeValue(d);
       } catch (e) { /* overlay must never break the dialog */ }
     }
   }

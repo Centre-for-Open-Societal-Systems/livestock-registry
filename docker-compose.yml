@@ -315,6 +315,15 @@ services:
       GEN2_MASTER_DATA_API_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
       GEN2_MASTER_DATA_API_PORT: ${MASTER_DATA_PORT}
       GEN2_MASTER_DATA_API_OPENAPI_ROOT_PATH: /
+      # master-data-api 1.1.0 reads MASTER_DATA_API_* only (the GEN2_* and
+      # COMMON_* names above are the pre-rename build's and are kept for it).
+      MASTER_DATA_API_KEYCLOAK_CLIENT_ID: ${AUTH_CLIENT_ID}
+      MASTER_DATA_API_AUTH_PROVIDER_API_URL: http://iam:8000
+      MASTER_DATA_API_AUTH_REDIS_URL: redis://redis:6379/0
+      # The registry reads code lists server-to-server with a bearer token
+      # (registry-platform 1.2 MasterDataClient); iam_core's CSRF check wants a
+      # browser cookie + header pair and would answer 403 to every such call.
+      MASTER_DATA_API_CSRF_ENABLED: "false"
       COMMON_KEYCLOAK_CLIENT_ID: ${AUTH_CLIENT_ID}
       COMMON_AUTH_PROVIDER_API_URL: http://iam:8000
     ports:
@@ -408,12 +417,16 @@ services:
       REGISTRY_STAFF_PORTAL_API_DB_DBNAME: ${REGISTRY_DB}
       REGISTRY_STAFF_PORTAL_API_DB_USERNAME: ${REGISTRY_DB_USER}
       REGISTRY_STAFF_PORTAL_API_DB_PASSWORD: ${REGISTRY_DB_PASSWORD}
-      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
-      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME: postgres
-      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT: 5432
-      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME: ${MASTER_DATA_DB}
-      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME: ${MASTER_DATA_DB_USER}
-      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
+      # Master Data over HTTP (registry-platform 1.2 keeps no code lists and no
+      # Master Data DB connection). Reads need a staff token: client
+      # credentials on the portal client (Service accounts enabled).
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_API_URL: http://master-data:${MASTER_DATA_PORT}
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_TOKEN_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_CLIENT_ID: ${AUTH_CLIENT_ID}
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
+      # Reject a coded value (species, breed, disease, vaccine ...) that is not
+      # in its Master Data list, on the intake and change-request paths.
+      REGISTRY_STAFF_PORTAL_API_VALIDATE_ATTRIBUTE_VALUES: "true"
       REGISTRY_STAFF_PORTAL_API_OPENAPI_ROOT_PATH: /
       REGISTRY_STAFF_PORTAL_API_AUTH_PROVIDER_API_URL: http://iam:8000
       REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL: redis://redis:6379/0
@@ -468,6 +481,9 @@ services:
       # images and PDF. Add the spreadsheet types (Excel can be sniffed as zip).
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ${DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS:-png,jpg,jpeg,webp,pdf,csv,xlsx,xls}
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: ${DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES:-image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip}
+      # Read by the staff API under its own prefix (see helm values.yaml).
+      REGISTRY_STAFF_PORTAL_API_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ${DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS:-png,jpg,jpeg,webp,pdf,csv,xlsx,xls}
+      REGISTRY_STAFF_PORTAL_API_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: ${DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES:-image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip}
       # Farmer Registry enrichment of the intake form's Farmer section
       # (farmer_registry_enrichment.py): a consent-signed DCI search by Farmer
       # ID whose result replaces the typed name/gender/DOB/mobile. Off unless
@@ -530,12 +546,16 @@ services:
       REGISTRY_PARTNER_API_DB_USERNAME: ${REGISTRY_DB_USER}
       REGISTRY_PARTNER_API_DB_PASSWORD: ${REGISTRY_DB_PASSWORD}
       REGISTRY_PARTNER_API_OPENAPI_ROOT_PATH: /
-      REGISTRY_PARTNER_API_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
-      REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME: postgres
-      REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT: 5432
-      REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME: ${MASTER_DATA_DB}
-      REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME: ${MASTER_DATA_DB_USER}
-      REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
+      # Master Data over HTTP (registry-platform 1.2 keeps no code lists and no
+      # Master Data DB connection). Reads need a staff token: client
+      # credentials on the portal client (Service accounts enabled).
+      REGISTRY_PARTNER_API_MASTER_DATA_API_URL: http://master-data:${MASTER_DATA_PORT}
+      REGISTRY_PARTNER_API_MASTER_DATA_TOKEN_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      REGISTRY_PARTNER_API_MASTER_DATA_CLIENT_ID: ${AUTH_CLIENT_ID}
+      REGISTRY_PARTNER_API_MASTER_DATA_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
+      # Reject a coded value (species, breed, disease, vaccine ...) that is not
+      # in its Master Data list, on the intake and change-request paths.
+      REGISTRY_PARTNER_API_VALIDATE_ATTRIBUTE_VALUES: "true"
       # Partner signature checks, consent enforcement and keymanager all need
       # commons-services; disabled so the API starts standalone.
       REGISTRY_PARTNER_API_SIGNATURE_VALIDATION_ENABLED: ${PARTNER_SIGNATURE_VALIDATION_ENABLED}
@@ -549,6 +569,9 @@ services:
       REGISTRY_PARTNER_API_MINIO_BUCKET_NAME: ${DOCUMENTS_BUCKET}
       REGISTRY_PARTNER_API_TEMPLATE_BUCKET_NAME: ${TEMPLATE_BUCKET}
       REGISTRY_PARTNER_API_AUDIT_ENABLED: ${AUDIT_ENABLED}
+      # Partner ingest (/partner/ingest_data) is patched by the ODK hooks; the
+      # staff-api never loads them (see livestock-extension __init__.py).
+      ODK_HOOKS_ENABLED: "true"
     # The base image's gunicorn binds 0.0.0.0:8000 regardless of
     # REGISTRY_PARTNER_API_PORT, so the container port is fixed at 8000. Nothing
     # inside the network calls the partner API, so an unequal mapping is fine.
@@ -576,12 +599,16 @@ services:
       REGISTRY_CELERY_WORKERS_DB_DBNAME: ${REGISTRY_DB}
       REGISTRY_CELERY_WORKERS_DB_USERNAME: ${REGISTRY_DB_USER}
       REGISTRY_CELERY_WORKERS_DB_PASSWORD: ${REGISTRY_DB_PASSWORD}
-      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
-      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: postgres
-      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT: 5432
-      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME: ${MASTER_DATA_DB}
-      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME: ${MASTER_DATA_DB_USER}
-      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD: ${MASTER_DATA_DB_PASSWORD}
+      # Master Data over HTTP (registry-platform 1.2 keeps no code lists and no
+      # Master Data DB connection). Reads need a staff token: client
+      # credentials on the portal client (Service accounts enabled).
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_API_URL: http://master-data:${MASTER_DATA_PORT}
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_TOKEN_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_CLIENT_ID: ${AUTH_CLIENT_ID}
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
+      # Reject a coded value (species, breed, disease, vaccine ...) that is not
+      # in its Master Data list, on the intake and change-request paths.
+      REGISTRY_CELERY_WORKERS_VALIDATE_ATTRIBUTE_VALUES: "true"
       REGISTRY_CELERY_WORKERS_CELERY_BROKER_URL: redis://redis:6379/0
       REGISTRY_CELERY_WORKERS_CELERY_BACKEND_URL: redis://redis:6379/0
       REGISTRY_CELERY_WORKERS_WORKER_QUEUE: registry_worker_queue
@@ -604,6 +631,24 @@ services:
       REGISTRY_CELERY_WORKERS_ID_GENERATION_ALLOCATION_PATH: '/idgenerator/{id_type}/id'
       CELERY_APP: openg2p_registry_celery_worker.main.celery_app
       CELERY_OPTS: worker -Q registry_worker_queue --loglevel=info
+
+      # ODK / partner ingestion hooks (livestock-extension __init__): only the
+      # ingestion processes load them; see ODK_HOOKS_ENABLED in __init__.py.
+      ODK_HOOKS_ENABLED: "true"
+      # Token the worker starts an ingested submission's AWE approval with
+      # (docker/celery/core-patches: _awe_service_token). The client needs
+      # "Service accounts enabled" in Keycloak; local/.env ODK_INGEST_CLIENT_*.
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_ISSUER_BASE_URL: http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}
+      REGISTRY_CELERY_WORKERS_AWE_CLIENT_ID: ${ODK_INGEST_CLIENT_ID:-${AUTH_CLIENT_ID}}
+      REGISTRY_CELERY_WORKERS_AWE_CLIENT_SECRET: ${ODK_INGEST_CLIENT_SECRET:-${AUTH_CLIENT_SECRET}}
+      # The AWE client the worker creates that approval request with (the
+      # platform chart only gives these to staff-api). No HMAC secret here:
+      # the worker never receives AWE's decision webhooks.
+      REGISTRY_CELERY_WORKERS_AWE_ENABLED: ${AWE_ENABLED}
+      REGISTRY_CELERY_WORKERS_AWE_BASE_URL: http://awe:8000
+      REGISTRY_CELERY_WORKERS_AWE_DEFAULT_CALLBACK_URL: http://staff-api:8000/awe/webhooks/decision
+      REGISTRY_CELERY_WORKERS_AWE_CALLBACK_SECRET_ID: ${AWE_CALLBACK_SECRET_ID}
     depends_on:
       staff-api:
         condition: service_healthy
@@ -651,6 +696,7 @@ services:
       CALVING_REMINDER_FALLBACK_EMAILS: ${CALVING_REMINDER_FALLBACK_EMAILS:-vet.duty-officer@example.com}
       CELERY_APP: openg2p_registry_celery_beat.main.celery_app
       CELERY_OPTS: worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db
+      ODK_HOOKS_ENABLED: "true"
     depends_on:
       staff-api:
         condition: service_healthy

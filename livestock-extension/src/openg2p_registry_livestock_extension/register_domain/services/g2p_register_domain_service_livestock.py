@@ -29,20 +29,20 @@ _logger = logging.getLogger("g2p-register-domain-service")
 
 
 def _stage_order_to_state():
-    """stage_order (on the registry.intake_form.livestock AWE policy) -> the state
-    that stage's approval advances a Livestock intake draft to. Mirrors gen1's
-    Kebele -> Woreda -> Zone -> Region ladder (g2p_livestock_registry/models/
-    livestock_registry.py _APPROVAL_LEVELS). The final stage (Region) is NOT
-    listed here — it's handled separately in post_approval_stage below via
-    event_type == "request_approved", so it always means VERIFIED regardless
-    of which literal stage_order number the policy's last stage happens to be.
+    """stage_order (on the registry.intake_form.livestock AWE policy) -> the
+    intermediate state that stage's approval moves a Livestock intake draft to.
+
+    Empty: approval is a single Woreda stage (Oct 2026 decision, replacing
+    gen1's Kebele -> Woreda -> Zone -> Region ladder), so there is no state
+    between DRAFT and VERIFIED. The final approval is handled separately in
+    post_approval_stage via event_type == "request_approved" and always means
+    VERIFIED. Mapping stage 1 here (it was KEBELE_APPROVED) would label a
+    Woreda-approved record "Kebele approved", and could even overwrite
+    VERIFIED when stage 1's stage_completed event arrives after
+    request_approved. KEBELE/WOREDA/ZONE_APPROVED stay in LivestockStateEnum
+    for records approved under the old ladder.
     """
-    LivestockStateEnum = _extension_models().LivestockStateEnum
-    return {
-        1: LivestockStateEnum.KEBELE_APPROVED,
-        2: LivestockStateEnum.WOREDA_APPROVED,
-        3: LivestockStateEnum.ZONE_APPROVED,
-    }
+    return {}
 
 
 # FR- followed by exactly 10 digits, as enforced by _check_farmer_id_format in
@@ -180,9 +180,9 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
     async def post_approval_stage(
         self, submission, stage_order: int | None, event_type: str, session
     ) -> None:
-        """Advances the Livestock intake draft's own `state` through the
-        Kebele -> Woreda -> Zone -> Region hierarchical approval ladder as
-        each AWE stage completes — see LivestockStateEnum. Called by the
+        """Sets the Livestock intake draft's own `state` as AWE stages complete
+        — see LivestockStateEnum and _stage_order_to_state (single Woreda stage
+        today, so only the final approval changes it, to VERIFIED). Called by the
         core-patched g2p_awe_webhook_service.py (Fix 5, docker/staff-api/
         core-patches/apply_patches.py) once per approved stage:
         event_type="stage_completed" for the non-final stages (Kebele/
@@ -217,6 +217,12 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         ).scalar_one_or_none()
         if not livestock_row:
             return
+        # Never move a fully approved record back to an intermediate state: AWE
+        # delivers stage_completed and request_approved concurrently, so a stage
+        # event can arrive after the final one.
+        verified = _extension_models().LivestockStateEnum.VERIFIED.value
+        if livestock_row.state == verified and new_state.value != verified:
+            return
         livestock_row.state = new_state.value
         livestock_row.state_date = date.today()
         await session.flush()
@@ -236,6 +242,9 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         if register_id != LIVESTOCK_REGISTER_ID:
             return
         await self._sync_farmer_identity(register_row, session)
+        from .domain_validation_utils import refresh_total_animals
+
+        await refresh_total_animals(session, register_row.internal_record_id)
 
     async def _sync_farmer_identity(self, livestock, session) -> None:
         G2PRegisterFarmer = _extension_models().G2PRegisterFarmer

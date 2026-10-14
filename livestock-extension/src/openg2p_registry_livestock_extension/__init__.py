@@ -4,8 +4,43 @@ __variant__ = "livestock"
 import os
 import sys
 
-# Alias so the core platform can import from openg2p_registry_extensions
-# (the generic name) while the actual package is openg2p_registry_livestock_extension.
+# The platform imports the domain extension by the generic name
+# openg2p_registry_extensions (and, by importlib, its submodules such as
+# openg2p_registry_extensions.register_domain.models); the installed package
+# is openg2p_registry_livestock_extension. Aliasing only the package objects in
+# sys.modules is not enough: a submodule the platform asks for by the generic
+# name that is not yet in sys.modules is found through the aliased parent's
+# __path__ and loaded as a SECOND module object, so every SQLAlchemy model in
+# it is declared twice ("Table 'g2p_register_farmers' is already defined").
+# The finder below answers any generic-name import with the real module
+# object instead, so both names share one module.
+import importlib
+import importlib.abc
+import importlib.util
+
+_GENERIC = "openg2p_registry_extensions"
+_REAL = "openg2p_registry_livestock_extension"
+
+
+class _ExtensionAliasFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == _GENERIC or fullname.startswith(_GENERIC + "."):
+            return importlib.util.spec_from_loader(fullname, self)
+        return None
+
+    def create_module(self, spec):
+        real_name = _REAL + spec.name[len(_GENERIC):]
+        module = importlib.import_module(real_name)
+        sys.modules[spec.name] = module
+        return module
+
+    def exec_module(self, module):
+        return None
+
+
+if not any(isinstance(f, _ExtensionAliasFinder) for f in sys.meta_path):
+    sys.meta_path.insert(0, _ExtensionAliasFinder())
+
 try:
     import openg2p_registry_livestock_extension
     sys.modules["openg2p_registry_extensions"] = openg2p_registry_livestock_extension
@@ -18,7 +53,66 @@ try:
 except Exception:
     pass
 
-# Bridge staff-api / platform settings to iam_core common_ settings
+
+# Application reference format. The platform default
+# "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:1}" has only ten values per second, so
+# a batch of ODK or File Import submissions saved in the same second collided
+# on the reference. The default here is the format the chart and compose
+# already give the staff and partner APIs (five random digits), so a record
+# keeps the same reference shape whether it came from the web form, ODK or a
+# File Import (the celery worker creates the last two). This used to be a
+# patch of generate_application_reference; registry-platform 1.2 reads the
+# format from settings, so it is a settings default now. Every app's Settings
+# extends the core one under its own prefix, and the first instance created
+# serves the process (see below), so the default is offered under each prefix.
+# A value set in the deployment wins.
+for _prefix in (
+    "REGISTRY_CORE_",
+    "REGISTRY_STAFF_PORTAL_API_",
+    "REGISTRY_PARTNER_API_",
+    "REGISTRY_CELERY_WORKERS_",
+    "REGISTRY_CELERY_BEAT_",
+):
+    os.environ.setdefault(
+        f"{_prefix}APPLICATION_REFERENCE_FORMAT",
+        "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}",
+    )
+
+
+# The platform entry points (openg2p_registry_staff_api.main and the
+# partner-api / celery equivalents) import this module through
+# REGISTRY_EXTENSION_MODULE and only afterwards create their own Settings.
+# Core modules capture Settings.get_config(strict=False) at import time, and
+# that returns the FIRST registered instance of the core Settings class, so
+# whichever core Settings exists first serves the whole process. The bridges
+# below import openg2p_registry_core.engine and friends, each creating a plain
+# registry_core_ Settings; made here, before the app's registry_staff_portal_api_
+# one, every core module read that empty instance: awe_callback_hmac_secret was
+# None, every AWE decision webhook answered 401, and approved submissions never
+# reached the register. Create the running app's Settings first, which is the
+# order the platform's own entry points establish.
+def _create_app_settings_first():
+    import importlib
+
+    for pkg in (
+        "openg2p_registry_staff_api",
+        "openg2p_registry_partner_api",
+        "openg2p_registry_celery_worker",
+        "openg2p_registry_celery_beat",
+    ):
+        if pkg in sys.modules:
+            try:
+                importlib.import_module(f"{pkg}.config").Settings.get_config()
+            except Exception:
+                pass
+            return
+
+
+_create_app_settings_first()
+
+# Bridge staff-api / platform settings to iam_core common_ settings. Plain
+# environment copies: iam_core's own Settings (created later by the app)
+# read COMMON_* from the environment, so every process needs these.
 _redis_url = os.environ.get("REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL") or os.environ.get("COMMON_AUTH_REDIS_URL")
 if _redis_url:
     os.environ["COMMON_AUTH_REDIS_URL"] = _redis_url
@@ -31,17 +125,25 @@ _client_id = os.environ.get("REGISTRY_STAFF_PORTAL_API_KEYCLOAK_CLIENT_ID") or o
 if _client_id:
     os.environ["COMMON_KEYCLOAK_CLIENT_ID"] = _client_id
 
-try:
-    from iam_core.user_auth.config import Settings as IamSettings
-    _iam_cfg = IamSettings.get_config(strict=False)
-    if _redis_url:
-        _iam_cfg.auth_redis_url = _redis_url
-    if _auth_provider_url:
-        _iam_cfg.auth_provider_api_url = _auth_provider_url
-    if _client_id:
-        _iam_cfg.keycloak_client_id = _client_id
-except Exception:
-    pass
+# ODK ingestion support (odk_ingest_hooks, imported further down) patches the
+# platform's ingest controller, ingest service and celery ingest workers at
+# import time. That is only wanted in the processes that run ODK / partner
+# ingestion. Opt in per process with ODK_HOOKS_ENABLED (docker-compose.yml /
+# helm values set it on partner-api and the celery images, never on staff-api).
+ODK_HOOKS_ENABLED = os.environ.get("ODK_HOOKS_ENABLED", "").strip().lower() in ("1", "true", "yes")
+
+if ODK_HOOKS_ENABLED:
+    try:
+        from iam_core.user_auth.config import Settings as IamSettings
+        _iam_cfg = IamSettings.get_config(strict=False)
+        if _redis_url:
+            _iam_cfg.auth_redis_url = _redis_url
+        if _auth_provider_url:
+            _iam_cfg.auth_provider_api_url = _auth_provider_url
+        if _client_id:
+            _iam_cfg.keycloak_client_id = _client_id
+    except Exception:
+        pass
 
 # Bridge database settings to openg2p_fastapi_common and openg2p_registry_core
 _db_host = (
@@ -95,7 +197,15 @@ os.environ["COMMON_DB_DATASOURCE"] = _db_datasource
 
 try:
     import openg2p_fastapi_common.app as fc_app
-    if hasattr(fc_app, "_config"):
+    from openg2p_fastapi_common.config import Settings as _CommonSettings
+
+    # Only a bare common_ Settings (no DB env of its own) is repointed. With
+    # the app's Settings created first (above) fc_app._config is that app's
+    # own instance, already configured from its REGISTRY_<APP>_DB_* env and
+    # with the driver that app expects: celery-beat runs a sync engine, and
+    # forcing the asyncpg datasource onto it broke every beat producer with
+    # sqlalchemy MissingGreenlet.
+    if hasattr(fc_app, "_config") and type(fc_app._config) is _CommonSettings:
         fc_app._config.db_hostname = _db_host
         fc_app._config.db_port = _db_port
         fc_app._config.db_dbname = _db_name
@@ -111,11 +221,23 @@ try:
     def _get_registry_engine():
         global _registry_engine
         if _registry_engine is None:
-            _registry_engine = create_async_engine(
-                _db_datasource,
-                pool_pre_ping=True,
-                pool_recycle=1800,
-            )
+            # A celery process runs every task in its own event loop; a pooled
+            # asyncpg connection checked out in one loop fails in the next
+            # ("got Future attached to a different loop"), which is how one
+            # of seven ODK ingests in a batch ended FAILED on registry-platform
+            # 1.2. No pool there: a connection per checkout, like the ODK
+            # hooks' own engine. The API processes keep the pool.
+            _celery = any(m in sys.modules for m in ("openg2p_registry_celery_worker", "openg2p_registry_celery_beat"))
+            if _celery:
+                from sqlalchemy.pool import NullPool
+
+                _registry_engine = create_async_engine(_db_datasource, poolclass=NullPool)
+            else:
+                _registry_engine = create_async_engine(
+                    _db_datasource,
+                    pool_pre_ping=True,
+                    pool_recycle=1800,
+                )
         return _registry_engine
 
     _orig_dbengine_get = dbengine.get
@@ -144,75 +266,31 @@ try:
 except Exception:
     pass
 
+# Celery worker on registry-platform 1.2: every task module (ingest, ingest
+# transformation, intake ingest, import, score) runs its coroutines on its own
+# module-level event loop, while all of them share the one pooled asyncpg
+# engine of openg2p_registry_celery_worker.engine.Engine. A connection pooled
+# under one task's loop and checked out by the next task's loop fails with
+# "got Future attached to a different loop"; locally an ODK ingest failed this
+# way right after its transformation task in the same worker process. The
+# worker's async engine therefore gets no pool (a connection per checkout);
+# its sync engine keeps the pool.
 try:
-    import openg2p_registry_core.engine as core_engine
-    from sqlalchemy.ext.asyncio import create_async_engine
+    if "openg2p_registry_celery_worker" in sys.modules:
+        from openg2p_registry_celery_worker import engine as _cw_engine
+        from sqlalchemy.pool import NullPool as _NullPool
 
-    # The celery worker and beat get their master-data DB under their own
-    # REGISTRY_CELERY_*_ prefix. Reading only the staff-api / partner-api names
-    # fell back to "postgres", which exists only in the local compose stack: on
-    # a cluster File Import failed with "Name does not resolve" at the partner
-    # lookup.
-    _md_host = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
-        or "postgres"
-    )
-    _md_port = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
-        or "5432"
-    )
-    _md_name = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("MASTER_DATA_DB")
-        or "master_data"
-    )
-    _md_user = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("MASTER_DATA_DB_USER")
-        or "master_data_user"
-    )
-    _md_pass = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("MASTER_DATA_DB_PASSWORD")
-        or "master_data_pass"
-    )
-    _md_datasource = f"postgresql+asyncpg://{_md_user}:{_md_pass}@{_md_host}:{_md_port}/{_md_name}"
+        _orig_cw_pool_kwargs = _cw_engine._pool_kwargs
 
-    _md_engine = create_async_engine(_md_datasource, pool_pre_ping=True, pool_recycle=1800)
-    if core_engine._engines is None:
-        core_engine._engines = {}
-    core_engine._engines["db_engine_master_data"] = _md_engine
+        def _cw_pool_kwargs(datasource: str) -> dict:
+            if datasource and "+asyncpg" in datasource:
+                return {"poolclass": _NullPool}
+            return _orig_cw_pool_kwargs(datasource)
 
-    _orig_get_engine = getattr(core_engine, "get_engine", None)
-    if _orig_get_engine:
-        def _safe_get_engine(name="db_engine_master_data"):
-            if name == "db_engine_master_data":
-                return _md_engine
-            res = _orig_get_engine(name)
-            if res is None or getattr(getattr(res, "url", None), "host", None) in ("localhost", "127.0.0.1", None):
-                res = _get_registry_engine()
-            return res
-        core_engine.get_engine = _safe_get_engine
+        _cw_engine._pool_kwargs = _cw_pool_kwargs
+        # Built before this module was imported: rebuild on next use.
+        _cw_engine.Engine._async_engine = None
+        _cw_engine.Engine._async_session_maker = None
 except Exception:
     pass
 
@@ -237,23 +315,6 @@ try:
             ).encode("utf-8")
 
     starlette.responses.JSONResponse.render = _safe_json_render
-except Exception:
-    pass
-
-# Register G2PAttributeValueSpeciesConfig model
-try:
-    from openg2p_fastapi_common.models import BaseORMModel
-    from sqlalchemy import Column, String, Boolean
-    import openg2p_registry_core.models as core_models
-
-    class G2PAttributeValueSpeciesConfig(BaseORMModel):
-        __tablename__ = "g2p_attribute_value_species_configs"
-        __table_args__ = {"extend_existing": True}
-        value_id = Column(String, primary_key=True)
-        requires_ear_tag = Column(Boolean, nullable=True)
-        is_flock_species = Column(Boolean, nullable=True)
-
-    core_models.G2PAttributeValueSpeciesConfig = G2PAttributeValueSpeciesConfig
 except Exception:
     pass
 
@@ -310,12 +371,13 @@ try:
 except Exception:
     pass
 
-try:
-    from . import odk_ingest_hooks  # noqa: F401
-except Exception as e:
-    import traceback
-    print(f"FAILED TO IMPORT odk_ingest_hooks: {e}", flush=True)
-    traceback.print_exc()
+if ODK_HOOKS_ENABLED:
+    try:
+        from . import odk_ingest_hooks  # noqa: F401
+    except Exception as e:
+        import traceback
+        print(f"FAILED TO IMPORT odk_ingest_hooks: {e}", flush=True)
+        traceback.print_exc()
 
 try:
     from .register_domain.services import geo_approver_resolver_service  # noqa: F401

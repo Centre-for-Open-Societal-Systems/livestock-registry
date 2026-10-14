@@ -7,7 +7,7 @@
 # runs as worker or beat, selected at runtime via CELERY_APP.
 #
 # Build context = repo root (so livestock-extension/ is reachable).
-ARG RP_VERSION=0.0.0-develop.296
+ARG RP_VERSION=1.2.2-rc.544
 FROM openg2p/openg2p-registry-celery:${RP_VERSION}
 
 # Option C: select livestock's domain model (coexists with the base image's
@@ -16,6 +16,9 @@ ENV REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension
 
 COPY livestock-extension/ /app/livestock-extension/
 RUN pip install --no-cache-dir /app/livestock-extension
+
+# One-off repair scripts, run by hand in the worker pod (see each file).
+COPY docker/celery/scripts/ /app/scripts/
 
 # Registers the livestock extension's audit-log-retention, outbreak-alert
 # and reminder-email (vaccination/approval/calving) tasks onto celery-beat's

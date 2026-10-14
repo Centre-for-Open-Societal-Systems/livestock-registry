@@ -31,6 +31,7 @@ from .domain_validation_utils import (
     intake_rows_as_records,
     tables_for,
     submission_ids_of,
+    live_rows,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -60,6 +61,7 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
         # scopes the ear-tag check to this submission's own animals.
@@ -80,6 +82,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             self._validate_not_in_future(record, "event_date")
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
+            self._validate_not_in_future(record, "date_resolution")
             self._validate_offspring_count(record)
             await self._validate_birth_female_only(record)
         # Run only once every record above has passed — so by this point
@@ -544,7 +547,11 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 "ear_tag_id": ear_tag_id,
                 "species": vital_event.species,
                 "breed": breed,
-                "gender": vital_event.offspring_gender,
+                # validate_domain_attributes requires the offspring sex on a
+                # Birth event; a Birth approved before that rule existed may
+                # still have none, and the animal's gender is not nullable.
+                # FEMALE keeps what the ODK hooks used to set in that case.
+                "gender": vital_event.offspring_gender or "FEMALE",
                 "date_of_birth": vital_event.event_date,
                 "registration_date": vital_event.event_date,
                 "health_status": "HEALTHY",
@@ -583,6 +590,9 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             created_tags.append(ear_tag_id)
 
         await session.flush()
+        from .domain_validation_utils import refresh_total_animals
+
+        await refresh_total_animals(session, vital_event.link_internal_record_id)
         _logger.info(
             "Birth event %s: created %d offspring Animal row(s) under livestock %s: %s",
             vital_event.internal_record_id, count, vital_event.link_internal_record_id, created_tags,

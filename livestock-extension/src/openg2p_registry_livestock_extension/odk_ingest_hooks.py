@@ -4,14 +4,12 @@ Intercepts ingestion requests, ensures database connections, transforms ODK Cent
 wraps payloads into OpenG2P standard envelopes, and ensures complete storage into
 both Intake Forms and primary Livestock Registry tables without datetime serialization errors.
 """
+import importlib
 import json
 import logging
 import os
 import sys
 import uuid
-from contextvars import ContextVar
-import threading
-_odk_local = threading.local()
 from datetime import date, datetime
 from jinja2 import Template
 
@@ -27,23 +25,6 @@ except Exception:
     pass
 
 try:
-    from openg2p_fastapi_common.models import BaseORMModel
-    from sqlalchemy import Column, String, Boolean
-    import openg2p_registry_core.models as core_models
-
-    class G2PAttributeValueSpeciesConfig(BaseORMModel):
-        __tablename__ = "g2p_attribute_value_species_configs"
-        __table_args__ = {"extend_existing": True}
-        value_id = Column(String, primary_key=True)
-        requires_ear_tag = Column(Boolean, nullable=True)
-        is_flock_species = Column(Boolean, nullable=True)
-
-    core_models.G2PAttributeValueSpeciesConfig = G2PAttributeValueSpeciesConfig
-    sys.modules["openg2p_registry_core.models"].G2PAttributeValueSpeciesConfig = G2PAttributeValueSpeciesConfig
-except Exception:
-    pass
-
-try:
     from openg2p_registry_core.helpers.template_helper import TemplateHelper
     if TemplateHelper.get_component() is None:
         TemplateHelper()
@@ -51,8 +32,13 @@ except Exception:
     pass
 
 _logger = logging.getLogger("openg2p.odk_ingest_hooks")
-_active_session: ContextVar = ContextVar("odk_active_session", default=None)
-_registry_engine = None
+
+
+def _full_name(*parts) -> str | None:
+    """Join the non-blank name parts; None when there are none. A missing part
+    used to be formatted in as the text "None" ("None None None")."""
+    name = " ".join(str(p).strip() for p in parts if p is not None and str(p).strip() and str(p).strip() != "None")
+    return name or None
 
 
 def _make_json_serializable(obj):
@@ -64,209 +50,6 @@ def _make_json_serializable(obj):
     elif isinstance(obj, (datetime, date)):
         return obj.isoformat()
     return obj
-
-
-def _patch_request_response_helper():
-    """Patch RequestResponseHelper and JSONResponse in partner API to format errors as jsonable structures."""
-    try:
-        import starlette.responses
-        import json
-        from fastapi.encoders import jsonable_encoder
-
-        orig_render = starlette.responses.JSONResponse.render
-
-        def safe_render(self, content):
-            try:
-                return orig_render(self, content)
-            except TypeError:
-                return json.dumps(
-                    jsonable_encoder(content),
-                    ensure_ascii=False,
-                    allow_nan=False,
-                    indent=None,
-                    separators=(",", ":"),
-                ).encode("utf-8")
-
-        starlette.responses.JSONResponse.render = safe_render
-
-        try:
-            import openg2p_registry_partner_api.ingestion.helpers.request_response_helper as rrh
-            rrh.JSONResponse = starlette.responses.JSONResponse
-
-            orig_construct = rrh.RequestResponseHelper._construct_data_model_response
-            def patched_construct(self, response_template_store_id, response):
-                _logger.error("ODK Hook: Ingestion response constructing: %s", response)
-                if hasattr(response, "model_dump"):
-                    try:
-                        content = response.model_dump(mode="json")
-                    except Exception:
-                        content = jsonable_encoder(response.model_dump())
-                else:
-                    content = jsonable_encoder(response)
-                return rrh.JSONResponse(content=content)
-
-            rrh.RequestResponseHelper._construct_data_model_response = patched_construct
-        except Exception as err_rrh:
-            _logger.warning("ODK Hook: Could not patch RequestResponseHelper method: %s", err_rrh)
-
-        _logger.info("ODK Hook: Successfully patched JSONResponse & RequestResponseHelper")
-    except Exception as e:
-        _logger.warning("ODK Hook: Could not patch RequestResponseHelper: %s", e)
-
-
-def _patch_ingest_controller():
-    """Patch G2PIngestController to log exact ingestion failures and return clean JSON error responses."""
-    try:
-        import functools
-        from openg2p_registry_partner_api.ingestion.controllers.g2p_ingest_controller import G2PIngestController
-        from starlette.responses import JSONResponse
-        from fastapi.encoders import jsonable_encoder
-
-        orig_controller_ingest = G2PIngestController.ingest_data
-
-        @functools.wraps(orig_controller_ingest)
-        async def patched_controller_ingest(self, *args, **kwargs):
-            try:
-                return await orig_controller_ingest(self, *args, **kwargs)
-            except Exception as ex:
-                _logger.exception("ODK Hook: Exception in G2PIngestController.ingest_data:")
-                return JSONResponse(
-                    content=jsonable_encoder({
-                        "response_header": {
-                            "request_id": "",
-                            "response_status": "ERROR",
-                            "response_error_code": "INGESTION_ERROR",
-                            "response_error_message": str(ex),
-                            "response_timestamp": datetime.now().isoformat()
-                        },
-                        "response_body": None
-                    }),
-                    status_code=500
-                )
-
-        G2PIngestController.ingest_data = patched_controller_ingest
-        _logger.info("ODK Hook: Successfully patched G2PIngestController")
-    except Exception as e:
-        _logger.warning("ODK Hook: Could not patch G2PIngestController: %s", e)
-
-
-def _get_registry_engine():
-    """Construct or reuse an AsyncEngine connected to the primary livestock database."""
-    global _registry_engine
-    if _registry_engine is not None:
-        return _registry_engine
-
-    from sqlalchemy.ext.asyncio import create_async_engine
-    hostname = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_HOSTNAME")
-        or os.environ.get("COMMON_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CORE_DB_HOSTNAME")
-        or "postgres"
-    )
-    port = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_PORT")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_PORT")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_PORT")
-        or os.environ.get("COMMON_DB_PORT")
-        or os.environ.get("REGISTRY_CORE_DB_PORT")
-        or "5432"
-    )
-    dbname = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_DBNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_DBNAME")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_DBNAME")
-        or os.environ.get("COMMON_DB_DBNAME")
-        or os.environ.get("REGISTRY_CORE_DB_DBNAME")
-        or "livestock"
-    )
-    username = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_USERNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_USERNAME")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_USERNAME")
-        or os.environ.get("COMMON_DB_USERNAME")
-        or os.environ.get("REGISTRY_CORE_DB_USERNAME")
-        or "livestock_user"
-    )
-    password = (
-        os.environ.get("REGISTRY_CELERY_WORKERS_DB_PASSWORD")
-        or os.environ.get("REGISTRY_PARTNER_API_DB_PASSWORD")
-        or os.environ.get("REGISTRY_STAFF_PORTAL_API_DB_PASSWORD")
-        or os.environ.get("COMMON_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CORE_DB_PASSWORD")
-        or "livestock_pass"
-    )
-    dsn = f"postgresql+asyncpg://{username}:{password}@{hostname}:{port}/{dbname}"
-    # NullPool, like the master-data engine below: celery tasks drive this engine
-    # from more than one event loop in the same process, and a pooled asyncpg
-    # connection left mid-operation by a failed task made the next File Import
-    # fail with "another operation is in progress".
-    from sqlalchemy.pool import NullPool
-    _registry_engine = create_async_engine(dsn, poolclass=NullPool)
-    return _registry_engine
-
-
-_master_data_engine = None
-
-
-def _get_master_data_engine():
-    """Construct or reuse an AsyncEngine connected to the master_data database."""
-    global _master_data_engine
-    if _master_data_engine is not None:
-        return _master_data_engine
-
-    from sqlalchemy.ext.asyncio import create_async_engine
-    from sqlalchemy.pool import NullPool
-
-    md_hostname = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_HOSTNAME")
-        or os.environ.get("MASTER_DATA_DB_HOSTNAME")
-        or "postgres"
-    )
-    md_port = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PORT")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PORT")
-        or os.environ.get("MASTER_DATA_DB_PORT")
-        or "5432"
-    )
-    md_dbname = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_DBNAME")
-        or os.environ.get("MASTER_DATA_DB_DBNAME")
-        or "master_data"
-    )
-    md_user = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_USERNAME")
-        or os.environ.get("MASTER_DATA_DB_USER")
-        or "master_data_user"
-    )
-    md_pass = (
-        os.environ.get("REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("REGISTRY_CORE_MASTER_DATA_DB_PASSWORD")
-        or os.environ.get("MASTER_DATA_DB_PASSWORD")
-        or "master_data_pass"
-    )
-    md_dsn = f"postgresql+asyncpg://{md_user}:{md_pass}@{md_hostname}:{md_port}/{md_dbname}"
-    _master_data_engine = create_async_engine(md_dsn, poolclass=NullPool)
-    return _master_data_engine
 
 
 _GEO_LABEL_CACHE = {
@@ -318,7 +101,9 @@ _GEO_LABEL_CACHE = {
 
 
 async def resolve_geo_label(code: str | None, level_prefix: str = "") -> str | None:
-    """Resolve an administrative code or mnemonic to a human-readable display label."""
+    """Resolve an administrative code or mnemonic to its display name, from
+    Master Data (the platform reads geography over the Master Data API since
+    registry-platform 1.2; there is no Master Data database connection)."""
     if not code:
         return None
     code_str = str(code).strip()
@@ -328,43 +113,36 @@ async def resolve_geo_label(code: str | None, level_prefix: str = "") -> str | N
         return _GEO_LABEL_CACHE[code_str]
 
     try:
-        engine = _get_master_data_engine()
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-        from sqlalchemy import text
+        from . import master_data_lists
 
-        session_maker = async_sessionmaker(engine, expire_on_commit=False)
-        async with session_maker() as session:
-            candidates = [
-                code_str,
-                f"{level_prefix}-{code_str}" if level_prefix else code_str,
-                f"zone-{code_str}",
-                f"woreda-{code_str}",
-                f"kebele-{code_str}",
-                f"region-{code_str}",
-            ]
-            q = text(
-                "SELECT level_value_mnemonic FROM g2p_geo_level_values "
-                "WHERE level_value_id = :c1 OR level_value_id = :c2 OR level_value_id = :c3 "
-                "OR level_value_id = :c4 OR level_value_id = :c5 OR level_value_id = :c6 "
-                "OR level_value_id ILIKE :c_like "
-                "LIMIT 1"
-            )
-            res = await session.execute(
-                q,
-                {
-                    "c1": candidates[0],
-                    "c2": candidates[1],
-                    "c3": candidates[2],
-                    "c4": candidates[3],
-                    "c5": candidates[4],
-                    "c6": candidates[5],
-                    "c_like": f"%{code_str}",
-                },
-            )
-            row = res.fetchone()
-            if row and row[0]:
-                _GEO_LABEL_CACHE[code_str] = row[0]
-                return row[0]
+        # The form's location CSVs carry the Master Data id without its
+        # level prefix and, for kebeles, without the leading "ET0"
+        # (kebele_odk.csv 10101101001 is kebele-ET010101101001; a
+        # 12-digit code 100101101001 is kebele-ET100101101001). Exact
+        # candidates are tried first and on their own: the suffix match
+        # below is only a last resort, because 147 of the form's kebele
+        # codes end the same as a kebele of another region (ET02... vs
+        # ET12...) and an ambiguous suffix match is refused.
+        exact = [
+            code_str,
+            f"{level_prefix}-{code_str}" if level_prefix else code_str,
+            f"{level_prefix}-ET{code_str}" if level_prefix else code_str,
+            f"{level_prefix}-ET0{code_str}" if level_prefix else code_str,
+            f"zone-{code_str}",
+            f"woreda-{code_str}",
+            f"kebele-{code_str}",
+            f"region-{code_str}",
+        ]
+        label = None
+        for candidate in dict.fromkeys(exact):
+            label = await master_data_lists.geo_label(candidate)
+            if label:
+                break
+        if not label:
+            label = await master_data_lists.geo_label_by_suffix(code_str)
+        if label:
+            _GEO_LABEL_CACHE[code_str] = label
+            return label
     except Exception as e:
         _logger.warning("ODK Hook: Geo resolution error for %s: %s", code_str, e)
 
@@ -435,10 +213,15 @@ _VALID_SPECIES_SET = {
 }
 
 
-def normalize_species(val: str | None) -> str:
-    """Normalize a raw species string into canonical OpenG2P attribute value_id."""
-    if not val:
-        return "LIVESTOCK_SPECIES_CATTLE"
+def normalize_species(val: str | None) -> str | None:
+    """Normalize a raw species string into canonical OpenG2P attribute value_id.
+
+    A missing species stays None and an unrecognised one comes back as given,
+    so the registry's own checks refuse the record (species is required, and
+    must be a value of LIVESTOCK_SPECIES). Both used to become Cattle, which
+    stored a wrong species without a word."""
+    if val is None or not str(val).strip():
+        return None
     s = str(val).strip()
     if s.upper() in _VALID_SPECIES_SET:
         return s.upper()
@@ -455,126 +238,102 @@ def normalize_species(val: str | None) -> str:
     for k, v in _SPECIES_CANONICAL_MAP.items():
         if k in s_low:
             return v
-    return "LIVESTOCK_SPECIES_CATTLE"
+    return s
+
+
+# The ODK form's breed choices (choices sheet, list `breed`, filtered by
+# species) and the LIVESTOCK_BREED value each one stands for. Only these
+# names are translated: anything else is passed through unchanged so the
+# registry's breed check rejects it with a message, instead of being
+# relabelled to some breed of that species. Keep in step with
+# odk/livestock_registry.xlsx and the code list (see odk/test_transform.py).
+_ODK_BREED_CHOICES = {
+    "cattle": {
+        "boran": "LIVESTOCK_BREED_BORAN",
+        "fogera": "LIVESTOCK_BREED_FOGERA",
+        "horro": "LIVESTOCK_BREED_HORRO",
+        "sheko": "LIVESTOCK_BREED_SHEKO",
+        "begait": "LIVESTOCK_BREED_BEGAIT",
+        "arsi": "LIVESTOCK_BREED_ARSI",
+        "barka": "LIVESTOCK_BREED_BARKA",
+        "local_zebu": "LIVESTOCK_BREED_LOCAL_ZEBU",
+        "holstein_friesian_cross": "LIVESTOCK_BREED_HOLSTEIN_CROSS",
+        "jersey_cross": "LIVESTOCK_BREED_JERSEY_CROSS",
+    },
+    "sheep": {
+        "menz": "LIVESTOCK_BREED_MENZ",
+        "afar": "LIVESTOCK_BREED_AFAR_SHEEP",
+        "blackhead_somali": "LIVESTOCK_BREED_BLACKHEAD_SOMALI",
+        "horro": "LIVESTOCK_BREED_HORRO_SHEEP",
+        "bonga": "LIVESTOCK_BREED_BONGA",
+        "washera": "LIVESTOCK_BREED_WASHERA",
+        "dorper_cross": "LIVESTOCK_BREED_DORPER_CROSS",
+        "local": "LIVESTOCK_BREED_LOCAL_SHEEP",
+    },
+    "goat": {
+        "afar": "LIVESTOCK_BREED_AFAR_GOAT",
+        "abergele": "LIVESTOCK_BREED_LOCAL_GOAT",
+        "begait": "LIVESTOCK_BREED_BEGAIT_GOAT",
+        "central_highland": "LIVESTOCK_BREED_CENTRAL_HIGHLAND",
+        "long_eared_somali": "LIVESTOCK_BREED_LONG_EARED_SOMALI",
+        "woito_guji": "LIVESTOCK_BREED_WOITO_GUJI",
+        "boer_cross": "LIVESTOCK_BREED_BOER_CROSS",
+        "local": "LIVESTOCK_BREED_LOCAL_GOAT",
+    },
+    "camel": {
+        "somali": "LIVESTOCK_BREED_SOMALI_CAMEL",
+        "afar": "LIVESTOCK_BREED_AFAR_CAMEL",
+        "local": "LIVESTOCK_BREED_LOCAL_CAMEL",
+    },
+    "donkey": {
+        "abyssinian": "LIVESTOCK_BREED_ABYSSINIAN_DONKEY",
+        "sinnar": "LIVESTOCK_BREED_SINNAR",
+        "local": "LIVESTOCK_BREED_LOCAL_DONKEY",
+    },
+    "horse": {
+        "abyssinian": "LIVESTOCK_BREED_ABYSSINIAN_HORSE",
+        "oromo": "LIVESTOCK_BREED_OROMO_HORSE",
+        "local": "LIVESTOCK_BREED_LOCAL_HORSE",
+    },
+    "mule": {
+        "local": "LIVESTOCK_BREED_LOCAL_MULE",
+    },
+    "poultry": {
+        "bovans_brown": "LIVESTOCK_BREED_BOVANS_BROWN",
+        "isa_brown": "LIVESTOCK_BREED_ISA_BROWN",
+        "sasso": "LIVESTOCK_BREED_SASSO",
+        "koekoek": "LIVESTOCK_BREED_KOEKOEK",
+        "white_leghorn_cross": "LIVESTOCK_BREED_WHITE_LEGHORN_CROSS",
+        "local_chicken": "LIVESTOCK_BREED_LOCAL_CHICKEN",
+    },
+    "pig": {
+        "large_white": "LIVESTOCK_BREED_LARGE_WHITE",
+        "landrace": "LIVESTOCK_BREED_LANDRACE",
+        "local": "LIVESTOCK_BREED_LOCAL_PIG",
+    },
+    "beehive": {
+        "apis_mellifera_scutellata": "LIVESTOCK_BREED_APIS_MELLIFERA",
+    },
+}
 
 
 def normalize_breed(breed_val: str | None, species_val: str | None = None) -> str | None:
-    """Normalize a raw breed string into canonical OpenG2P attribute value_id based on species."""
+    """Translate an ODK breed choice into its LIVESTOCK_BREED value id.
+
+    A value id is returned as is. A form choice name is looked up for the
+    animal's species. Anything else (a breed of another species, a typo, a
+    list the form gained without this map) comes back unchanged, so domain
+    validation rejects the submission rather than the registry storing a
+    different breed than the one recorded in the field.
+    """
     if not breed_val:
         return None
     b = str(breed_val).strip()
-    b_upper = b.upper()
-    b_lower = b.lower()
+    if b.upper().startswith("LIVESTOCK_BREED_"):
+        return b.upper()
     sp = normalize_species(species_val) if species_val else None
-
-    if b_upper.startswith("LIVESTOCK_BREED_"):
-        return b_upper
-
-    if sp == "LIVESTOCK_SPECIES_GOAT":
-        if "begait" in b_lower:
-            return "LIVESTOCK_BREED_BEGAIT_GOAT"
-        if "abergelle" in b_lower:
-            return "LIVESTOCK_BREED_ABERGELLE"
-        if "afar" in b_lower:
-            return "LIVESTOCK_BREED_AFAR_GOAT"
-        if "boer" in b_lower:
-            return "LIVESTOCK_BREED_BOER_CROSS"
-        if "central" in b_lower or "highland" in b_lower:
-            return "LIVESTOCK_BREED_CENTRAL_HIGHLAND"
-        if "somali" in b_lower or "long" in b_lower:
-            return "LIVESTOCK_BREED_LONG_EARED_SOMALI"
-        if "woito" in b_lower or "guji" in b_lower:
-            return "LIVESTOCK_BREED_WOITO_GUJI"
-        return "LIVESTOCK_BREED_LOCAL_GOAT"
-
-    elif sp == "LIVESTOCK_SPECIES_CATTLE":
-        if "begait" in b_lower:
-            return "LIVESTOCK_BREED_BEGAIT"
-        if "boran" in b_lower:
-            return "LIVESTOCK_BREED_BORAN"
-        if "fogera" in b_lower:
-            return "LIVESTOCK_BREED_FOGERA"
-        if "horro" in b_lower:
-            return "LIVESTOCK_BREED_HORRO"
-        if "sheko" in b_lower:
-            return "LIVESTOCK_BREED_SHEKO"
-        if "arsi" in b_lower:
-            return "LIVESTOCK_BREED_ARSI"
-        if "barka" in b_lower:
-            return "LIVESTOCK_BREED_BARKA"
-        if "holstein" in b_lower:
-            return "LIVESTOCK_BREED_HOLSTEIN_CROSS"
-        if "jersey" in b_lower:
-            return "LIVESTOCK_BREED_JERSEY_CROSS"
-        return "LIVESTOCK_BREED_LOCAL_ZEBU"
-
-    elif sp == "LIVESTOCK_SPECIES_SHEEP":
-        if "menz" in b_lower:
-            return "LIVESTOCK_BREED_MENZ"
-        if "afar" in b_lower:
-            return "LIVESTOCK_BREED_AFAR_SHEEP"
-        if "blackhead" in b_lower or "somali" in b_lower:
-            return "LIVESTOCK_BREED_BLACKHEAD_SOMALI"
-        if "bonga" in b_lower:
-            return "LIVESTOCK_BREED_BONGA"
-        if "horro" in b_lower:
-            return "LIVESTOCK_BREED_HORRO_SHEEP"
-        if "washera" in b_lower:
-            return "LIVESTOCK_BREED_WASHERA"
-        if "dorper" in b_lower:
-            return "LIVESTOCK_BREED_DORPER_CROSS"
-        return "LIVESTOCK_BREED_LOCAL_SHEEP"
-
-    elif sp == "LIVESTOCK_SPECIES_CAMEL":
-        if "afar" in b_lower:
-            return "LIVESTOCK_BREED_AFAR_CAMEL"
-        if "somali" in b_lower:
-            return "LIVESTOCK_BREED_SOMALI_CAMEL"
-        return "LIVESTOCK_BREED_LOCAL_CAMEL"
-
-    elif sp == "LIVESTOCK_SPECIES_DONKEY":
-        if "abyssinian" in b_lower:
-            return "LIVESTOCK_BREED_ABYSSINIAN_DONKEY"
-        if "sinnar" in b_lower:
-            return "LIVESTOCK_BREED_SINNAR"
-        return "LIVESTOCK_BREED_LOCAL_DONKEY"
-
-    elif sp == "LIVESTOCK_SPECIES_HORSE":
-        if "abyssinian" in b_lower:
-            return "LIVESTOCK_BREED_ABYSSINIAN_HORSE"
-        if "oromo" in b_lower:
-            return "LIVESTOCK_BREED_OROMO_HORSE"
-        return "LIVESTOCK_BREED_LOCAL_HORSE"
-
-    elif sp == "LIVESTOCK_SPECIES_MULE":
-        return "LIVESTOCK_BREED_LOCAL_MULE"
-
-    elif sp == "LIVESTOCK_SPECIES_PIG":
-        if "landrace" in b_lower:
-            return "LIVESTOCK_BREED_LANDRACE"
-        if "white" in b_lower or "large" in b_lower:
-            return "LIVESTOCK_BREED_LARGE_WHITE"
-        return "LIVESTOCK_BREED_LOCAL_PIG"
-
-    elif sp == "LIVESTOCK_SPECIES_POULTRY":
-        if "bovans" in b_lower:
-            return "LIVESTOCK_BREED_BOVANS_BROWN"
-        if "isa" in b_lower:
-            return "LIVESTOCK_BREED_ISA_BROWN"
-        if "koekoek" in b_lower:
-            return "LIVESTOCK_BREED_KOEKOEK"
-        if "sasso" in b_lower:
-            return "LIVESTOCK_BREED_SASSO"
-        if "leghorn" in b_lower or "white" in b_lower:
-            return "LIVESTOCK_BREED_WHITE_LEGHORN_CROSS"
-        return "LIVESTOCK_BREED_LOCAL_CHICKEN"
-
-    elif sp == "LIVESTOCK_SPECIES_BEEHIVE":
-        return "LIVESTOCK_BREED_APIS_MELLIFERA"
-
-    if "begait" in b_lower:
-        return "LIVESTOCK_BREED_BEGAIT"
-    return b
+    species_key = (sp or "").replace("LIVESTOCK_SPECIES_", "").lower()
+    return _ODK_BREED_CHOICES.get(species_key, {}).get(b.lower(), b)
 
 
 def normalize_vaccine(vaccine_val: str | None, species_val: str | None = None) -> str:
@@ -662,6 +421,63 @@ def normalize_vaccine(vaccine_val: str | None, species_val: str | None = None) -
     return v.upper()
 
 
+# Form `disease` choice (livestock_registry.xlsx, choices sheet) -> registry
+# LIVESTOCK_DISEASE attribute value. Mirrors disease_map in
+# templates/ls_odk_transform.j2; keep the two in step.
+_DISEASE_CANONICAL_MAP = {
+    "anthrax": "LIVESTOCK_DISEASE_ANTHRAX",
+    "blackleg": "LIVESTOCK_DISEASE_BLACKLEG",
+    "contagious_bovine_pleuropneumonia": "LIVESTOCK_DISEASE_CBPP",
+    "cbpp": "LIVESTOCK_DISEASE_CBPP",
+    "contagious_caprine_pleuropneumonia": "LIVESTOCK_DISEASE_CCPP",
+    "ccpp": "LIVESTOCK_DISEASE_CCPP",
+    "foot_and_mouth_disease": "LIVESTOCK_DISEASE_FMD",
+    "fmd": "LIVESTOCK_DISEASE_FMD",
+    "lumpy_skin_disease": "LIVESTOCK_DISEASE_LSD",
+    "lsd": "LIVESTOCK_DISEASE_LSD",
+    "peste_des_petits_ruminants": "LIVESTOCK_DISEASE_PPR",
+    "ppr": "LIVESTOCK_DISEASE_PPR",
+    "sheep_and_goat_pox": "LIVESTOCK_DISEASE_SHEEP_GOAT_POX",
+    "newcastle_disease": "LIVESTOCK_DISEASE_NEWCASTLE_DISEASE",
+    "gumboro": "LIVESTOCK_DISEASE_GUMBORO_DISEASE",
+    "fowl_typhoid": "LIVESTOCK_DISEASE_FOWL_TYPHOID_DISEASE",
+    "fowl_pox": "LIVESTOCK_DISEASE_FOWL_POX_DISEASE",
+    "rabies": "LIVESTOCK_DISEASE_RABIES",
+    "brucellosis": "LIVESTOCK_DISEASE_BRUCELLOSIS",
+    "trypanosomiasis": "LIVESTOCK_DISEASE_TRYPANOSOMIASIS",
+    "mastitis": "LIVESTOCK_DISEASE_MASTITIS",
+    "internal_parasites": "LIVESTOCK_DISEASE_INTERNAL_PARASITES",
+    "external_parasites": "LIVESTOCK_DISEASE_EXTERNAL_PARASITES",
+    "pasteurellosis": "LIVESTOCK_DISEASE_PASTEURELLOSIS",
+    "bovine_tuberculosis": "LIVESTOCK_DISEASE_BOVINE_TB",
+    "camel_pox": "LIVESTOCK_DISEASE_CAMEL_POX",
+    "african_horse_sickness": "LIVESTOCK_DISEASE_AFRICAN_HORSE_SICKNESS",
+    "enterotoxaemia": "LIVESTOCK_DISEASE_ENTEROTOXAEMIA_DISEASE",
+    "coccidiosis": "LIVESTOCK_DISEASE_COCCIDIOSIS",
+    "foot_rot": "LIVESTOCK_DISEASE_FOOT_ROT",
+    "bloat": "LIVESTOCK_DISEASE_BLOAT",
+    "diarrhoea": "LIVESTOCK_DISEASE_DIARRHOEA",
+    "retained_placenta": "LIVESTOCK_DISEASE_RETAINED_PLACENTA",
+    "other": "LIVESTOCK_DISEASE_OTHER_DISEASE",
+}
+
+
+def normalize_disease(disease_val: str | None) -> str | None:
+    """Normalize a raw disease string into the LIVESTOCK_DISEASE attribute value_id.
+
+    Unlike normalize_species/normalize_vaccine there is no fallback guess: a
+    value that is not a known form choice or an existing code is returned as
+    is, so the health/vital-event validation rejects the row with the same
+    message a staff entry would get, instead of relabelling it."""
+    if not disease_val:
+        return None
+    d = str(disease_val).strip()
+    if not d:
+        return None
+    if d.upper().startswith("LIVESTOCK_DISEASE_"):
+        return d.upper()
+    return _DISEASE_CANONICAL_MAP.get(d.lower(), d)
+
 
 def _alias_extension_submodules():
     """Alias all openg2p_registry_livestock_extension submodules as openg2p_registry_extensions."""
@@ -724,6 +540,40 @@ def _ensure_domain_factory_initialized():
             G2PTemplateService()
     except Exception:
         pass
+
+    # Finalizing an ingested submission starts its AWE approval, which goes
+    # through G2PAwePolicyConfigurationService (find_effective_policy_
+    # configuration, cached with fastapi-cache), AweHelper and the services
+    # the staff-api's Initializer creates but the celery worker's does not.
+    # Without them every ODK ingest failed at finalize with "'NoneType' object
+    # has no attribute 'find_effective_policy_configuration'" and no approval
+    # request was ever created. Same set the farmer registry's worker patch
+    # creates; each one is optional so a platform version without it still
+    # imports (G2PAttributeValueValidator, for instance, is newer than 296).
+    try:
+        from fastapi_cache import FastAPICache
+        from openg2p_registry_core.cache import init_cache
+        try:
+            FastAPICache.get_backend()
+        except Exception:
+            init_cache()
+    except Exception:
+        pass
+    for _module, _name in (
+        ("openg2p_registry_core.helpers.awe_helper", "AweHelper"),
+        ("openg2p_registry_core.services.g2p_awe_policy_configuration_service", "G2PAwePolicyConfigurationService"),
+        ("openg2p_registry_core.services.g2p_completion_score_service", "G2PCompletionScoreService"),
+        ("openg2p_registry_core.services.g2p_register_history_service", "G2PRegisterHistoryService"),
+        ("openg2p_registry_core.services.g2p_score_compute_service", "G2PScoreComputeService"),
+        ("openg2p_registry_core.services.g2p_verification_service", "G2PRegisterVerificationService"),
+        ("openg2p_registry_core.services.g2p_attribute_value_validator", "G2PAttributeValueValidator"),
+    ):
+        try:
+            _cls = getattr(importlib.import_module(_module), _name)
+            if _cls.get_component() is None:
+                _cls()
+        except Exception as _exc:
+            _logger.debug("ODK Hook: optional worker component %s not created: %s", _name, _exc)
 
 
 
@@ -798,27 +648,7 @@ def _patch_celery_ingest_worker():
         import openg2p_registry_livestock_extension.config
         sys.modules["openg2p_registry_extensions.config"] = openg2p_registry_livestock_extension.config
 
-        # 1. Patch application_reference generation to avoid unique constraint collisions
-        try:
-            import openg2p_registry_core.helpers.application_reference_generator as arg_mod
-            if not hasattr(arg_mod, "_ls_orig_gar"):
-                _orig_gar = arg_mod.generate_application_reference
-                arg_mod._ls_orig_gar = _orig_gar
-
-                def _safe_gar(now=None):
-                    base = _orig_gar(now)
-                    return f"{base}-{uuid.uuid4().hex[:4].upper()}"
-
-                arg_mod.generate_application_reference = _safe_gar
-                _logger.info("ODK Hook: Successfully patched generate_application_reference")
-
-            import openg2p_registry_core.models.g2p_intake_form as form_mod
-            if hasattr(form_mod, "_default_application_reference"):
-                form_mod._default_application_reference = arg_mod.generate_application_reference
-        except Exception as err_gar:
-            _logger.warning("ODK Hook: Could not patch application_reference generator: %s", err_gar)
-
-        # 2. Patch G2PIntakeFormDataService._insert_live_register_row to sanitize enums and enrich livestock/child records
+        # Patch G2PIntakeFormDataService._insert_live_register_row to sanitize enums and enrich livestock/child records
         try:
             from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFormDataService
             if not hasattr(G2PIntakeFormDataService, "_ls_orig_insert_live"):
@@ -835,8 +665,16 @@ def _patch_celery_ingest_worker():
                     intake_row,
                     session,
                 ):
-                    # Sanitize attributes on intake_row to conform to livestock register schema enums
-                    if hasattr(intake_row, "state") and getattr(intake_row, "state", None) not in ("DRAFT", "CONFIRMED", "DONE"):
+                    # Sanitize attributes on intake_row to conform to livestock register schema enums.
+                    # Only an Animal row has the DRAFT/CONFIRMED/DONE state: the Livestock
+                    # holding's `state` is the Kebele -> Region approval ladder
+                    # (LivestockStateEnum) and must not be rewritten here, or every ODK
+                    # record would skip the ladder it is meant to go through.
+                    if (
+                        getattr(register_class, "__tablename__", "") == "g2p_register_animals"
+                        and hasattr(intake_row, "state")
+                        and getattr(intake_row, "state", None) not in ("DRAFT", "CONFIRMED", "DONE")
+                    ):
                         intake_row.state = "CONFIRMED"
                     if hasattr(intake_row, "event_type"):
                         et = str(getattr(intake_row, "event_type", "") or "").upper()
@@ -894,7 +732,7 @@ def _patch_celery_ingest_worker():
                             farmer_id = None
                             fayda_fan_id = None
                             if f_row:
-                                farmer_name = f_row.farmer_name or f"{f_row.first_name or ''} {f_row.middle_name or ''} {f_row.last_name or ''}".strip() or None
+                                farmer_name = f_row.farmer_name or _full_name(f_row.first_name, f_row.middle_name, f_row.last_name)
                                 farmer_id = f_row.farmer_id
                                 fayda_fan_id = f_row.fayda_fan_id
 
@@ -1014,26 +852,6 @@ def _patch_celery_ingest_worker():
         importlib.import_module("openg2p_registry_celery_worker.tasks.ingest_data_worker")
         worker_mod = sys.modules.get("openg2p_registry_celery_worker.tasks.ingest_data_worker")
 
-        # 3. Patch _prepare_submission_for_ingestion to avoid duplicate ValueError on retries
-        if worker_mod and hasattr(worker_mod, "_prepare_submission_for_ingestion") and not hasattr(worker_mod, "_ls_orig_psfi"):
-            orig_psfi = worker_mod._prepare_submission_for_ingestion
-            worker_mod._ls_orig_psfi = orig_psfi
-
-            async def patched_prepare_submission_for_ingestion(incoming_classified_data, session):
-                try:
-                    from openg2p_registry_core.models.g2p_intake_form import G2PIntakeFormSubmission
-                    sub_id = incoming_classified_data.intake_form_submission_id
-                    if sub_id:
-                        existing = await session.get(G2PIntakeFormSubmission, sub_id)
-                        if existing and existing.draft_status == "FINAL":
-                            _logger.info("ODK Hook: Ingestion %s already linked to finalized submission %s", incoming_classified_data.ingest_id, sub_id)
-                            return sub_id, True
-                except Exception as ex_prep:
-                    _logger.debug("ODK Hook: prep check exception: %s", ex_prep)
-                return await orig_psfi(incoming_classified_data, session)
-
-            worker_mod._prepare_submission_for_ingestion = patched_prepare_submission_for_ingestion
-
         if worker_mod and hasattr(worker_mod, "_validate_transformed_data_json") and not hasattr(worker_mod, "_ls_orig_vtdj"):
             orig_vtdj = worker_mod._validate_transformed_data_json
             worker_mod._ls_orig_vtdj = orig_vtdj
@@ -1107,7 +925,7 @@ def _patch_celery_ingest_worker():
                     f_id_rows = transformed_data.get("ls_farmer_identity") or []
                     if f_id_rows and isinstance(f_id_rows[0], dict):
                         f0 = f_id_rows[0]
-                        f_name = f0.get("farmer_name") or f"{f0.get('first_name', '')} {f0.get('middle_name', '')} {f0.get('last_name', '')}".strip() or None
+                        f_name = f0.get("farmer_name") or _full_name(f0.get("first_name"), f0.get("middle_name"), f0.get("last_name"))
                         f_id = f0.get("farmer_id")
                         f_fan = f0.get("fayda_fan_id")
 
@@ -1162,10 +980,14 @@ def _patch_celery_ingest_worker():
                                         sp = ev["species"]
                                     if ev_sec == "ls_vaccination_details" and ev.get("vaccine_type"):
                                         ev["vaccine_type"] = normalize_vaccine(ev["vaccine_type"], sp)
+                                    if ev_sec in ("ls_health_event_details", "ls_vital_event_details") and ev.get("disease_type"):
+                                        ev["disease_type"] = normalize_disease(ev["disease_type"])
                 except Exception as ex_enrich:
                     _logger.warning("ODK Hook: Error enriching transformed_data: %s", ex_enrich)
 
-                t_session = _active_session.set(session)
+                from .register_domain.services.domain_validation_utils import ingest_session
+
+                t_session = ingest_session.set(session)
                 try:
                     res = await orig_save_sections_async(
                         submission_id,
@@ -1218,7 +1040,7 @@ def _patch_celery_ingest_worker():
 
                     return res
                 finally:
-                    _active_session.reset(t_session)
+                    ingest_session.reset(t_session)
                     if swapped_dbengine and prev_dbengine is not None:
                         try:
                             from openg2p_fastapi_common.context import dbengine
@@ -1231,162 +1053,16 @@ def _patch_celery_ingest_worker():
 
 
 
-        if worker_mod and hasattr(worker_mod, "_process_ingestion_async") and not hasattr(worker_mod, "_ls_orig_process_ingestion_async"):
-            orig_process_ingestion_async = worker_mod._process_ingestion_async
-            worker_mod._ls_orig_process_ingestion_async = orig_process_ingestion_async
-
-            async def resilient_process_ingestion_async(ingest_id: str) -> None:
-                _odk_local.is_odk = True
-                try:
-                    try:
-                        await orig_process_ingestion_async(ingest_id)
-                    except Exception as ex:
-                        from openg2p_registry_core.models import IncomingClassifiedData, ProcessStatusEnum
-                        from sqlalchemy.ext.asyncio import async_sessionmaker
-
-                        err_msg = str(getattr(ex, "message", None) or ex)
-                        _logger.warning("ODK Hook: Ingestion of record %s rejected by validation/deduplication: %s", ingest_id, err_msg)
-
-                        try:
-                            eng = getattr(worker_mod, "_async_engine", None) or _get_registry_engine()
-                            sm = async_sessionmaker(bind=eng, expire_on_commit=False)
-                            async with sm() as fail_session:
-                                icd = await fail_session.get(IncomingClassifiedData, ingest_id)
-                                if icd:
-                                    icd.ingestion_status = ProcessStatusEnum.FAILED.value
-                                    icd.ingestion_latest_error_code = err_msg
-                                    icd.ingestion_date_time = datetime.now()
-                                    icd.ingestion_number_of_attempts += 1
-                                    sub_id = icd.intake_form_submission_id
-                                    if sub_id:
-                                        try:
-                                            await worker_mod._delete_submission_async(sub_id, fail_session)
-                                            icd.intake_form_submission_id = None
-                                        except Exception:
-                                            pass
-                                    fail_session.add(icd)
-                                    await fail_session.commit()
-                        except Exception as ex_mark:
-                            _logger.error("ODK Hook: Could not mark ingestion failure: %s", ex_mark)
-
-                        # Return cleanly without re-raising to Celery.
-                        # This prevents task retries, avoids queue blockage, and stops worker crashes.
-                        return
-                finally:
-                    _odk_local.is_odk = False
-
-            worker_mod._process_ingestion_async = resilient_process_ingestion_async
-            _logger.info("ODK Hook: Successfully patched ingest_data_worker._process_ingestion_async for resilience")
     except Exception as e:
         _logger.warning("ODK Hook: Could not patch ingest_data_worker: %s", e)
 
 
-def _patch_vital_event_offspring_gender():
-    """Ensure newborn animal creation from BIRTH vital event never fails with null gender."""
-    try:
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_vital_event import (
-            G2PRegisterDomainServiceVitalEvent,
-        )
-
-        orig_create = G2PRegisterDomainServiceVitalEvent._create_offspring_animals
-
-        async def patched_create_offspring_animals(self, vital_event, count: int, session):
-            if not getattr(vital_event, "offspring_gender", None):
-                vital_event.offspring_gender = "FEMALE"
-            return await orig_create(self, vital_event, count, session)
-
-        G2PRegisterDomainServiceVitalEvent._create_offspring_animals = patched_create_offspring_animals
-        _logger.info("ODK Hook: Successfully patched G2PRegisterDomainServiceVitalEvent._create_offspring_animals")
-    except Exception as e:
-        _logger.warning("ODK Hook: Could not patch G2PRegisterDomainServiceVitalEvent: %s", e)
-
-
 def _ensure_dbengine_initialized():
-    """Ensure dbengine and master-data engines point to the container PostgreSQL instance."""
+    """Create the components the celery worker's Initializer does not, and
+    install the transformation patches. The registry database engine itself
+    is wired once, for every process, in the package __init__."""
     _ensure_domain_factory_initialized()
     _patch_celery_transformation_worker()
-    _patch_vital_event_offspring_gender()
-    try:
-        from openg2p_fastapi_common.context import dbengine
-        import openg2p_registry_core.engine as core_engine
-
-        # Wrap dbengine.get and dbengine.set so it NEVER falls back to localhost:5432
-        _orig_dbengine_get = dbengine.get
-        _orig_dbengine_set = dbengine.set
-
-        def _safe_dbengine_get():
-            val = _orig_dbengine_get()
-            if val is None or getattr(getattr(val, "url", None), "host", None) in ("localhost", "127.0.0.1", None):
-                val = _get_registry_engine()
-                _orig_dbengine_set(val)
-            return val
-
-        def _safe_dbengine_set(value):
-            if value is not None and getattr(getattr(value, "url", None), "host", None) in ("localhost", "127.0.0.1", None):
-                value = _get_registry_engine()
-            _orig_dbengine_set(value)
-
-        dbengine.get = _safe_dbengine_get
-        dbengine.set = _safe_dbengine_set
-
-        try:
-            from openg2p_fastapi_common.app import Initializer as BaseInitializer
-            def _patched_init_db(self):
-                e = _get_registry_engine()
-                dbengine.set(e)
-            BaseInitializer.init_db = _patched_init_db
-        except Exception:
-            pass
-
-        try:
-            import openg2p_fastapi_common.app as fc_app
-            if hasattr(fc_app, "_config") and hasattr(fc_app._config, "db_hostname"):
-                # From the same env-derived settings as _get_registry_engine();
-                # a hard-coded "postgres" host only resolves in local compose.
-                _reg_url = _get_registry_engine().url
-                fc_app._config.db_hostname = _reg_url.host
-                fc_app._config.db_port = _reg_url.port
-                fc_app._config.db_dbname = _reg_url.database
-                fc_app._config.db_username = _reg_url.username
-                fc_app._config.db_password = _reg_url.password
-                fc_app._config.db_datasource = _reg_url.render_as_string(hide_password=False)
-        except Exception:
-            pass
-
-        if core_engine._engines is None:
-            core_engine._engines = {}
-
-        _orig_get_engine = getattr(core_engine, "get_engine", None)
-        if _orig_get_engine:
-            def _safe_get_engine(name="db_engine_master_data"):
-                if name == "db_engine_master_data":
-                    return _get_master_data_engine()
-                res = _orig_get_engine(name)
-                if res is None or getattr(getattr(res, "url", None), "host", None) in ("localhost", "127.0.0.1", None):
-                    res = _get_registry_engine()
-                return res
-            core_engine.get_engine = _safe_get_engine
-
-        try:
-            from openg2p_registry_core.config import Settings as CoreSettings
-            _core_cfg = CoreSettings.get_config(strict=False)
-            # Same source as _get_master_data_engine() (the service's own
-            # *_MASTER_DATA_DB_* env), not a host that exists only locally.
-            _md_url = _get_master_data_engine().url
-            _core_cfg.master_data_db_hostname = _md_url.host
-            _core_cfg.master_data_db_port = _md_url.port
-            _core_cfg.master_data_db_dbname = _md_url.database
-            _core_cfg.master_data_db_username = _md_url.username
-            _core_cfg.master_data_db_password = _md_url.password
-        except Exception:
-            pass
-
-        _logger.info(
-            "ODK Hook: dbengine and master_data wired to %s / %s",
-            _get_registry_engine().url.host, _get_master_data_engine().url.host,
-        )
-    except Exception as e:
-        _logger.warning("ODK Hook: Could not ensure dbengine initialized: %s", e)
 
 
 
@@ -1425,17 +1101,17 @@ def _patch_ingest_service():
 
         async def patched_ingest_data(self, data_model_mnemonic: str, data: dict, *, register_id=None, intake_form_id=None):
             _ensure_dbengine_initialized()
-            _patch_request_response_helper()
 
-            target_data_model = "MY_DATA_MODEL"
+            # Seeded by meta_data/data-models/data_models.sql (+ key paths and
+            # semantic pattern); patch_livestock_odk_ingestion.sql for older DBs.
+            target_data_model = "LIVESTOCK_ODK_MODEL"
             livestock_register_id = "997676d3-7008-59f9-b23e-613ad79bbb08"
             livestock_intake_form_id = "e92e8be1-207f-518e-99c2-8bc21cc1f112"
 
             # File Import (celery import_file_process_worker) sends each row as
             # {"headers": {...}, "body": <row>} with the import's own data model,
             # register and intake form. It is not an ODK submission: rewriting it
-            # onto MY_DATA_MODEL (which is only the connector's label, not a
-            # registry data model) failed every row with DATA_MODEL_NOT_FOUND.
+            # onto the ODK data model failed every row with DATA_MODEL_NOT_FOUND.
             is_file_import = (
                 isinstance(data, dict)
                 and isinstance(data.get("headers"), dict)
@@ -1527,51 +1203,13 @@ def _patch_ingest_service():
         _logger.error("ODK Hook: Error patching G2PIngestService: %s", e)
 
 
-def _patch_domain_services_for_odk():
-    try:
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_health_event import G2PRegisterDomainServiceHealthEvent
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_vaccination import G2PRegisterDomainServiceVaccination
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_breeding import G2PRegisterDomainServiceBreeding
-        from openg2p_registry_livestock_extension.register_domain.services.g2p_register_domain_service_vital_event import G2PRegisterDomainServiceVitalEvent
-
-        services = [
-            G2PRegisterDomainServiceHealthEvent,
-            G2PRegisterDomainServiceVaccination,
-            G2PRegisterDomainServiceBreeding,
-            G2PRegisterDomainServiceVitalEvent
-        ]
-
-        for service in services:
-            if hasattr(service, "_validate_ear_tag_exists") and not hasattr(service, "_ls_orig_validate_ear_tag_exists"):
-                orig_validate = service._validate_ear_tag_exists
-                service._ls_orig_validate_ear_tag_exists = orig_validate
-
-                async def patched_validate_ear_tag_exists(self, record: dict, application_reference: str | None = None, _orig=orig_validate):
-                    is_odk_flag = getattr(_odk_local, "is_odk", False)
-                    print(f"ODK Hook: patched_validate_ear_tag_exists called for {record.get('ear_tag_id')}, is_odk={is_odk_flag}", flush=True)
-                    if is_odk_flag:
-                        # Bypass validation for ODK where animal and event are in the same submission payload
-                        print("ODK Hook: Bypassing ear_tag_exists validation", flush=True)
-                        return
-                    return await _orig(self, record, application_reference)
-
-                service._validate_ear_tag_exists = patched_validate_ear_tag_exists
-
-        print("ODK Hook: Successfully patched domain services for ear tag validation bypass", flush=True)
-    except Exception as e:
-        print(f"ODK Hook: Error patching domain services: {e}", flush=True)
-
-
 def install_odk_hooks():
     funcs = [
-        _patch_request_response_helper,
-        _patch_ingest_controller,
         _ensure_domain_factory_initialized,
         _patch_celery_transformation_worker,
         _patch_celery_ingest_worker,
         _ensure_dbengine_initialized,
         _patch_ingest_service,
-        _patch_domain_services_for_odk,
     ]
     for func in funcs:
         print(f"ODK Hook: Running {func.__name__}", flush=True)

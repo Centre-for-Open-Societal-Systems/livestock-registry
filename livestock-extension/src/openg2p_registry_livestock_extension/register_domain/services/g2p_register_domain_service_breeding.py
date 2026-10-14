@@ -16,6 +16,7 @@ from .domain_validation_utils import (
     intake_rows_as_records,
     tables_for,
     submission_ids_of,
+    live_rows,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -39,6 +40,7 @@ _CYCLE_WINDOW_DAYS = 21
 class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
         # scopes the ear-tag check to this submission's own animals.
