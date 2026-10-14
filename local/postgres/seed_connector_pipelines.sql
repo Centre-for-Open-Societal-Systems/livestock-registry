@@ -75,3 +75,9 @@ ON CONFLICT (connector_id) DO UPDATE SET
     auth_type = EXCLUDED.auth_type,
     auth_secret_json = EXCLUDED.auth_secret_json,
     webhook_verifier = EXCLUDED.webhook_verifier;
+
+-- NOTE: the Kafka "Farmer CR Events" connector (g2p_register_mnemonic 'Farmer')
+-- was removed from this PR. The ODK ingestion hook force-routes non-file-import
+-- payloads into the Livestock register/intake form, so a Farmer-targeted event
+-- would be mis-routed. It will be delivered separately with its own Farmer-event
+-- route + known-farmer check (see PR #58 review).
