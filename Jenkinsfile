@@ -31,6 +31,14 @@ pipeline {
         // gen2-dev-kubeconfig, which is farmer-ci's own token scoped to
         // `far` only and is untouched by this pipeline.
         HELM_NAMESPACE_DEV       = 'live'
+
+        // NEW dev cluster (gen2 new dev). A different physical cluster from
+        // HELM_NAMESPACE_DEV above: namespace `livestock` (not `live`), hosts on
+        // *-development.oanstaging.com, and its own dedicated credential bound to
+        // the livestock:livestock-ci ServiceAccount. Values come from
+        // helm/openg2p-livestock-registry/values-new-dev.yaml.
+        NEWDEV_NAMESPACE         = 'livestock'
+        NEWDEV_KUBECONFIG_CRED_ID = 'livestock-dev-kubeconfig'
         DEV_KUBECONFIG_CRED_ID   = 'gen2-dev-livestock-kubeconfig'
 
         // livestock-registry-dashboard-api lives in its own (public) repository
@@ -44,6 +52,12 @@ pipeline {
     stages {
         stage('Checkout') {
             steps { checkout scm }
+        }
+
+        stage('Check chart version') {
+            steps {
+                sh 'bash scripts/check-chart-version.sh'
+            }
         }
 
         stage('Checkout dashboard-api') {
@@ -260,6 +274,82 @@ EOF
                             kubectl exec -n \${HELM_NAMESPACE_DEV} deploy/\${HELM_RELEASE}-dashboard-api -- python -c "import json, urllib.request as u; base = 'http://127.0.0.1:8000'; [print(p, 'OK', len(json.load(u.urlopen(base + p, timeout=30)))) for p in ('/health', '/api/v1/charts/livestockKpis', '/api/v1/charts/livestockBySpecies', '/api/v1/charts/livestockKeepersByRegion')]"
                         """
                         archiveArtifacts artifacts: 'dev-rendered-*.yaml', allowEmptyArchive: true
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to new dev') {
+            // Points `develop` merges at the NEW dev cluster, alongside the
+            // existing "Deploy to Development" stage above which still targets
+            // the old one. Same in-repo chart; what differs is the namespace,
+            // the hostnames (values-new-dev.yaml) and the credential.
+            //
+            // The chart version is stamped with +<short-sha> at deploy time.
+            // SemVer build metadata is ignored for ordering, so this cannot
+            // break upgrade comparisons, but `helm list` then shows exactly
+            // which commit produced the running release instead of a
+            // placeholder.
+            //
+            // catchError for the same reason as the stage above: a problem on
+            // one dev cluster must not block the other or the staging deploy.
+            when { branch 'develop' }
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    withCredentials([file(credentialsId: "${NEWDEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
+                        sh """
+                            set -eu
+                            helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
+                            helm repo update ${HELM_CHART_REPO}
+                            helm dependency build ./helm/openg2p-livestock-registry
+
+                            # Stamp the chart version with +<short-sha>. A local chart
+                            # directory ignores `helm --version`, so Chart.yaml is edited
+                            # in the workspace instead. SemVer build metadata does not
+                            # affect ordering, so this cannot break upgrade comparisons.
+                            CHART_VER=\$(awk -F': *' '/^version:/{print \$2; exit}' helm/openg2p-livestock-registry/Chart.yaml)
+                            STAMPED="\${CHART_VER}+\$(git rev-parse --short HEAD)"
+                            sed -i "s|^version:.*|version: \${STAMPED}|" helm/openg2p-livestock-registry/Chart.yaml
+                            echo "Deploying chart version \${STAMPED} to ${NEWDEV_NAMESPACE}"
+
+                            IMAGE_SET_FLAGS="
+                                --set registry.staffApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-api
+                                --set registry.staffApi.image.tag=${env.IMAGE_TAG}
+                                --set registry.partnerApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/partner-api
+                                --set registry.partnerApi.image.tag=${env.IMAGE_TAG}
+                                --set registry.celeryWorker.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/celery
+                                --set registry.celeryWorker.image.tag=${env.IMAGE_TAG}
+                                --set registry.celeryBeat.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/celery
+                                --set registry.celeryBeat.image.tag=${env.IMAGE_TAG}
+                                --set registry.dbSeed.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/db-seed
+                                --set registry.dbSeed.image.tag=${env.IMAGE_TAG}
+                                --set registry.staffUi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-ui
+                                --set registry.staffUi.image.tag=${env.IMAGE_TAG}
+                                --set registry.sanity.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
+                                --set registry.sanity.image.tag=${env.IMAGE_TAG}
+                            "
+
+                            helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${NEWDEV_NAMESPACE} \
+                                -f ./helm/openg2p-livestock-registry/values-new-dev.yaml \
+                                \$IMAGE_SET_FLAGS \
+                                > newdev-rendered-\${BUILD_NUMBER}.yaml
+
+                            if grep -q 'openg2p\\.org' newdev-rendered-\${BUILD_NUMBER}.yaml; then
+                                echo "FATAL: rendered manifests still reference the placeholder domain openg2p.org:"
+                                grep -n 'openg2p\\.org' newdev-rendered-\${BUILD_NUMBER}.yaml | head -20
+                                exit 1
+                            fi
+
+                            helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${NEWDEV_NAMESPACE} \
+                                -f ./helm/openg2p-livestock-registry/values-new-dev.yaml \
+                                \$IMAGE_SET_FLAGS \
+                                --cleanup-on-fail --timeout 15m
+
+                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n ${NEWDEV_NAMESPACE} --timeout=180s
+                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui  -n ${NEWDEV_NAMESPACE} --timeout=180s
+                            kubectl rollout status deployment/\${HELM_RELEASE}-partner-api      -n ${NEWDEV_NAMESPACE} --timeout=180s
+                        """
+                        archiveArtifacts artifacts: 'newdev-rendered-*.yaml', allowEmptyArchive: true
                     }
                 }
             }
