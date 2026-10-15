@@ -219,7 +219,7 @@ EOF
                         sh """
                             helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
                             helm repo update ${HELM_CHART_REPO}
-                            helm dependency build ./helm/openg2p-livestock-registry
+                            helm dependency update ./helm/openg2p-livestock-registry
 
                             IMAGE_SET_FLAGS="
                                 --set registry.staffApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-api
@@ -301,13 +301,17 @@ EOF
                             set -eu
                             helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
                             helm repo update ${HELM_CHART_REPO}
-                            helm dependency build ./helm/openg2p-livestock-registry
+                            helm dependency update ./helm/openg2p-livestock-registry
 
                             # Stamp the chart version with +<short-sha>. A local chart
                             # directory ignores `helm --version`, so Chart.yaml is edited
                             # in the workspace instead. SemVer build metadata does not
                             # affect ordering, so this cannot break upgrade comparisons.
                             CHART_VER=\$(awk -F': *' '/^version:/{print \$2; exit}' helm/openg2p-livestock-registry/Chart.yaml)
+                            # Strip any build metadata already present: Jenkins reuses
+                            # workspaces, so a previous run may have left the version
+                            # stamped, which would compound to 1.2.0+abc+def.
+                            CHART_VER="\${CHART_VER%%+*}"
                             STAMPED="\${CHART_VER}+\$(git rev-parse --short HEAD)"
                             sed -i "s|^version:.*|version: \${STAMPED}|" helm/openg2p-livestock-registry/Chart.yaml
                             echo "Deploying chart version \${STAMPED} to ${NEWDEV_NAMESPACE}"
