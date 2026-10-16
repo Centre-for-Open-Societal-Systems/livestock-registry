@@ -14,6 +14,7 @@ from openg2p_registry_core.app import Initializer as CoreInitializer
 # extension owns: the platform keeps no code lists since registry-platform 1.2
 # (they are read from Master Data), so there is no attribute row to hang it on.
 from .register_domain.models.species_config import G2PLivestockSpeciesConfig
+from .schema_sync import add_missing_columns
 
 from .register_domain.models import (
     G2PRegisterFarmer, G2PRegisterHistoryFarmer,
@@ -148,5 +149,24 @@ class Initializer(BaseInitializer):
             await G2PRegisterAuditLog.create_migrate()
             await G2PRegisterHistoryAuditLog.create_migrate()
             await G2PIntakeFormAuditLog.create_migrate()
+
+            # create_migrate() never adds a column to a table that already
+            # exists, so a database first created on an older platform lacks
+            # the columns added since (e.g. subject_internal_record_id on the
+            # history tables, which 1.2 writes on every register ingest).
+            await add_missing_columns(dbengine.get(), [
+                G2PLivestockSpeciesConfig,
+                G2PRegisterFarmer, G2PRegisterHistoryFarmer, G2PIntakeFormFarmer,
+                G2PRegisterLivestock, G2PRegisterHistoryLivestock, G2PIntakeFormLivestock,
+                G2PRegisterAnimal, G2PRegisterHistoryAnimal, G2PIntakeFormAnimal,
+                G2PRegisterHealthEvent, G2PRegisterHistoryHealthEvent, G2PIntakeFormHealthEvent,
+                G2PRegisterVaccination, G2PRegisterHistoryVaccination, G2PIntakeFormVaccination,
+                G2PRegisterVitalEvent, G2PRegisterHistoryVitalEvent, G2PIntakeFormVitalEvent,
+                G2PRegisterBreeding, G2PRegisterHistoryBreeding, G2PIntakeFormBreeding,
+                G2PRegisterRetagging, G2PRegisterHistoryRetagging, G2PIntakeFormRetagging,
+                G2PRegisterVaccineSchedule, G2PRegisterHistoryVaccineSchedule, G2PIntakeFormVaccineSchedule,
+                G2PRegisterImportBatch, G2PRegisterHistoryImportBatch, G2PIntakeFormImportBatch,
+                G2PRegisterAuditLog, G2PRegisterHistoryAuditLog, G2PIntakeFormAuditLog,
+            ])
 
         asyncio.run(migrate())
