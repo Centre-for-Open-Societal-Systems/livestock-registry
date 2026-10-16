@@ -627,6 +627,10 @@
       // visible only when there is nothing to pick from (no animal saved yet,
       // or the submission lookup failed), so a tag can still be typed then.
       var pick = document.createElement("select"); pick.className = ear.className; pick.id = "lr-animal-pick";
+      // With no animal to pick, the text input stays and this one line under
+      // it says why the list is empty. The dropdown is not shown then: next to
+      // the input it did not fit the cell and covered the Species label.
+      var hint = document.createElement("div"); hint.id = "lr-animal-hint"; hint.className = "text-xs mt-1"; hint.style.color = "#92400e";
       var filteredFor = null; // femaleOnly() the options were last built for
       var buildOptions = function () {
         var female = femaleOnly();
@@ -678,8 +682,13 @@
         if (current && current !== ear) { ear = current; }
         if (!ear) return;
         if (pick.parentElement !== ear.parentElement) ear.insertAdjacentElement("afterend", pick);
+        if (hint.parentElement !== ear.parentElement) pick.insertAdjacentElement("afterend", hint);
         var hide = dropdownAnimals.length > 0;
         if ((ear.style.display === "none") !== hide) ear.style.display = hide ? "none" : "";
+        if ((pick.style.display === "none") !== !hide) pick.style.display = hide ? "" : "none";
+        var hintText = hide ? "" : (pick.options[0] ? pick.options[0].textContent + " \u2014 add one in Livestock Details first." : "");
+        if (hint.textContent !== hintText) hint.textContent = hintText;
+        if ((hint.style.display === "none") !== hide) hint.style.display = hide ? "none" : "";
         extras();
       };
       keepDisplay(dialog);
