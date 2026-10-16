@@ -197,3 +197,28 @@ async def geo_label_by_suffix(code: str) -> Optional[str]:
     if len(matches) == 1:
         return matches[0].get("level_value_mnemonic") or None
     return None
+
+
+async def geo_id_for(level: str, name: str | None, parent_id: str | None = None,
+                     parent_name: str | None = None) -> Optional[str]:
+    """The geo value id of ``name`` at ``level`` (region / zone / woreda /
+    kebele), under the given parent when one is known; None unless exactly one
+    value matches. A parent is matched by id or, for a Master Data whose
+    values point at their parent by name, by that name."""
+    if not name or not str(name).strip():
+        return None
+    try:
+        index = await _client()._load_geo_index()
+    except Exception as exc:
+        _logger.warning("Master Data geo index unavailable: %s", exc)
+        return None
+    want = str(name).strip().casefold()
+    matches = [
+        vid for vid, node in (index or {}).items()
+        if (node.get("level_mnemonic") or "").casefold() == level
+        and (node.get("level_value_mnemonic") or "").strip().casefold() == want
+    ]
+    if len(matches) > 1 and (parent_id or parent_name):
+        parents = {p for p in (parent_id, parent_name) if p}
+        matches = [vid for vid in matches if index[vid].get("parent_level_value_id") in parents]
+    return matches[0] if len(matches) == 1 else None

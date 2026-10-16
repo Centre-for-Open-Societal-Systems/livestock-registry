@@ -1001,6 +1001,7 @@ def _patch_celery_ingest_worker():
                     try:
                         from sqlalchemy import select
                         from openg2p_registry_extensions.register_domain.models import G2PIntakeFormLivestock, G2PIntakeFormFarmer
+                        from .register_domain.services.admin_area_sync import sync_admin_area
                         ls_intake_rows = (await session.execute(
                             select(G2PIntakeFormLivestock).where(G2PIntakeFormLivestock.submission_id == submission_id)
                         )).scalars().all()
@@ -1019,6 +1020,7 @@ def _patch_celery_ingest_worker():
                                     lbl = await resolve_geo_label(cur_val, geo_field)
                                     if lbl:
                                         setattr(ls_row, geo_field, lbl)
+                            await sync_admin_area(ls_row)
                             ls_row.status = "FINAL"
 
                         farmer_intake_rows = (await session.execute(
@@ -1031,12 +1033,13 @@ def _patch_celery_ingest_worker():
                                     lbl = await resolve_geo_label(cur_val, geo_field)
                                     if lbl:
                                         setattr(f_row, geo_field, lbl)
+                            await sync_admin_area(f_row)
                             f_row.status = "FINAL"
 
                         await session.flush()
                         _logger.info("ODK Hook: Saved intake records for submission %s in PENDING state (Option B)", submission_id)
                     except Exception as ex_post_save:
-                        _logger.debug("ODK Hook: Post-save intake update check: %s", ex_post_save)
+                        _logger.warning("ODK Hook: Post-save intake update check: %s", ex_post_save)
 
                     return res
                 finally:
