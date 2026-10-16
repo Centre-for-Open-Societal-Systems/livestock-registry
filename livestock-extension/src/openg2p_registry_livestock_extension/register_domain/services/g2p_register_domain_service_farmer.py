@@ -8,6 +8,7 @@ from .admin_area_sync import sync_admin_area
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    ensure_livestock_intake_row,
     compose_farmer_name,
     is_blank,
     parse_date,
@@ -175,6 +176,7 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
         NOT done here but once, on submit — see pre_finalize."""
         for row in rows:
             await sync_admin_area(row)
+            await ensure_livestock_intake_row(session, row)
             await sync_farmer_identity_to_livestock(
                 session, getattr(row, "application_reference", None), farmer=row
             )

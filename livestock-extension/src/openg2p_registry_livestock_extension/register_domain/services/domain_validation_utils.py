@@ -890,3 +890,58 @@ async def sync_farmer_identity_to_livestock(session, application_reference, *, f
     if changed:
         await session.flush()
     return changed
+
+
+_LIVESTOCK_FORM_REGISTER_ID = "997676d3-7008-59f9-b23e-613ad79bbb08"
+
+
+async def ensure_livestock_intake_row(session, farmer) -> bool:
+    """Give a Livestock intake submission its Livestock row as soon as the
+    Farmer section is saved. Return True when one was created.
+
+    Only the Survey Personnel, Location and Livestock record sections write
+    the submission's Livestock (parent) row, and all three are optional. An
+    operator who skipped Survey Personnel and Location had no parent row, so
+    the first animal failed with "No parent records exist in this submission;
+    cannot link child row for register 'Animal'". The platform keeps one
+    Livestock row per submission and the form reads it back by submission,
+    so a later Survey Personnel or Location save updates this row instead of
+    adding a second one.
+    """
+    import importlib
+    import uuid
+    from datetime import datetime
+
+    from sqlalchemy import select
+
+    submission_id = getattr(farmer, "submission_id", None)
+    if not submission_id:
+        return False
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    core_models = importlib.import_module("openg2p_registry_core.models")
+    Livestock = models.G2PIntakeFormLivestock
+    Submission = core_models.G2PIntakeFormSubmission
+    register_id = (
+        await session.execute(select(Submission.register_id).where(Submission.submission_id == submission_id))
+    ).scalar()
+    if str(register_id or "") != _LIVESTOCK_FORM_REGISTER_ID:
+        return False  # the Farmer register's own form has no Livestock row
+    exists = (
+        await session.execute(select(Livestock.internal_record_id).where(Livestock.submission_id == submission_id))
+    ).first()
+    if exists:
+        return False
+    actor = getattr(farmer, "created_by", None) or "system"
+    now = datetime.now()
+    session.add(Livestock(
+        submission_id=submission_id,
+        application_reference=getattr(farmer, "application_reference", None),
+        internal_record_id=str(uuid.uuid4()),
+        created_by=actor,
+        created_at=now,
+        last_approved_at=now,
+        last_approved_by=actor,
+        record_status="ACTIVE",
+    ))
+    await session.flush()
+    return True
