@@ -6,6 +6,7 @@ from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import select
 
+from .admin_area_sync import sync_admin_area
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
@@ -145,6 +146,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         sync_farmer_identity_to_livestock."""
         by_ref: dict[str, list] = {}
         for row in rows:
+            await sync_admin_area(row)
             ref = getattr(row, "application_reference", None)
             if ref:
                 by_ref.setdefault(str(ref), []).append(row)
@@ -175,6 +177,8 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         ).scalar_one_or_none()
         if not livestock:
             return
+        # A Location edit writes the dropdowns' ids; refresh the names from them.
+        await sync_admin_area(livestock)
         await self._sync_farmer_identity(livestock, session)
 
     async def post_approval_stage(

@@ -307,12 +307,29 @@
   function observeOptions(select, apply) {
     new MutationObserver(function () { apply(); }).observe(select, { childList: true });
   }
+  // Master Data is shared: on dev the Species list also holds the OpenG2P
+  // data pack's values (CATTLE, GOATS, ...), which have no breeds, vaccines
+  // or species config here. Only the registry's own values are offered (the
+  // server refuses the others too, G2PRegisterDomainServiceAnimal).
+  var SPECIES_PREFIX = "LIVESTOCK_SPECIES_";
+  function isOurSpecies(v) { return !!v && String(v).indexOf(SPECIES_PREFIX) === 0; }
+  function onlyOurSpecies(select) {
+    var apply = function () {
+      var allowed = {};
+      for (var i = 0; i < select.options.length; i++) {
+        if (isOurSpecies(select.options[i].value)) allowed[select.options[i].value] = true;
+      }
+      restrictOptions(select, allowed);
+    };
+    observeOptions(select, apply); apply();
+  }
 
   // ---- Animal dialog: Species -> Breed ------------------------------------
   function wireAnimal(dialog) {
     var species = control(dialog, /^Species\b/, "select");
     var breed = control(dialog, /^Breed\b/, "select");
     var dob = control(dialog, /^Date of Birth\b/, "input");
+    if (species) onlyOurSpecies(species);
     if (dob) {
       keepDisplay(dialog);
       var showAge = function () { setDisplay(dialog, "age", ageFrom(dob.value)); };
@@ -919,7 +936,7 @@
     [search, species, health, vacc, go].forEach(function (x) { filters.appendChild(x); });
     card.appendChild(filters);
     attributeValues("LIVESTOCK_SPECIES").then(function (list) {
-      list.forEach(function (v) { if (v && v.value_id) species.appendChild(new Option(v.value_display || v.value_id, v.value_id)); });
+      list.forEach(function (v) { if (v && isOurSpecies(v.value_id)) species.appendChild(new Option(v.value_display || v.value_id, v.value_id)); });
     });
 
     // bulk bar

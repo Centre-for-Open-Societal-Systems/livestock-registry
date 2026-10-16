@@ -104,6 +104,12 @@ SQL
 
   if psql -v ON_ERROR_STOP=1 -q -c "CREATE UNIQUE INDEX IF NOT EXISTS ux_geo_level_values_mnemonic ON g2p_geo_level_values(level_value_mnemonic);" \
      && gunzip -c "$GEO_FILE" | psql -v ON_ERROR_STOP=1 -q; then
+    # The seed links each value to its parent by name; a shared Master Data
+    # links by id (zone-ET0407 -> region-ET04), and the portal's location
+    # dropdowns cascade on ids. Re-point the parents to ids (idempotent: a
+    # parent that is already an id matches no name).
+    psql -v ON_ERROR_STOP=1 -q -c "UPDATE g2p_geo_level_values c SET parent_level_value_id = p.level_value_id FROM g2p_geo_levels lc, g2p_geo_level_values p WHERE c.level_id = lc.level_id AND p.level_id = lc.parent_level_id AND c.parent_level_value_id = p.level_value_mnemonic;" \
+      || echo "[db-seed] Ethiopia geo: could not re-point the parents to ids (see errors above)."
     psql -At -c "select '[db-seed] Ethiopia geo: levels='||(select count(*) from g2p_geo_levels where level_id like 'level-%')||' values='||(select count(*) from g2p_geo_level_values v join g2p_geo_levels l on l.level_id=v.level_id where l.level_id like 'level-%');"
   else
     echo "[db-seed] Ethiopia geo: FAILED (see errors above) — Location dropdowns will be empty until it is loaded. Typical causes: another geo set already in master_data whose level mnemonics (e.g. 'region') or value names collide with this one."

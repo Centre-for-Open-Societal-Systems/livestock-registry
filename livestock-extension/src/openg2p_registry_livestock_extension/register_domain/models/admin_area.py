@@ -27,3 +27,14 @@ class G2PAdminArea:
     zone: Mapped[str] = mapped_column(String, nullable=True)
     woreda: Mapped[str] = mapped_column(String, nullable=True)
     kebele: Mapped[str] = mapped_column(String, nullable=True)
+
+    # The Master Data geo value ids behind the names (region-ET04, zone-ET0407,
+    # ...). The portal's location dropdowns cascade on these ids, which is how
+    # a shared, id-keyed Master Data links a zone to its region; the names
+    # above are filled from them on save (sync_admin_area) and stay what
+    # approver routing, alerts, reminders and reports read. A record whose
+    # place Master Data does not know keeps its names with no id.
+    region_id: Mapped[str] = mapped_column(String, nullable=True)
+    zone_id: Mapped[str] = mapped_column(String, nullable=True)
+    woreda_id: Mapped[str] = mapped_column(String, nullable=True)
+    kebele_id: Mapped[str] = mapped_column(String, nullable=True)

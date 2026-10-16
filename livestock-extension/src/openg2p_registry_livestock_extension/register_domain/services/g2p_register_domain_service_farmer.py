@@ -4,6 +4,7 @@ from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .admin_area_sync import sync_admin_area
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
@@ -32,6 +33,9 @@ _FAYDA_FAN_ID_PATTERN = re.compile(r"^\d{16}$")
 # 7 or 9 (the only leading digits Ethiopian mobile numbers use) and 8 more
 # digits, e.g. +251911223344 or 0911223344.
 _MOBILE_NUMBER_PATTERN = re.compile(r"^(\+251[79]\d{8}|0[79]\d{8})$")
+
+
+FARMER_REGISTER_ID = "f9c6a359-9563-5a43-b0fe-6c7e452037a3"
 
 
 class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainService):
@@ -170,9 +174,28 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
         sync_farmer_identity_to_livestock. The Farmer Registry enrichment is
         NOT done here but once, on submit — see pre_finalize."""
         for row in rows:
+            await sync_admin_area(row)
             await sync_farmer_identity_to_livestock(
                 session, getattr(row, "application_reference", None), farmer=row
             )
+
+    async def post_approve(self, change_request, session) -> None:
+        """A Location edit on an approved Farmer writes the dropdowns' geo ids;
+        refresh the names from them (see admin_area_sync)."""
+        if change_request.section_register_id != FARMER_REGISTER_ID:
+            return
+        from sqlalchemy import select
+        from openg2p_registry_extensions.register_domain.models import G2PRegisterFarmer
+
+        farmer = (
+            await session.execute(
+                select(G2PRegisterFarmer).where(
+                    G2PRegisterFarmer.internal_record_id == change_request.internal_record_id
+                )
+            )
+        ).scalar_one_or_none()
+        if farmer is not None:
+            await sync_admin_area(farmer)
 
     async def pre_finalize(self, rows: list, session) -> None:
         """When the intake form is submitted (finalize_intake_form_submission):
