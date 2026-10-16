@@ -34,6 +34,9 @@ _ANIMAL_REGISTER_ID = "041a9f79-2142-548a-a15b-a4c76fc9f6f7"
 # g2p_livestock_registry/models/live_stock_registry_line.py.
 _EAR_TAG_PATTERN = re.compile(r"^ET\d{10}$")
 
+# The registry's own species values; see _validate_species_livestock.
+_SPECIES_PREFIX = "LIVESTOCK_SPECIES_"
+
 # Whether a species requires an ear tag, and whether it's recorded as a
 # flock/group rather than one row per individual, is NOT a hardcoded species
 # list here anymore — it's per-value config on the LIVESTOCK_SPECIES
@@ -106,6 +109,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             # "today" on the official staff-ui; resolve it before any check.
             resolve_today_default(record, "registration_date")
             self._validate_required_fields(record)
+            self._validate_species_livestock(record)
             requires_ear_tag, is_flock_species = await get_species_config(record.get("species"))
             # Breed is a plain (unfiltered) list in the dialog; keep a goat breed
             # off a cattle record here, server-side.
@@ -175,6 +179,19 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 "Please provide a secondary identifier (leg band, wing tag, "
                 "hive number, etc.) before saving the record — this species "
                 "has no ear to attach an ear tag to."
+            )
+
+    def _validate_species_livestock(self, record: dict) -> None:
+        """The species must be one of the registry's own LIVESTOCK_SPECIES_*
+        values. Master Data is shared: on dev the same list also holds the
+        OpenG2P data pack's values (CATTLE, GOATS, SHEEP, ...), which have no
+        breeds, vaccines or species config here. The dialog hides them
+        (livestock-dialog-overlay.js); this is the same rule for API clients."""
+        species = record.get("species")
+        if not is_blank(species) and not str(species).startswith(_SPECIES_PREFIX):
+            validation_error(
+                f"Species '{species}' is not a species of this registry — "
+                "choose one from the Species list."
             )
 
     async def _validate_breed_known(self, record: dict) -> None:
