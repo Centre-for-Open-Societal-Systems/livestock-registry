@@ -15,6 +15,7 @@ from openg2p_registry_core.app import Initializer as CoreInitializer
 # (they are read from Master Data), so there is no attribute row to hang it on.
 from .register_domain.models.species_config import G2PLivestockSpeciesConfig
 from .schema_sync import add_missing_columns
+from .vaccine_schedule_defaults import add_default_vaccine_schedules
 
 from .register_domain.models import (
     G2PRegisterFarmer, G2PRegisterHistoryFarmer,
@@ -168,5 +169,9 @@ class Initializer(BaseInitializer):
                 G2PRegisterImportBatch, G2PRegisterHistoryImportBatch, G2PIntakeFormImportBatch,
                 G2PRegisterAuditLog, G2PRegisterHistoryAuditLog, G2PIntakeFormAuditLog,
             ])
+
+            # Next Due Date needs a Vaccine Schedule row per vaccine and
+            # species; only the local sample data used to provide them.
+            await add_default_vaccine_schedules(dbengine.get())
 
         asyncio.run(migrate())
