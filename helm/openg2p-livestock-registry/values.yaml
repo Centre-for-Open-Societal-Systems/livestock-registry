@@ -29,7 +29,12 @@ registry:
       repository: openg2p/openg2p-livestock-registry-staff-api
       tag: 0.0.0-develop
     envVars:
-      REGISTRY_STAFF_PORTAL_API_VALIDATE_ATTRIBUTE_VALUES: "true"
+      # Off: on every section save the platform's coded-value check reloads ALL
+      # Master Data attribute values (24,637 on the shared dev Master Data, ~7 s)
+      # once its 5-minute cache expires. Codes are checked by the domain services
+      # instead (species, breed, vaccine, disease; attribute_value_known loads
+      # one list only).
+      REGISTRY_STAFF_PORTAL_API_VALIDATE_ATTRIBUTE_VALUES: "false"
       # Platform default is date + seconds-of-day + ONE random digit, so two
       # submissions in the same second collide 1 in 10 ("Unexpected error").
       # Five random digits keep the same shape; see docker-compose.yml.
@@ -108,7 +113,7 @@ registry:
       repository: openg2p/openg2p-livestock-registry-partner-api
       tag: 0.0.0-develop
     envVars:
-      REGISTRY_PARTNER_API_VALIDATE_ATTRIBUTE_VALUES: "true"
+      REGISTRY_PARTNER_API_VALIDATE_ATTRIBUTE_VALUES: "false"
       REGISTRY_PARTNER_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
       # /partner/ingest_data is patched by the ODK hooks (see celeryWorker).
       ODK_HOOKS_ENABLED: "true"
@@ -134,7 +139,7 @@ registry:
       # Coded values (species, breed, disease, vaccine ...) are checked
       # against their Master Data list; the subchart wires the Master Data API
       # URL and token settings (global.masterDataApiUrl, pmSeedClientId).
-      REGISTRY_CELERY_WORKERS_VALIDATE_ATTRIBUTE_VALUES: "true"
+      REGISTRY_CELERY_WORKERS_VALIDATE_ATTRIBUTE_VALUES: "false"
       # ODK / partner ingestion hooks (livestock-extension __init__.py): loaded
       # only by the ingestion processes (celery, partner-api), never staff-api.
       ODK_HOOKS_ENABLED: "true"

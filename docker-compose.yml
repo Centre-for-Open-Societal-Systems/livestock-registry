@@ -426,7 +426,7 @@ services:
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
       # Reject a coded value (species, breed, disease, vaccine ...) that is not
       # in its Master Data list, on the intake and change-request paths.
-      REGISTRY_STAFF_PORTAL_API_VALIDATE_ATTRIBUTE_VALUES: "true"
+      REGISTRY_STAFF_PORTAL_API_VALIDATE_ATTRIBUTE_VALUES: "false"
       REGISTRY_STAFF_PORTAL_API_OPENAPI_ROOT_PATH: /
       REGISTRY_STAFF_PORTAL_API_AUTH_PROVIDER_API_URL: http://iam:8000
       REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL: redis://redis:6379/0
@@ -555,7 +555,7 @@ services:
       REGISTRY_PARTNER_API_MASTER_DATA_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
       # Reject a coded value (species, breed, disease, vaccine ...) that is not
       # in its Master Data list, on the intake and change-request paths.
-      REGISTRY_PARTNER_API_VALIDATE_ATTRIBUTE_VALUES: "true"
+      REGISTRY_PARTNER_API_VALIDATE_ATTRIBUTE_VALUES: "false"
       # Partner signature checks, consent enforcement and keymanager all need
       # commons-services; disabled so the API starts standalone.
       REGISTRY_PARTNER_API_SIGNATURE_VALIDATION_ENABLED: ${PARTNER_SIGNATURE_VALIDATION_ENABLED}
@@ -608,7 +608,7 @@ services:
       REGISTRY_CELERY_WORKERS_MASTER_DATA_CLIENT_SECRET: ${AUTH_CLIENT_SECRET}
       # Reject a coded value (species, breed, disease, vaccine ...) that is not
       # in its Master Data list, on the intake and change-request paths.
-      REGISTRY_CELERY_WORKERS_VALIDATE_ATTRIBUTE_VALUES: "true"
+      REGISTRY_CELERY_WORKERS_VALIDATE_ATTRIBUTE_VALUES: "false"
       REGISTRY_CELERY_WORKERS_CELERY_BROKER_URL: redis://redis:6379/0
       REGISTRY_CELERY_WORKERS_CELERY_BACKEND_URL: redis://redis:6379/0
       REGISTRY_CELERY_WORKERS_WORKER_QUEUE: registry_worker_queue

@@ -13,6 +13,7 @@ from sqlalchemy import and_, func, select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    validate_known_code,
     animal_identified_by,
     _animal_models,
     as_int,
@@ -78,6 +79,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
+            await validate_known_code(record, "disease_type", "LIVESTOCK_DISEASE", "Disease")
             await validate_species_matches(record)
             self._validate_not_in_future(record, "event_date")
             self._validate_not_in_future(record, "date_onset")

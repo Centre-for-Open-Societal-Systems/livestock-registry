@@ -693,6 +693,20 @@ async def attribute_value_known(value_id, attribute_id: str) -> bool:
         return True
 
 
+async def validate_known_code(record: dict, field: str, attribute_id: str, label: str) -> None:
+    """The value in `field` must be a value of the Master Data code list
+    `attribute_id`. The platform's coded-value validation is switched off
+    (it reloads every attribute value of the shared Master Data on each save),
+    so the lists that ODK, File Import or API rows can carry free text into
+    are checked here, one list at a time. Blank is left to the required-field
+    checks."""
+    value = record.get(field)
+    if is_blank(value):
+        return
+    if not await attribute_value_known(value, attribute_id):
+        validation_error(f"{label} '{value}' is not in the {label.lower()} list.")
+
+
 async def attribute_value_parent(value_id) -> str | None:
     """parent_value_id of a code-list value (e.g. LIVESTOCK_BREED_BORAN ->
     LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->
