@@ -28,6 +28,7 @@ from sqlalchemy import exists, select, update
 
 from .audit_snapshot import AuditSnapshotMixin, _get_change_payload_rows
 from .domain_validation_utils import (
+    normalize_ear_tag_text,
     animal_identified_by,
     _animal_models,
     ear_tag_exists,
@@ -113,7 +114,8 @@ class G2PRegisterDomainServiceRetagging(AuditSnapshotMixin, G2PRegisterDomainSer
                 continue
             self._normalize(record)
             self._validate_required_fields(record)
-            old_tag, new_tag = record["ear_tag_id"], record["new_ear_tag_id"]
+            record["ear_tag_id"] = old_tag = normalize_ear_tag_text(record.get("ear_tag_id")) or ""
+            record["new_ear_tag_id"] = new_tag = normalize_ear_tag_text(record.get("new_ear_tag_id")) or ""
             if not _EAR_TAG_PATTERN.match(new_tag):
                 validation_error(
                     f"New ear tag '{new_tag}' must follow the national format: ET followed by 10 digits, "

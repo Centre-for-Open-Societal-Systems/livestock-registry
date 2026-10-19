@@ -1,3 +1,4 @@
+import re
 from contextvars import ContextVar
 from datetime import date, datetime
 
@@ -138,6 +139,33 @@ def _animal_models():
 
     models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
     return models.G2PRegisterAnimal, models.G2PIntakeFormAnimal
+
+
+_NATIONAL_EAR_TAG = re.compile(r"^ET\d{10}$", re.IGNORECASE)
+
+
+def normalize_ear_tag_text(value) -> str | None:
+    """The identifier an event names its animal by, normalised the way the
+    Animal section stores it: a national ear tag (ET + 10 digits, any case,
+    spaces ignored) becomes upper-case; anything else -- a flock, batch or
+    hive secondary identifier, which is free text -- is only trimmed. Lookups
+    match exactly on the stored value, so an event typed or sent as
+    'et1000000001' would otherwise never find animal 'ET1000000001'."""
+    if is_blank(value):
+        return None
+    compact = re.sub(r"\s+", "", str(value))
+    if _NATIONAL_EAR_TAG.match(compact):
+        return compact.upper()
+    return str(value).strip()
+
+
+def normalize_event_ear_tag(record: dict) -> str | None:
+    """normalize_ear_tag_text applied to the record's `ear_tag_id`, written
+    back so the stored row carries the normalised value."""
+    value = normalize_ear_tag_text(record.get("ear_tag_id"))
+    if value is not None:
+        record["ear_tag_id"] = value
+    return value
 
 
 def animal_identified_by(model, identifier: str):

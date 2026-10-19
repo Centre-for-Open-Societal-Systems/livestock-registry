@@ -13,6 +13,7 @@ from sqlalchemy import and_, func, select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    normalize_event_ear_tag,
     validate_known_code,
     animal_identified_by,
     _animal_models,
@@ -127,10 +128,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             validation_error("Please provide the disease before saving the record.")
 
     async def _validate_ear_tag_exists(self, record: dict, application_reference: str | None = None) -> None:
-        value = record.get("ear_tag_id")
-        if value is None or str(value).strip() == "":
+        value = normalize_event_ear_tag(record)
+        if value is None:
             return
-        if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
+        if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
                 f"'{str(value).strip()}' does not match any registered or drafted animal's "
                 "ear tag or secondary identifier. Add it under Livestock Details first, "
