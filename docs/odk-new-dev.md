@@ -101,14 +101,27 @@ One targeted replay recovered historical source instance
 remain `FINAL / PENDING` with AWE requests. Neither was approved in this work.
 Repeated historical dead letters were retained and must not be bulk-replayed.
 
-Fresh submission through Central itself was not verified: the polling account
-could read the form but could not create a REST submission; session-token auth
-was also rejected by the OpenRosa endpoint. Farmer's existing ODK account does
-not have access to livestock project 6, and project 6 has no existing app user.
-Farmer's submission fixture uses a project-scoped app-user token with the
-OpenRosa endpoint; use an approved livestock submission identity for that check.
-No ODK permissions or accounts were changed. Web creation, approval and register
-promotion remain unverified by these checks.
+## Fresh Central upload verification
+
+A fresh synthetic XML submission was accepted through Central's normal REST
+endpoint on 2026-10-19 (HTTP 200), using an explicitly authorized upload identity.
+No ODK permissions or accounts were changed. Record and request identifiers for
+this test are retained in local evidence rather than published here.
+
+- A normal poll fetched exactly one new Central submission. The connector run
+  succeeded on its first attempt with no error, resolving `PARTNER_LIVESTOCK`.
+- Classification, transformation and intake ingestion each reached `PROCESSED`.
+  OData expansion retained one health, vaccination, vital and breeding event.
+- Exactly one holding, farmer, animal and each event type reached intake.
+  Geography resolved to Oromia / East Shewa / Ada'a / Dire 01; the animal became
+  cattle / local zebu / female, and vaccination became
+  `VACCINE_TYPE_ANTHRAX_CATTLE` with next-due date `2027-10-01`.
+- The follow-up poll succeeded with zero fetched records. The checkpoint advanced
+  to the fresh instance's submission timestamp; exactly one connector run,
+  registry message and intake remained.
+- The fresh intake is `FINAL / PENDING` with an AWE request. Approval, register
+  promotion and web creation remain unverified by these checks. Historical
+  submissions received no further changes during this fresh-upload test.
 
 Postman CLI could not start because its managed Private Cloud manifest was
 unreadable. Live checks used HTTP clients within the existing pods; no Postman
