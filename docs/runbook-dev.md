@@ -1,5 +1,9 @@
 # Livestock Registry — dev runbook
 
+For the current new dev server (`livestock` namespace, shared `commons`, ODK
+project 6), use [Livestock ODK on new dev](odk-new-dev.md). The topology below
+records the earlier deployment and its namespace/project settings.
+
 How the livestock registry is deployed and configured on the development
 cluster, what has to be in place outside this repo, and how to check that a
 deploy works end to end. Written for the deployment war room of 12 Oct 2026.

@@ -1,5 +1,10 @@
 # Livestock ODK form and ingestion
 
+Current new dev configuration and validation:
+[Livestock ODK on new dev](../docs/odk-new-dev.md) (`livestock` namespace, project
+6, `LIVESTOCK_ODK_MODEL`, active PM partner `PARTNER_LIVESTOCK`). The environment
+table below describes the earlier project 14 deployment.
+
 Field officers collect a livestock holding (farmer, location, animals and the
 animals' health, vaccination, vital and breeding events) with ODK Collect or
 Central's web form. The path to the registry is the same as the farmer
