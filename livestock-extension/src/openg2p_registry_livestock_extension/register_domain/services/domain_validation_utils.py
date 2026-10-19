@@ -1,3 +1,4 @@
+import re
 from contextvars import ContextVar
 from datetime import date, datetime
 
@@ -138,6 +139,33 @@ def _animal_models():
 
     models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
     return models.G2PRegisterAnimal, models.G2PIntakeFormAnimal
+
+
+_NATIONAL_EAR_TAG = re.compile(r"^ET\d{10}$", re.IGNORECASE)
+
+
+def normalize_ear_tag_text(value) -> str | None:
+    """The identifier an event names its animal by, normalised the way the
+    Animal section stores it: a national ear tag (ET + 10 digits, any case,
+    spaces ignored) becomes upper-case; anything else -- a flock, batch or
+    hive secondary identifier, which is free text -- is only trimmed. Lookups
+    match exactly on the stored value, so an event typed or sent as
+    'et1000000001' would otherwise never find animal 'ET1000000001'."""
+    if is_blank(value):
+        return None
+    compact = re.sub(r"\s+", "", str(value))
+    if _NATIONAL_EAR_TAG.match(compact):
+        return compact.upper()
+    return str(value).strip()
+
+
+def normalize_event_ear_tag(record: dict) -> str | None:
+    """normalize_ear_tag_text applied to the record's `ear_tag_id`, written
+    back so the stored row carries the normalised value."""
+    value = normalize_ear_tag_text(record.get("ear_tag_id"))
+    if value is not None:
+        record["ear_tag_id"] = value
+    return value
 
 
 def animal_identified_by(model, identifier: str):
@@ -693,6 +721,20 @@ async def attribute_value_known(value_id, attribute_id: str) -> bool:
         return True
 
 
+async def validate_known_code(record: dict, field: str, attribute_id: str, label: str) -> None:
+    """The value in `field` must be a value of the Master Data code list
+    `attribute_id`. The platform's coded-value validation is switched off
+    (it reloads every attribute value of the shared Master Data on each save),
+    so the lists that ODK, File Import or API rows can carry free text into
+    are checked here, one list at a time. Blank is left to the required-field
+    checks."""
+    value = record.get(field)
+    if is_blank(value):
+        return
+    if not await attribute_value_known(value, attribute_id):
+        validation_error(f"{label} '{value}' is not in the {label.lower()} list.")
+
+
 async def attribute_value_parent(value_id) -> str | None:
     """parent_value_id of a code-list value (e.g. LIVESTOCK_BREED_BORAN ->
     LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->
@@ -890,3 +932,58 @@ async def sync_farmer_identity_to_livestock(session, application_reference, *, f
     if changed:
         await session.flush()
     return changed
+
+
+_LIVESTOCK_FORM_REGISTER_ID = "997676d3-7008-59f9-b23e-613ad79bbb08"
+
+
+async def ensure_livestock_intake_row(session, farmer) -> bool:
+    """Give a Livestock intake submission its Livestock row as soon as the
+    Farmer section is saved. Return True when one was created.
+
+    Only the Survey Personnel, Location and Livestock record sections write
+    the submission's Livestock (parent) row, and all three are optional. An
+    operator who skipped Survey Personnel and Location had no parent row, so
+    the first animal failed with "No parent records exist in this submission;
+    cannot link child row for register 'Animal'". The platform keeps one
+    Livestock row per submission and the form reads it back by submission,
+    so a later Survey Personnel or Location save updates this row instead of
+    adding a second one.
+    """
+    import importlib
+    import uuid
+    from datetime import datetime
+
+    from sqlalchemy import select
+
+    submission_id = getattr(farmer, "submission_id", None)
+    if not submission_id:
+        return False
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    core_models = importlib.import_module("openg2p_registry_core.models")
+    Livestock = models.G2PIntakeFormLivestock
+    Submission = core_models.G2PIntakeFormSubmission
+    register_id = (
+        await session.execute(select(Submission.register_id).where(Submission.submission_id == submission_id))
+    ).scalar()
+    if str(register_id or "") != _LIVESTOCK_FORM_REGISTER_ID:
+        return False  # the Farmer register's own form has no Livestock row
+    exists = (
+        await session.execute(select(Livestock.internal_record_id).where(Livestock.submission_id == submission_id))
+    ).first()
+    if exists:
+        return False
+    actor = getattr(farmer, "created_by", None) or "system"
+    now = datetime.now()
+    session.add(Livestock(
+        submission_id=submission_id,
+        application_reference=getattr(farmer, "application_reference", None),
+        internal_record_id=str(uuid.uuid4()),
+        created_by=actor,
+        created_at=now,
+        last_approved_at=now,
+        last_approved_by=actor,
+        record_status="ACTIVE",
+    ))
+    await session.flush()
+    return True

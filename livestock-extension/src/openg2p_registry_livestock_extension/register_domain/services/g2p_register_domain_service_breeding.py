@@ -7,6 +7,7 @@ from sqlalchemy import and_
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    normalize_event_ear_tag,
     ear_tag_exists, get_animal_gender, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
@@ -68,10 +69,10 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
                 validation_error(f"Please provide the {label} before saving the record.")
 
     async def _validate_ear_tag_exists(self, record: dict, application_reference: str | None = None) -> None:
-        value = record.get("ear_tag_id")
-        if value is None or str(value).strip() == "":
+        value = normalize_event_ear_tag(record)
+        if value is None:
             return
-        if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
+        if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
                 f"'{str(value).strip()}' does not match any registered or drafted animal's "
                 "ear tag or secondary identifier. Add it under Livestock Details first, "

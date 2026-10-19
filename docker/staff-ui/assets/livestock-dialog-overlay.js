@@ -627,6 +627,10 @@
       // visible only when there is nothing to pick from (no animal saved yet,
       // or the submission lookup failed), so a tag can still be typed then.
       var pick = document.createElement("select"); pick.className = ear.className; pick.id = "lr-animal-pick";
+      // With no animal to pick, the text input stays and this one line under
+      // it says why the list is empty. The dropdown is not shown then: next to
+      // the input it did not fit the cell and covered the Species label.
+      var hint = document.createElement("div"); hint.id = "lr-animal-hint"; hint.className = "text-xs mt-1"; hint.style.color = "#92400e";
       var filteredFor = null; // femaleOnly() the options were last built for
       var buildOptions = function () {
         var female = femaleOnly();
@@ -678,8 +682,13 @@
         if (current && current !== ear) { ear = current; }
         if (!ear) return;
         if (pick.parentElement !== ear.parentElement) ear.insertAdjacentElement("afterend", pick);
+        if (hint.parentElement !== ear.parentElement) pick.insertAdjacentElement("afterend", hint);
         var hide = dropdownAnimals.length > 0;
         if ((ear.style.display === "none") !== hide) ear.style.display = hide ? "none" : "";
+        if ((pick.style.display === "none") !== !hide) pick.style.display = hide ? "" : "none";
+        var hintText = hide ? "" : (pick.options[0] ? pick.options[0].textContent + " \u2014 add one in Livestock Details first." : "");
+        if (hint.textContent !== hintText) hint.textContent = hintText;
+        if ((hint.style.display === "none") !== hide) hint.style.display = hide ? "none" : "";
         extras();
       };
       keepDisplay(dialog);
@@ -1052,8 +1061,12 @@
       var groups = {};
       picked.forEach(function (r) { (groups[r.link] = groups[r.link] || []).push(r.id); });
       var done = 0, animals = 0, skipped = 0, failed = [];
+      // Only the Livestock Details section's own columns may travel in a
+      // change request (the platform refuses any other key with REQ-VAL-001
+      // "fields not allowed by section"); the animal register also stores
+      // colour, which is not a section field and must not be sent.
       var KEEP = ["internal_record_id", "link_internal_record_id", "ear_tag_id", "secondary_identifier", "species", "breed", "gender",
-                  "date_of_birth", "registration_date", "quantity", "weight", "colour", "health_status", "vaccination_status"];
+                  "date_of_birth", "age", "registration_date", "quantity", "weight", "health_status", "vaccination_status"];
       var links = Object.keys(groups);
       (function nextGroup(i) {
         if (i >= links.length) {
@@ -1116,7 +1129,20 @@
       var t = (candidates[i].textContent || "").replace(/\s+/g, " ").trim();
       if (t === "Dashboard" && !candidates[i].closest(DIALOG)) { dash = candidates[i]; break; }
     }
-    if (!dash || !dash.parentElement) return;
+    if (!dash || !dash.parentElement) {
+      // registry-platform 1.2's header has no Dashboard link to sit next to:
+      // put the button at the left of the header's right-hand group (the
+      // user menu), styled like the portal's own header controls.
+      var header = document.querySelector("header");
+      var group = header && header.querySelector("div.flex.items-center.gap-4");
+      if (!group || group.closest(DIALOG)) return;
+      var b2 = el("button", "border:0;background:none;cursor:pointer;font-size:15px;font-weight:500;padding:6px 10px;border-radius:8px;color:inherit", "Animals");
+      b2.id = "lr-animals-btn"; b2.type = "button";
+      b2.title = "All registered animals — search and bulk update";
+      b2.onclick = function (e) { e.preventDefault(); e.stopPropagation(); openAnimalsPanel(); };
+      group.insertBefore(b2, group.firstChild);
+      return;
+    }
     var btn = dash.cloneNode(true);
     btn.id = "lr-animals-btn";
     btn.removeAttribute("href");

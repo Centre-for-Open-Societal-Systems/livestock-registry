@@ -7,6 +7,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    validate_known_code,
     as_float,
     as_int,
     ear_tag_used_by_other_animal,
@@ -110,6 +111,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             resolve_today_default(record, "registration_date")
             self._validate_required_fields(record)
             self._validate_species_livestock(record)
+            await validate_known_code(record, "species", "LIVESTOCK_SPECIES", "Species")
             requires_ear_tag, is_flock_species = await get_species_config(record.get("species"))
             # Breed is a plain (unfiltered) list in the dialog; keep a goat breed
             # off a cattle record here, server-side.

@@ -32,6 +32,24 @@ _DUE_SOON_TYPE = "vaccination_due_soon"
 _OVERDUE_TYPE = "vaccination_overdue"
 
 
+# Only an animal's latest vaccination of each vaccine counts. Re-vaccinating
+# adds a new ACTIVE row and keeps the old one, whose next_due_date is in the
+# past by then; without this rule the old row kept sending overdue mail for
+# an animal that is up to date (vaccination_status_service applies the same
+# latest-row rule when it flips vaccination_status).
+_LATEST_PER_ANIMAL_CTE = """
+        WITH latest_vaccination AS (
+            SELECT DISTINCT ON (v.link_internal_record_id, v.ear_tag_id, v.vaccine_type)
+                v.internal_record_id, v.link_internal_record_id, v.ear_tag_id, v.vaccine_type,
+                v.next_due_date, v.vaccination_date
+            FROM g2p_register_vaccinations v
+            WHERE v.record_status = 'ACTIVE'
+            ORDER BY v.link_internal_record_id, v.ear_tag_id, v.vaccine_type,
+                     v.vaccination_date DESC NULLS LAST, v.created_at DESC NULLS LAST
+        )
+"""
+
+
 def _fetch(engine: Engine, query: str, params: dict) -> list[dict]:
     with engine.connect() as conn:
         rows = conn.execute(text(query), params).mappings().all()
@@ -43,10 +61,10 @@ def find_due_soon(engine: Engine, window_days: int = DEFAULT_DUE_SOON_WINDOW_DAY
     from datetime import timedelta
     cutoff = as_of + timedelta(days=window_days)
     return _fetch(engine, f"""
+        {_LATEST_PER_ANIMAL_CTE}
         SELECT v.internal_record_id, v.ear_tag_id, v.vaccine_type, v.next_due_date
-        FROM g2p_register_vaccinations v
-        WHERE v.record_status = 'ACTIVE'
-          AND v.next_due_date IS NOT NULL
+        FROM latest_vaccination v
+        WHERE v.next_due_date IS NOT NULL
           AND v.next_due_date >= :today AND v.next_due_date <= :cutoff
           AND {animal_not_deceased_sql("v")}
         ORDER BY v.next_due_date
@@ -56,10 +74,10 @@ def find_due_soon(engine: Engine, window_days: int = DEFAULT_DUE_SOON_WINDOW_DAY
 def find_overdue(engine: Engine, as_of=None) -> list[dict]:
     as_of = as_of or today()
     return _fetch(engine, f"""
+        {_LATEST_PER_ANIMAL_CTE}
         SELECT v.internal_record_id, v.ear_tag_id, v.vaccine_type, v.next_due_date
-        FROM g2p_register_vaccinations v
-        WHERE v.record_status = 'ACTIVE'
-          AND v.next_due_date IS NOT NULL
+        FROM latest_vaccination v
+        WHERE v.next_due_date IS NOT NULL
           AND v.next_due_date < :today
           AND {animal_not_deceased_sql("v")}
         ORDER BY v.next_due_date

@@ -394,4 +394,34 @@ apply(
     "intake_form_data_service.py: call pre_finalize on submit",
 )
 
+# ─── Change requests keep what validate_domain_attributes computed. The
+# platform hands the hook throwaway copies of the change payload
+# (_records_from_change_request_payload -> model_dump()) and stores the
+# original, so every value a domain service derives while validating -- a
+# vaccination's next_due_date, an event's species and age, the upper-cased
+# ear tag, the farmer name -- was lost on this path, and a BIRTH added through
+# a change request reached approval with its calf's species empty. The
+# validated records now become the request's change_payload (ChangePayload
+# allows extra fields), so the stored and displayed payload is what the
+# hook saw and filled, exactly as on the intake path.
+apply(
+    f"{BASE}/services/g2p_register_change_request_service.py",
+    '''            await self._validate_domain_attributes(
+                self._records_from_change_request_payload(change_request_request_payload),
+                section_register_definition.register_mnemonic,
+                register_section.section_ui_schema,
+            )''',
+    '''            _validated_records = self._records_from_change_request_payload(change_request_request_payload)
+            await self._validate_domain_attributes(
+                _validated_records,
+                section_register_definition.register_mnemonic,
+                register_section.section_ui_schema,
+            )
+            if _validated_records:
+                change_request_request_payload.change_payload = [
+                    ChangePayload(**record) for record in _validated_records
+                ]''',
+    "g2p_register_change_request_service.py: store the validated change payload",
+)
+
 print("ALL PATCHES APPLIED")

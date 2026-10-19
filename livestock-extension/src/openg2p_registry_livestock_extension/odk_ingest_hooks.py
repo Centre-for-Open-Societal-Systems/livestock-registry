@@ -272,7 +272,7 @@ _ODK_BREED_CHOICES = {
     },
     "goat": {
         "afar": "LIVESTOCK_BREED_AFAR_GOAT",
-        "abergele": "LIVESTOCK_BREED_LOCAL_GOAT",
+        "abergele": "LIVESTOCK_BREED_ABERGELLE",
         "begait": "LIVESTOCK_BREED_BEGAIT_GOAT",
         "central_highland": "LIVESTOCK_BREED_CENTRAL_HIGHLAND",
         "long_eared_somali": "LIVESTOCK_BREED_LONG_EARED_SOMALI",

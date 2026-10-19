@@ -64,7 +64,7 @@ def find_stuck_records(engine: Engine, stuck_after_days: int = DEFAULT_STUCK_AFT
                 JOIN g2p_intake_form_submissions s ON s.submission_id = l.submission_id
                 WHERE s.approval_status = 'PENDING'
                   AND s.finalized_at IS NOT NULL
-                  AND l.state IN ('DRAFT', 'KEBELE_APPROVED', 'WOREDA_APPROVED', 'ZONE_APPROVED')
+                  AND COALESCE(l.state, 'DRAFT') IN ('DRAFT', 'KEBELE_APPROVED', 'WOREDA_APPROVED', 'ZONE_APPROVED')
                   AND COALESCE(l.state_date, s.finalized_at::date) <= :cutoff
                 UNION ALL
                 SELECT internal_record_id, functional_record_id, farmer_name, state, state_date,
