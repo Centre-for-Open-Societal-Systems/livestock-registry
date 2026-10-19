@@ -11,6 +11,9 @@ extension's migration, right after the table is created.
 
 A default is added only when no row exists for its vaccine and species, active
 or not: an interval changed or switched off on an environment is kept as is.
+The Vaccine Schedule form saves attribute value ids (VACCINE_TYPE_ANTHRAX_CATTLE,
+LIVESTOCK_SPECIES_CATTLE) while these defaults use the bare codes, so the
+existence check strips the prefixes before comparing, as the lookup does.
 """
 
 import logging
@@ -46,8 +49,8 @@ _INSERT = text(
            TRUE, CAST(:notes AS VARCHAR)
     WHERE NOT EXISTS (
         SELECT 1 FROM g2p_register_vaccine_schedules
-        WHERE upper(vaccine_name) = CAST(:vaccine AS VARCHAR)
-          AND upper(species) = CAST(:species AS VARCHAR)
+        WHERE regexp_replace(upper(vaccine_name), '^(VACCINE_TYPE_|LIVESTOCK_VACCINE_)', '') = CAST(:vaccine AS VARCHAR)
+          AND regexp_replace(upper(species), '^LIVESTOCK_SPECIES_', '') = CAST(:species AS VARCHAR)
     )
     """
 )
