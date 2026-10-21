@@ -13,6 +13,7 @@ pipeline {
     environment {
         AWS_REGION       = 'ap-south-1'
         ECR_PATH         = 'openg2p/livestock-registry'
+        DASHBOARD_UI_ECR = 'oan/livestock-registry/dashboard-ui'
         RP_VERSION       = '1.2.2-rc.544' // TODO verify — see header note
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
@@ -137,7 +138,7 @@ pipeline {
                         }
 
                         if (env.DASHBOARD_UI_SHA) {
-                            def ui = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-ui:${env.DASHBOARD_UI_SHA}"
+                            def ui = "${env.ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${env.DASHBOARD_UI_SHA}"
                             sh """
                                 docker build --label org.opencontainers.image.revision=${env.DASHBOARD_UI_SHA} \
                                   -f .build/dashboard-ui/Dockerfile -t ${ui} .build/dashboard-ui
@@ -296,7 +297,7 @@ EOF
 
                             kubectl rollout status deployment/\${HELM_RELEASE}-dashboard-api -n ${DEV_NAMESPACE} --timeout=420s
                             bash ci/dashboard/deploy-ui.sh livestock \
-                              ${DEV_NAMESPACE} ${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-ui ${env.DASHBOARD_UI_SHA}
+                              ${DEV_NAMESPACE} ${env.ECR_REGISTRY}/${DASHBOARD_UI_ECR} ${env.DASHBOARD_UI_SHA}
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n ${DEV_NAMESPACE} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui  -n ${DEV_NAMESPACE} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-partner-api      -n ${DEV_NAMESPACE} --timeout=180s
