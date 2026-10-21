@@ -1,10 +1,10 @@
-# Registry-owned development configuration. No secrets are embedded.
-environment: ""
+# Shared development staff IAM and wildcard Gateway. Secret contents stay outside Git.
+environment: ''
 iam:
   url: https://staff-iam.development.oanstaging.com
   cookieDomain: .development.oanstaging.com
 links:
-  staffPortalUrl: https://livestock-registry.development.oanstaging.com
+  staffPortalUrl: https://staff-portal.development.oanstaging.com
   registryPortalUrl: https://livestock-registry.development.oanstaging.com
 dashboardApi:
   service: livestock-registry-dashboard-api
@@ -12,3 +12,8 @@ dashboardApi:
     enabled: true
 iamSetup:
   grantUsers: []
+  description: Livestock Dashboard
+host: livestock-registry-dashboard.development.oanstaging.com
+ingress:
+  public:
+    existingGateway: istio-system/development
