@@ -39,6 +39,7 @@ pipeline {
         // there is none. Set DASHBOARD_API_REF on the job (a branch or tag) to
         // pin one instead.
         DASHBOARD_API_REPO = 'https://github.com/Centre-for-Open-Societal-Systems/livestock-registry-dashbaord-api.git'
+        DASHBOARD_UI_REPO = 'https://github.com/Centre-for-Open-Societal-Systems/oan_livestock_dashboard.git'
     }
 
     stages {
@@ -75,6 +76,35 @@ pipeline {
                     env.DASHBOARD_API_REF_USED = ref
                     env.DASHBOARD_API_SHA = sh(returnStdout: true, script: 'git -C .build/dashboard-api rev-parse --short=12 HEAD').trim()
                     echo "dashboard-api: ${ref} @ ${env.DASHBOARD_API_SHA}"
+                    sh 'bash ci/dashboard/verify-api.sh .build/dashboard-api'
+                }
+            }
+        }
+
+        stage('Checkout dashboard-ui') {
+            // TEMPORARY: livestock-registry-dashboard-ui has not been merged to its
+            // staging branch yet, so staging builds skip it (Deploy to Live never
+            // uses the dashboard-ui image). Drop this `when` once it is merged.
+            when { not { branch 'staging' } }
+            steps {
+                script {
+                    // A PR build (BRANCH_NAME PR-<n>) matches on its source branch.
+                    def ref = env.DASHBOARD_UI_REF
+                    if (!ref) {
+                        def wanted = env.CHANGE_BRANCH ?: env.BRANCH_NAME
+                        def found = wanted && sh(returnStatus: true,
+                            script: "git ls-remote --exit-code --heads ${DASHBOARD_UI_REPO} 'refs/heads/${wanted}' > /dev/null") == 0
+                        ref = found ? wanted : 'develop'
+                    }
+                    // .build/ is git-ignored, so the clone never enters a commit.
+                    sh "rm -rf .build/dashboard-ui && git clone --quiet --depth 1 --branch '${ref}' ${DASHBOARD_UI_REPO} .build/dashboard-ui"
+                    if (!fileExists('.build/dashboard-ui/Dockerfile')) {
+                        error("dashboard-ui ${ref} has no Dockerfile: merge the service into that branch of ${DASHBOARD_UI_REPO}, or set DASHBOARD_UI_REF")
+                    }
+                    env.DASHBOARD_UI_REF_USED = ref
+                    env.DASHBOARD_UI_SHA = sh(returnStdout: true, script: 'git -C .build/dashboard-ui rev-parse --short=12 HEAD').trim()
+                    echo "dashboard-ui: ${ref} @ ${env.DASHBOARD_UI_SHA}"
+                    sh 'bash ci/dashboard/verify-source.sh .build/dashboard-ui'
                 }
             }
         }
@@ -106,6 +136,14 @@ pipeline {
                             """
                         }
 
+                        if (env.DASHBOARD_UI_SHA) {
+                            def ui = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-ui:${env.DASHBOARD_UI_SHA}"
+                            sh """
+                                docker build --label org.opencontainers.image.revision=${env.DASHBOARD_UI_SHA} \
+                                  -f .build/dashboard-ui/Dockerfile -t ${ui} .build/dashboard-ui
+                                docker push ${ui}
+                            """
+                        }
                         // Skipped when 'Checkout dashboard-api' did not run (staging).
                         if (env.DASHBOARD_API_SHA) {
                             // The dashboard service, from its own repository (cloned
@@ -227,6 +265,10 @@ EOF
                                 --set registry.staffUi.image.tag=${env.IMAGE_TAG}
                                 --set registry.sanity.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
                                 --set registry.sanity.image.tag=${env.IMAGE_TAG}
+                                --set dashboardApi.enabled=true
+                                --set dashboardApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api
+                                --set dashboardApi.image.tag=${env.IMAGE_TAG}
+                                --set reporting.views.enabled=true
                             "
 
                             helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${DEV_NAMESPACE} \
@@ -252,6 +294,9 @@ EOF
                                 \$IMAGE_SET_FLAGS \
                                 --cleanup-on-fail --timeout 15m
 
+                            kubectl rollout status deployment/\${HELM_RELEASE}-dashboard-api -n ${DEV_NAMESPACE} --timeout=420s
+                            bash ci/dashboard/deploy-ui.sh livestock \
+                              ${DEV_NAMESPACE} ${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-ui ${env.DASHBOARD_UI_SHA}
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n ${DEV_NAMESPACE} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui  -n ${DEV_NAMESPACE} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-partner-api      -n ${DEV_NAMESPACE} --timeout=180s

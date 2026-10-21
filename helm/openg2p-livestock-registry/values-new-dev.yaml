@@ -176,3 +176,8 @@ registry:
       repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/staff-ui
       tag: 6db60a852e1d
     partnerIngestUrl: https://partner-livestock.development.oanstaging.com/partner/ingest_data?data_model=dcivc
+
+# Trust for the registry-owned dashboard API; no application source URL.
+dashboardApi:
+  auth:
+    issuer: https://keycloak.development.oanstaging.com/realms/staff
