@@ -1,4 +1,10 @@
 {{- if .Values.dashboardApi.enabled }}
+{{- if not .Values.dashboardApi.auth.enabled }}
+{{- fail "dashboard API deployments require dashboardApi.auth.enabled=true" }}
+{{- end }}
+{{- if not (or .Values.dashboardApi.auth.issuer .Values.dashboardApi.auth.iamUrl) }}
+{{- fail "dashboardApi.auth.issuer or dashboardApi.auth.iamUrl is required" }}
+{{- end }}
 {{/*
 The livestock registry dashboard service (livestock-registry-dashboard-api).
 
@@ -12,8 +18,10 @@ and reporting-views-refresh.yaml keeps current. Enable reporting.views with it,
 or every chart answers 500 with `relation "lr_rpt_holding" does not exist`.
 
 The dashboards BFF calls the ClusterIP Service at
-http://<release>-dashboard-api.<namespace>. The service has no authentication,
-so it is never published publicly. dashboardApi.virtualService optionally
+http://<release>-dashboard-api.<namespace>. With dashboardApi.auth.iamUrl
+set to the namespace's IAM Service, the service accepts only the dashboards'
+client-credentials tokens (see its docs/security.md). Either way it is never
+published publicly. dashboardApi.virtualService optionally
 routes a hostname on a PRIVATE Istio gateway (e.g. live/internal) for
 developers and tools. Do not attach it to a public gateway.
 
@@ -66,6 +74,16 @@ spec:
               containerPort: 8000
               protocol: TCP
           env:
+            - name: AUTH_ENABLED
+              value: {{ .Values.dashboardApi.auth.enabled | quote }}
+            - name: AUTH_ISSUER
+              value: {{ tpl .Values.dashboardApi.auth.issuer $ | quote }}
+            - name: AUTH_IAM_URL
+              value: {{ tpl .Values.dashboardApi.auth.iamUrl $ | quote }}
+            - name: AUTH_AUDIENCE
+              value: {{ .Values.dashboardApi.auth.audience | quote }}
+            - name: AUTH_ROLE
+              value: {{ .Values.dashboardApi.auth.role | quote }}
             - name: DATABASE_URL
               value: {{ printf "postgresql://%s@%s:%v/%s" (tpl .Values.reporting.db.user $) (include "livestock.reporting.dbHost" .) .Values.reporting.db.port (tpl .Values.reporting.db.name $) | quote }}
             - name: PGPASSWORD
@@ -80,6 +98,9 @@ spec:
             - name: ALLOWED_ORIGINS
               value: {{ .Values.dashboardApi.allowedOrigins | default list | toJson | quote }}
             {{- range $name, $value := .Values.dashboardApi.env }}
+            {{- if has $name (list "AUTH_ENABLED" "AUTH_IAM_URL" "AUTH_ISSUER" "AUTH_AUDIENCE" "AUTH_ROLE") }}
+            {{- fail "configure reserved authentication settings through dashboardApi.auth, not dashboardApi.env" }}
+            {{- end }}
             - name: {{ $name }}
               value: {{ tpl (toString $value) $ | quote }}
             {{- end }}

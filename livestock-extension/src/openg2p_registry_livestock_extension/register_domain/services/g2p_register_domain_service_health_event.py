@@ -8,6 +8,8 @@ from sqlalchemy import select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    normalize_event_ear_tag,
+    validate_known_code,
     animal_identified_by,
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
@@ -16,6 +18,7 @@ from .domain_validation_utils import (
     intake_rows_as_records,
     tables_for,
     submission_ids_of,
+    live_rows,
 )
 
 # Kept as its own import line rather than folded into the block above: the
@@ -63,6 +66,7 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
         # scopes the ear-tag check to this submission's own animals.
@@ -75,10 +79,12 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
+            await validate_known_code(record, "disease_type", "LIVESTOCK_DISEASE", "Disease")
             self._validate_event_dates_required(record)
             await validate_species_matches(record)
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
+            self._validate_not_in_future(record, "date_resolution")
         await self._validate_no_duplicate_events(records)
 
     def _validate_required_fields(self, record: dict) -> None:
@@ -113,10 +119,10 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             validation_error("Please provide the disease before saving the record.")
 
     async def _validate_ear_tag_exists(self, record: dict, application_reference: str | None = None) -> None:
-        value = record.get("ear_tag_id")
-        if value is None or str(value).strip() == "":
+        value = normalize_event_ear_tag(record)
+        if value is None:
             return
-        if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
+        if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
                 f"'{str(value).strip()}' does not match any registered or drafted animal's "
                 "ear tag or secondary identifier. Add it under Livestock Details first, "

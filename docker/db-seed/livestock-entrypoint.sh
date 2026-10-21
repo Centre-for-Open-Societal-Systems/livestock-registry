@@ -44,6 +44,33 @@ set -u
 /seed/entrypoint.sh "$@"
 rc=$?
 
+migrate_geo_columns() {
+  # registry-platform 1.2 stores latitude/longitude/altitude as double
+  # precision; a database created on 296 has them as varchar, which create_migrate
+  # never alters. Runs against the registry database (PG*), before the steps
+  # below re-point PG* at Master Data. See /seed/migrate_geo_columns.sql.
+  if [ ! -f /seed/migrate_geo_columns.sql ]; then
+    echo "[db-seed] geo columns: no migration script in this image, skipped."
+    return
+  fi
+  if [ -z "${PGHOST:-}" ] || [ -z "${PGDATABASE:-}" ]; then
+    echo "[db-seed] geo columns: skipped (PGHOST/PGDATABASE not set)."
+    return
+  fi
+  echo "[db-seed] geo columns: checking ${PGDATABASE}@${PGHOST}:${PGPORT:-5432} ..."
+  # Not "psql | sed": in a pipe the status is sed's, so a failed migration
+  # passed unnoticed. A failure fails the job (seed_failed).
+  out=$(psql -v ON_ERROR_STOP=1 -q -f /seed/migrate_geo_columns.sql 2>&1)
+  status=$?
+  [ -n "$out" ] && printf '%s\n' "$out" | sed 's/^/[db-seed]   /'
+  if [ "$status" -eq 0 ]; then
+    echo "[db-seed] geo columns: done."
+  else
+    echo "[db-seed] geo columns: FAILED (see above)."
+    return 1
+  fi
+}
+
 load_ethiopia_geo() {
   GEO_FILE="/seed/geo/ethiopia_geo_seed.sql.gz"
   if [ "${LOAD_ETHIOPIA_GEO:-true}" != "true" ]; then
@@ -77,6 +104,12 @@ SQL
 
   if psql -v ON_ERROR_STOP=1 -q -c "CREATE UNIQUE INDEX IF NOT EXISTS ux_geo_level_values_mnemonic ON g2p_geo_level_values(level_value_mnemonic);" \
      && gunzip -c "$GEO_FILE" | psql -v ON_ERROR_STOP=1 -q; then
+    # The seed links each value to its parent by name; a shared Master Data
+    # links by id (zone-ET0407 -> region-ET04), and the portal's location
+    # dropdowns cascade on ids. Re-point the parents to ids (idempotent: a
+    # parent that is already an id matches no name).
+    psql -v ON_ERROR_STOP=1 -q -c "UPDATE g2p_geo_level_values c SET parent_level_value_id = p.level_value_id FROM g2p_geo_levels lc, g2p_geo_level_values p WHERE c.level_id = lc.level_id AND p.level_id = lc.parent_level_id AND c.parent_level_value_id = p.level_value_mnemonic;" \
+      || echo "[db-seed] Ethiopia geo: could not re-point the parents to ids (see errors above)."
     psql -At -c "select '[db-seed] Ethiopia geo: levels='||(select count(*) from g2p_geo_levels where level_id like 'level-%')||' values='||(select count(*) from g2p_geo_level_values v join g2p_geo_levels l on l.level_id=v.level_id where l.level_id like 'level-%');"
   else
     echo "[db-seed] Ethiopia geo: FAILED (see errors above) — Location dropdowns will be empty until it is loaded. Typical causes: another geo set already in master_data whose level mnemonics (e.g. 'region') or value names collide with this one."
@@ -131,26 +164,77 @@ SQL
 # (New Intake -> File Import) sends as the celery worker's import_file_sender_id,
 # "Staff Portal" by default. Nothing seeded that row, so every imported row
 # failed with PARTNER_NOT_REGISTERED. Idempotent (keyed on the mnemonic).
+load_code_lists() {
+  # The livestock code lists (species, breed, vaccine, disease, approval
+  # status) live in Master Data since registry-platform 1.2: the registry reads
+  # them over the Master Data API and keeps no copy. Upsert them into the Master
+  # Data database the geo load already writes to (MD_PG*), so a fresh and an
+  # upgraded environment end up with the same lists. LOAD_CODE_LISTS=false skips.
+  if [ "${LOAD_CODE_LISTS:-true}" != "true" ]; then
+    echo "[db-seed] code lists: skipped (LOAD_CODE_LISTS=${LOAD_CODE_LISTS})."
+    return
+  fi
+  if [ -z "${MD_PGHOST:-}" ] || [ -z "${MD_PGDATABASE:-}" ]; then
+    echo "[db-seed] code lists: skipped (MD_PGHOST/MD_PGDATABASE not set)."
+    return
+  fi
+  dir=/seed/master_data/code_lists
+  if [ ! -d "$dir" ]; then
+    echo "[db-seed] code lists: no $dir in this image, skipped."
+    return
+  fi
+  echo "[db-seed] code lists: loading into ${MD_PGDATABASE}@${MD_PGHOST}:${MD_PGPORT:-5432} ..."
+  export PGHOST="$MD_PGHOST" PGPORT="${MD_PGPORT:-5432}" PGDATABASE="$MD_PGDATABASE" PGUSER="${MD_PGUSER:-}" PGPASSWORD="${MD_PGPASSWORD:-}"
+  for f in $(find "$dir" -name '*.sql' -type f | sort); do
+    echo "[db-seed]   -> $(basename "$f")"
+    psql -v ON_ERROR_STOP=1 -q -f "$f" || { echo "[db-seed] code lists: FAILED on $(basename "$f")"; return 1; }
+  done
+  psql -At -c "select '[db-seed] code lists: '||count(*)||' values in '||count(distinct attribute_id)||' lists' from g2p_attribute_values where attribute_id in ('LIVESTOCK_SPECIES','LIVESTOCK_BREED','VACCINE_TYPE','LIVESTOCK_DISEASE','APPROVAL_STATUS');"
+}
+
 register_import_partner() {
   if [ -z "${MD_PGHOST:-}" ] || [ -z "${MD_PGDATABASE:-}" ]; then
     echo "[db-seed] import partner: skipped (MD_PGHOST/MD_PGDATABASE not set)."
     return
   fi
-  mnemonic="${IMPORT_FILE_SENDER_ID:-Staff Portal}"
+  # registry-platform 1.2 validates the ingest sender against Partner
+  # Management (no partner table in Master Data); with Partner Management not
+  # configured the sender is accepted as is. Only an older Master Data that
+  # still has the table gets the rows.
+  if ! PGHOST="$MD_PGHOST" PGPORT="${MD_PGPORT:-5432}" PGDATABASE="$MD_PGDATABASE" PGUSER="${MD_PGUSER:-}" PGPASSWORD="${MD_PGPASSWORD:-}" psql -At -c "select to_regclass('public.g2p_partners')" 2>/dev/null | grep -q g2p_partners; then
+    echo "[db-seed] import partner: Master Data has no g2p_partners table (Partner Management owns partners on registry-platform 1.2); skipped."
+    return
+  fi
   export PGHOST="$MD_PGHOST" PGPORT="${MD_PGPORT:-5432}" PGDATABASE="$MD_PGDATABASE" PGUSER="${MD_PGUSER:-}" PGPASSWORD="${MD_PGPASSWORD:-}"
-  if psql -v ON_ERROR_STOP=1 -q -v m="$mnemonic" <<'SQL'
+  # Two senders: File Import ("Staff Portal", the celery worker's
+  # import_file_sender_id) and the ODK connector, whose envelope carries
+  # sender_id "Livestock" (odk_ingest_hooks.py; the connector pipeline's
+  # g2p_sender_id in local/postgres/seed_connector_pipelines.sql).
+  for mnemonic in "${IMPORT_FILE_SENDER_ID:-Staff Portal}" "${ODK_SENDER_ID:-Livestock}"; do
+    if psql -v ON_ERROR_STOP=1 -q -v m="$mnemonic" <<'SQL'
 INSERT INTO g2p_partners (partner_id, partner_mnemonic, keymanager_reference_id, is_active)
 SELECT md5('livestock-import-partner:' || :'m'), :'m', 'livestock-import:' || :'m', true
 WHERE NOT EXISTS (SELECT 1 FROM g2p_partners WHERE partner_mnemonic = :'m');
 SQL
-  then
-    echo "[db-seed] import partner: '${mnemonic}' registered."
-  else
-    echo "[db-seed] import partner: FAILED (see errors above) — File Import rows will fail with PARTNER_NOT_REGISTERED."
-  fi
+    then
+      echo "[db-seed] import partner: '${mnemonic}' registered."
+    else
+      echo "[db-seed] import partner: '${mnemonic}' FAILED (see errors above) — its ingests will fail with PARTNER_NOT_REGISTERED."
+    fi
+  done
 }
 
+# A failed geo column migration or code-list load fails the job: without them
+# saves with coordinates fail and every coded value is refused ("Master Data
+# has no attribute values"), so a "Completed" job must not hide them.
+seed_failed=0
+migrate_geo_columns || seed_failed=1
 load_ethiopia_geo
+load_code_lists || seed_failed=1
 rewrite_approver_rules
 register_import_partner
+if [ "$rc" -eq 0 ] && [ "$seed_failed" -ne 0 ]; then
+  echo "[db-seed] FAILED: geo column migration or code lists (see above)." >&2
+  rc=1
+fi
 exit $rc

@@ -24,7 +24,8 @@ create-time check would miss. A small tracking table
 EXISTS` rather than relying on SQLAlchemy `create_all()` — new tables do not
 reliably auto-create on this stack) records the case count last alerted for
 each (disease_type, district) cluster, so re-running the sweep only re-emails
-once a cluster has grown past what was already alerted.
+once a cluster has grown past what was already alerted inside the current
+window; an alert older than the window does not suppress a new outbreak.
 
 Recipients: gen1 resolved "Woreda Approver" / "Regional Vet Officer" by
 matching `res.users` against the record's woreda/region. Gen2 has no
@@ -124,16 +125,34 @@ def detect_outbreak_clusters(
     ]
 
 
-def _already_alerted(engine: Engine, disease_type: str, district: str, case_count: int) -> bool:
+def _already_alerted(
+    engine: Engine, disease_type: str, district: str, case_count: int, window_start: date,
+) -> bool:
+    """True when this cluster was already reported: an alert for the same
+    disease and district was sent inside the current window, for at least
+    as many cases.
+
+    An alert older than the window belongs to an earlier outbreak whose cases
+    have all left the window, so it says nothing about this one. Comparing
+    counts alone (as before) kept a large old outbreak suppressing every later
+    one: after 10 cases alerted in January, a new 3-case cluster in June was
+    skipped because 10 >= 3. Gen1 checked every new case against the last 14
+    days and would have alerted.
+    """
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT case_count FROM g2p_outbreak_alerts_sent "
+                "SELECT case_count, alerted_at FROM g2p_outbreak_alerts_sent "
                 "WHERE disease_type = :d AND district = :w"
             ),
             {"d": disease_type, "w": district},
         ).first()
-    return row is not None and row[0] >= case_count
+    if row is None:
+        return False
+    last_count, alerted_at = row[0], row[1]
+    if alerted_at is None or alerted_at.date() < window_start:
+        return False
+    return last_count >= case_count
 
 
 def _record_alert(
@@ -255,7 +274,10 @@ def check_and_alert_outbreaks(
 
     alerted = []
     for cluster in clusters:
-        if _already_alerted(engine, cluster["disease_type"], cluster["district"], cluster["case_count"]):
+        if _already_alerted(
+            engine, cluster["disease_type"], cluster["district"],
+            cluster["case_count"], cluster["window_start"],
+        ):
             continue
 
         recipients = _resolve_recipients(cluster["district"])

@@ -10,10 +10,12 @@
 -- row a species defaults to "requires an ear tag, not a flock", which is why
 -- neither species could be registered without one.
 --
--- ON CONFLICT DO NOTHING: a species someone has already configured in
--- Configuration > Attribute Values is left exactly as they set it.
+-- The species ids are Master Data value ids (master_data/code_lists); the
+-- registry keeps no copy of the list since registry-platform 1.2, so the rows
+-- are written directly. ON CONFLICT DO NOTHING: a species an administrator has
+-- already configured is left exactly as they set it.
 INSERT INTO "public"."g2p_attribute_value_species_configs" ("value_id", "requires_ear_tag", "is_flock_species")
-SELECT v.value_id, FALSE, TRUE
-FROM "public"."g2p_attribute_values" v
-WHERE v.value_id IN ('LIVESTOCK_SPECIES_POULTRY', 'LIVESTOCK_SPECIES_BEEHIVE')
+VALUES
+  ('LIVESTOCK_SPECIES_POULTRY', FALSE, TRUE),
+  ('LIVESTOCK_SPECIES_BEEHIVE', FALSE, TRUE)
 ON CONFLICT ("value_id") DO NOTHING;

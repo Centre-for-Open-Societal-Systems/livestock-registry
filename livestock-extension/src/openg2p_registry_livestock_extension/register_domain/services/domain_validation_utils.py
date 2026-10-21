@@ -1,3 +1,5 @@
+import re
+from contextvars import ContextVar
 from datetime import date, datetime
 
 from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
@@ -87,6 +89,38 @@ def require_field(record: dict, field: str, label: str | None = None) -> None:
         validation_error(f"{label or field} is required")
 
 
+async def refresh_total_animals(session, livestock_internal_record_id) -> None:
+    """Set Total Livestock on a register Livestock record to the number of its
+    animals in the Animal register (a flock or hive counts as one row, as the
+    ODK ingest counts it). Called wherever an animal reaches the register:
+    a first approval, an Animal change request, a Birth's offspring and the
+    animal bulk import. Only ODK records used to get the number at all."""
+    if not livestock_internal_record_id:
+        return
+    import importlib
+
+    from sqlalchemy import func, select
+
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    count = (
+        await session.execute(
+            select(func.count())
+            .select_from(models.G2PRegisterAnimal)
+            .where(models.G2PRegisterAnimal.link_internal_record_id == livestock_internal_record_id)
+        )
+    ).scalar() or 0
+    livestock = (
+        await session.execute(
+            select(models.G2PRegisterLivestock).where(
+                models.G2PRegisterLivestock.internal_record_id == livestock_internal_record_id
+            )
+        )
+    ).scalar_one_or_none()
+    if livestock is not None and livestock.total_animals != count:
+        livestock.total_animals = count
+        session.add(livestock)
+
+
 def _animal_models():
     """Import the animal models the same way the platform itself resolves
     the domain extension: through the "openg2p_registry_extensions" alias
@@ -107,6 +141,33 @@ def _animal_models():
     return models.G2PRegisterAnimal, models.G2PIntakeFormAnimal
 
 
+_NATIONAL_EAR_TAG = re.compile(r"^ET\d{10}$", re.IGNORECASE)
+
+
+def normalize_ear_tag_text(value) -> str | None:
+    """The identifier an event names its animal by, normalised the way the
+    Animal section stores it: a national ear tag (ET + 10 digits, any case,
+    spaces ignored) becomes upper-case; anything else -- a flock, batch or
+    hive secondary identifier, which is free text -- is only trimmed. Lookups
+    match exactly on the stored value, so an event typed or sent as
+    'et1000000001' would otherwise never find animal 'ET1000000001'."""
+    if is_blank(value):
+        return None
+    compact = re.sub(r"\s+", "", str(value))
+    if _NATIONAL_EAR_TAG.match(compact):
+        return compact.upper()
+    return str(value).strip()
+
+
+def normalize_event_ear_tag(record: dict) -> str | None:
+    """normalize_ear_tag_text applied to the record's `ear_tag_id`, written
+    back so the stored row carries the normalised value."""
+    value = normalize_ear_tag_text(record.get("ear_tag_id"))
+    if value is not None:
+        record["ear_tag_id"] = value
+    return value
+
+
 def animal_identified_by(model, identifier: str):
     """SQL condition: this Animal row is the one `identifier` names.
 
@@ -123,6 +184,11 @@ def animal_identified_by(model, identifier: str):
     from sqlalchemy import or_
 
     return or_(model.ear_tag_id == identifier, model.secondary_identifier == identifier)
+
+
+# The ingest worker's database session while it saves an ingested submission
+# (ODK, File Import); None everywhere else. Set by odk_ingest_hooks.
+ingest_session: ContextVar = ContextVar("livestock_ingest_session", default=None)
 
 
 async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = None) -> bool:
@@ -168,13 +234,23 @@ async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = No
         register_cond = register_cond & G2PRegisterAnimal.link_internal_record_id.in_(holdings_of_submission)
         intake_cond = intake_cond & (G2PIntakeFormAnimal.application_reference == application_reference)
 
+    async def _found(session) -> bool:
+        if (await session.execute(select(exists().where(register_cond)))).scalar():
+            return True
+        return bool((await session.execute(select(exists().where(intake_cond)))).scalar())
+
+    # An ODK or File Import submission is saved by the ingest worker in one
+    # transaction, animals first and events after; a separate connection
+    # cannot see those uncommitted animals, so the event would be rejected.
+    # The worker's own session (set around the save by the ingest hooks) is
+    # used instead when there is one.
+    worker_session = ingest_session.get()
+    if worker_session is not None:
+        return await _found(worker_session)
+
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
-        in_register = (await session.execute(select(exists().where(register_cond)))).scalar()
-        if in_register:
-            return True
-        in_intake = (await session.execute(select(exists().where(intake_cond)))).scalar()
-        return bool(in_intake)
+        return await _found(session)
 
 async def ear_tag_used_by_other_animal(
     ear_tag_id: str,
@@ -332,28 +408,17 @@ async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None
 
 
 async def humanize_attribute_value(value_id: str | None) -> str:
-    """The human-readable label for an attribute value id (e.g.
+    """The human-readable label for a code-list value id (e.g.
     "LIVESTOCK_SPECIES_SHEEP" -> "Sheep"), for building a validation message
-    a user can actually act on. Falls back to the raw id if it isn't a known
-    attribute value (or is blank) — validation error text should never go
-    silent just because a lookup came up empty.
+    a user can actually act on. Read from Master Data; falls back to the raw
+    id if it isn't a known value (or is blank) — validation error text should
+    never go silent just because a lookup came up empty.
     """
     if is_blank(value_id):
         return str(value_id)
+    from ... import master_data_lists
 
-    from openg2p_fastapi_common.context import dbengine
-    from openg2p_registry_core.models import G2PAttributeValue
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        display = (
-            await session.execute(
-                select(G2PAttributeValue.value_display).where(G2PAttributeValue.value_id == value_id)
-            )
-        ).scalar()
-        return display or value_id
+    return await master_data_lists.display(str(value_id).strip())
 
 
 async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
@@ -361,7 +426,7 @@ async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
     e.g. Poultry/Beehive vs. Cattle/Sheep/... — configurable per species from
     Configuration > Attributes > Species (an Edit Attribute Value's "Requires
     Ear Tag" / "Flock / Group Species" checkboxes), not a hardcoded species
-    list in this codebase. Backed by G2PAttributeValueSpeciesConfig, a
+    list in this codebase. Backed by G2PLivestockSpeciesConfig, a
     per-value side table (see core-patches/apply_patches.py Fix 4) the same
     way G2PAttributeValueSchedule already backs per-value vaccine scheduling
     — most species (and every non-species attribute value) never get a row
@@ -379,19 +444,20 @@ async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
         return requires_ear_tag, is_flock_species
 
     from openg2p_fastapi_common.context import dbengine
-    from openg2p_registry_core.models import G2PAttributeValueSpeciesConfig
     from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from ..models.species_config import G2PLivestockSpeciesConfig
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
-        config = await session.get(G2PAttributeValueSpeciesConfig, species_value_id)
+        config = await session.get(G2PLivestockSpeciesConfig, species_value_id)
         if config is None:
             return requires_ear_tag, is_flock_species
         if config.requires_ear_tag is not None:
             requires_ear_tag = config.requires_ear_tag
         if config.is_flock_species is not None:
             is_flock_species = config.is_flock_species
-        return requires_ear_tag, is_flock_species
+    return requires_ear_tag, is_flock_species
 
 
 async def validate_species_matches(record: dict) -> None:
@@ -622,27 +688,63 @@ def resolve_today_default(record: dict, field: str) -> None:
         record[field] = date.today().isoformat()
 
 
+def live_rows(records: list[dict]) -> list[dict]:
+    """The rows of a section save that stay in the record.
+
+    A dialog row the user removed on screen is still sent with the save, with
+    edit_action DELETE, so the platform can drop it. It is not part of the
+    record any more and must not be validated: checked with the rest, a
+    removed animal and its re-added replacement were reported as "more than
+    one animal" with the same ear tag, and a removed health or vaccination row
+    as an event "already recorded" (G2R-229 points 9 and 27, G2R-232 point 3).
+    """
+    return [r for r in records if str(r.get("edit_action") or "").strip().upper() != "DELETE"]
+
+
+async def attribute_value_known(value_id, attribute_id: str) -> bool:
+    """True when value_id is a value of the code list attribute_id in Master
+    Data, or when that list cannot be read or is empty: an unreadable list
+    must not block every save, it only means this check cannot be made. (The
+    platform's own coded-value validation, registry_*_validate_attribute_values,
+    rejects unknown values too; this check names the field in the message.)"""
+    if is_blank(value_id):
+        return True
+    try:
+        from ... import master_data_lists
+
+        values = await master_data_lists.get_values(attribute_id)
+        if not values:
+            return True
+        wanted = str(value_id).strip()
+        return any(v.get("value_id") == wanted for v in values)
+    except Exception:
+        return True
+
+
+async def validate_known_code(record: dict, field: str, attribute_id: str, label: str) -> None:
+    """The value in `field` must be a value of the Master Data code list
+    `attribute_id`. The platform's coded-value validation is switched off
+    (it reloads every attribute value of the shared Master Data on each save),
+    so the lists that ODK, File Import or API rows can carry free text into
+    are checked here, one list at a time. Blank is left to the required-field
+    checks."""
+    value = record.get(field)
+    if is_blank(value):
+        return
+    if not await attribute_value_known(value, attribute_id):
+        validation_error(f"{label} '{value}' is not in the {label.lower()} list.")
+
+
 async def attribute_value_parent(value_id) -> str | None:
-    """parent_value_id of an attribute value (e.g. LIVESTOCK_BREED_BORAN ->
+    """parent_value_id of a code-list value (e.g. LIVESTOCK_BREED_BORAN ->
     LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->
-    LIVESTOCK_SPECIES_CATTLE). None when the value is unknown or has no parent."""
+    LIVESTOCK_SPECIES_CATTLE), read from Master Data. None when the value is
+    unknown or has no parent."""
     if is_blank(value_id):
         return None
-    from openg2p_fastapi_common.context import dbengine
-    from openg2p_registry_core.models.g2p_attributes import G2PAttributeValue
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from ... import master_data_lists
 
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        parent = (
-            await session.execute(
-                select(G2PAttributeValue.parent_value_id).where(
-                    G2PAttributeValue.value_id == str(value_id).strip()
-                )
-            )
-        ).scalar()
-    return parent or None
+    return await master_data_lists.parent(str(value_id).strip())
 
 
 async def validate_belongs_to_species(value_id, species, kind: str) -> None:
@@ -830,3 +932,58 @@ async def sync_farmer_identity_to_livestock(session, application_reference, *, f
     if changed:
         await session.flush()
     return changed
+
+
+_LIVESTOCK_FORM_REGISTER_ID = "997676d3-7008-59f9-b23e-613ad79bbb08"
+
+
+async def ensure_livestock_intake_row(session, farmer) -> bool:
+    """Give a Livestock intake submission its Livestock row as soon as the
+    Farmer section is saved. Return True when one was created.
+
+    Only the Survey Personnel, Location and Livestock record sections write
+    the submission's Livestock (parent) row, and all three are optional. An
+    operator who skipped Survey Personnel and Location had no parent row, so
+    the first animal failed with "No parent records exist in this submission;
+    cannot link child row for register 'Animal'". The platform keeps one
+    Livestock row per submission and the form reads it back by submission,
+    so a later Survey Personnel or Location save updates this row instead of
+    adding a second one.
+    """
+    import importlib
+    import uuid
+    from datetime import datetime
+
+    from sqlalchemy import select
+
+    submission_id = getattr(farmer, "submission_id", None)
+    if not submission_id:
+        return False
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    core_models = importlib.import_module("openg2p_registry_core.models")
+    Livestock = models.G2PIntakeFormLivestock
+    Submission = core_models.G2PIntakeFormSubmission
+    register_id = (
+        await session.execute(select(Submission.register_id).where(Submission.submission_id == submission_id))
+    ).scalar()
+    if str(register_id or "") != _LIVESTOCK_FORM_REGISTER_ID:
+        return False  # the Farmer register's own form has no Livestock row
+    exists = (
+        await session.execute(select(Livestock.internal_record_id).where(Livestock.submission_id == submission_id))
+    ).first()
+    if exists:
+        return False
+    actor = getattr(farmer, "created_by", None) or "system"
+    now = datetime.now()
+    session.add(Livestock(
+        submission_id=submission_id,
+        application_reference=getattr(farmer, "application_reference", None),
+        internal_record_id=str(uuid.uuid4()),
+        created_by=actor,
+        created_at=now,
+        last_approved_at=now,
+        last_approved_by=actor,
+        record_status="ACTIVE",
+    ))
+    await session.flush()
+    return True

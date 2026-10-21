@@ -188,6 +188,9 @@ async def import_animals_from_csv(file_bytes: bytes, actor: str, session, filena
                     holding["ok"] += 1
 
                 await session.flush()
+                from .domain_validation_utils import refresh_total_animals
+
+                await refresh_total_animals(session, livestock.internal_record_id)
         except Exception as error:
             result["failed"] += 1
             result["errors"].append(f"Row {row_number}: {error}")

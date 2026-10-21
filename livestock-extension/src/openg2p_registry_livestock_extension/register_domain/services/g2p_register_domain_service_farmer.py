@@ -4,9 +4,11 @@ from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .admin_area_sync import sync_admin_area
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    ensure_livestock_intake_row,
     compose_farmer_name,
     is_blank,
     parse_date,
@@ -15,6 +17,7 @@ from .domain_validation_utils import (
     sync_farmer_identity_to_livestock,
     validation_error,
 )
+from .farmer_registry_enrichment import fetch_farmer_record, to_farmer_fields
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -31,6 +34,9 @@ _FAYDA_FAN_ID_PATTERN = re.compile(r"^\d{16}$")
 # 7 or 9 (the only leading digits Ethiopian mobile numbers use) and 8 more
 # digits, e.g. +251911223344 or 0911223344.
 _MOBILE_NUMBER_PATTERN = re.compile(r"^(\+251[79]\d{8}|0[79]\d{8})$")
+
+
+FARMER_REGISTER_ID = "f9c6a359-9563-5a43-b0fe-6c7e452037a3"
 
 
 class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainService):
@@ -166,8 +172,77 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
         onto this submission's Livestock intake row(s) so the deduplication
         engine (which scores the Livestock register only) has farmer_id /
         fayda_fan_id / farmer_name at intake — see
-        sync_farmer_identity_to_livestock."""
+        sync_farmer_identity_to_livestock. The Farmer Registry enrichment is
+        NOT done here but once, on submit — see pre_finalize."""
         for row in rows:
+            await sync_admin_area(row)
+            await ensure_livestock_intake_row(session, row)
             await sync_farmer_identity_to_livestock(
                 session, getattr(row, "application_reference", None), farmer=row
             )
+
+    async def post_approve(self, change_request, session) -> None:
+        """A Location edit on an approved Farmer writes the dropdowns' geo ids;
+        refresh the names from them (see admin_area_sync)."""
+        if change_request.section_register_id != FARMER_REGISTER_ID:
+            return
+        from sqlalchemy import select
+        from openg2p_registry_extensions.register_domain.models import G2PRegisterFarmer
+
+        farmer = (
+            await session.execute(
+                select(G2PRegisterFarmer).where(
+                    G2PRegisterFarmer.internal_record_id == change_request.internal_record_id
+                )
+            )
+        ).scalar_one_or_none()
+        if farmer is not None:
+            await sync_admin_area(farmer)
+
+    async def pre_finalize(self, rows: list, session) -> None:
+        """When the intake form is submitted (finalize_intake_form_submission):
+        replace the typed identity with the Farmer Registry's (see
+        _enrich_from_farmer_registry), then re-copy it onto the Livestock
+        intake row(s) so they carry the enriched farmer_name. Runs before the
+        section payloads go to AWE, so approvers see the enriched values.
+
+        Both hooks only run on the web intake form; ODK and File Import write
+        the live register directly and never reach them."""
+        for row in rows:
+            await self._enrich_from_farmer_registry(row)
+            await sync_farmer_identity_to_livestock(
+                session, getattr(row, "application_reference", None), farmer=row
+            )
+
+    async def _enrich_from_farmer_registry(self, row) -> None:
+        """Overwrite the intake row's name, gender, date of birth and mobile
+        number with the Farmer Registry's record for its Farmer ID — the
+        registry's data always wins over the operator's. Leaves the row as
+        typed when there is no Farmer ID or no single match (see
+        farmer_registry_enrichment.fetch_farmer_record, which fails open)."""
+        farmer_id = getattr(row, "farmer_id", None)
+        if is_blank(farmer_id) or not _FARMER_ID_PATTERN.match(str(farmer_id).strip().upper()):
+            return
+        # Best-effort: a config, lookup, or field-conversion problem must not
+        # block Submit — log and keep the operator's typed values. Only in-memory
+        # row attributes are touched here; the DB write
+        # (sync_farmer_identity_to_livestock in pre_finalize) is OUTSIDE this
+        # guard, so a genuine save failure still rolls back.
+        try:
+            personal = await fetch_farmer_record(farmer_id)
+            if not personal:
+                return
+
+            fields = to_farmer_fields(personal)
+            # A registry number in another format would fail this register's own
+            # Ethiopian-mobile check on the next save, so keep the typed one.
+            mobile = fields.get("mobile_number")
+            if mobile and not _MOBILE_NUMBER_PATTERN.match(mobile):
+                fields.pop("mobile_number")
+            for field, value in fields.items():
+                setattr(row, field, value)
+            if "first_name" in fields:
+                row.farmer_name = compose_farmer_name(row.first_name, row.middle_name, row.last_name)
+            _logger.info("Enriched farmer %s from the Farmer Registry: %s", farmer_id, ", ".join(sorted(fields)))
+        except Exception as exc:
+            _logger.warning("Farmer Registry enrichment skipped for %s (kept typed values): %r", farmer_id, exc)

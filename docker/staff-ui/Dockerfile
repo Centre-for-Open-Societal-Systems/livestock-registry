@@ -19,7 +19,7 @@
 # component or a route. See the patch step at the foot of this file.
 #
 # Build context = repo root (matching the other docker/*/Dockerfile images).
-ARG RP_VERSION=0.0.0-develop.296
+ARG RP_VERSION=1.2.2-rc.544
 FROM openg2p/openg2p-registry-staff-ui:${RP_VERSION}
 
 # Browser-facing origin of the dashboard service, compiled into the client bundle
@@ -67,7 +67,7 @@ RUN set -eu; \
         'background-position:center center!important;' \
         'background-attachment:fixed!important;' \
         '}' >> "$f"; \
-      for cls in ':grid-cols-3' '.pl-10' '.border-l' '.truncate'; do \
+      for cls in ':grid-cols-3' '.space-y-0' '.py-2' '.border-l' '.truncate' '.overflow-hidden'; do \
         grep -qF -- "$cls" "$f" || { echo "FATAL: compiled stylesheet no longer has $cls — overrides.css would be dead"; exit 1; }; \
       done; \
       printf '\n' >> "$f"; cat /tmp/overrides.css >> "$f"; \
@@ -102,19 +102,11 @@ COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock-dialog-overlay.js /a
 COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-dialog-overlay.js /tmp/patch-dialog-overlay.js
 RUN node /tmp/patch-dialog-overlay.js && rm /tmp/patch-dialog-overlay.js
 
-# ── Attribute Values: forward Interval / Active / Notes to the backend ──
-# The portal's create/update-attribute-value routes rebuild the request from a
-# fixed field list and drop everything else, so the fields the overlay adds to
-# the Add/Edit dialog would never be saved. See the script's header.
-COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-attribute-value-routes.js /tmp/patch-attribute-value-routes.js
-RUN node /tmp/patch-attribute-value-routes.js && rm /tmp/patch-attribute-value-routes.js
-
-# ── File Import: forward document_id to the enqueue API ──
-# The portal's enqueue-import route sends only document_store_id, which the
-# registry API rejects (it requires document_id), so File Import queued nothing.
-# See the script's header; the overlay supplies the document_id.
-COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-enqueue-import-route.js /tmp/patch-enqueue-import-route.js
-RUN node /tmp/patch-enqueue-import-route.js && rm /tmp/patch-enqueue-import-route.js
+# ── Livestock form config: /api/attributes/values?livestock=form-config ──
+# The dialog overlay reads species config and vaccine intervals from the
+# registry (Master Data carries neither); see the script's header.
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/patch-form-config-route.js /tmp/patch-form-config-route.js
+RUN node /tmp/patch-form-config-route.js && rm /tmp/patch-form-config-route.js
 
 # ── Rename the attribute-value "Sort Order" field label to "Display Order" ──
 # Configuration -> Attributes (and Configuration -> Registry -> Languages,

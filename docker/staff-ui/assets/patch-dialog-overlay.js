@@ -24,8 +24,12 @@ const fs = require("fs");
 const path = require("path");
 const ROOT = "/app/.next";
 const SRC = "/livestock-dialog-overlay.js";
+// The header's right-hand group: "flex items-center gap-4" on registry-platform
+// 1.2 (components/layout/Header.tsx), "gap-8" on the 1.1 builds. Both are kept
+// so the same patch serves either base; the injector itself runs once per page
+// (window.__lrOverlayTag) however many matches render.
 const PATTERN =
-  /(\(0,(\w+)\.jsxs\)\("div",\{className:"flex items-center gap-8",children:\[)/g;
+  /(\(0,(\w+)\.jsxs\)\("div",\{className:"flex items-center gap-[48]",children:\[)/g;
 // NOT a React <script> element: React creates client-rendered script elements
 // inert on purpose (they never load). Instead a null child whose evaluation
 // appends a real <script> via the DOM, once, on the client only.
@@ -43,7 +47,7 @@ let patched = 0;
 const renamed = [];
 for (const file of walk(ROOT)) {
   const before = fs.readFileSync(file, "utf8");
-  if (!before.includes("flex items-center gap-8") || before.includes(SRC)) continue;
+  if (!/flex items-center gap-[48]/.test(before) || before.includes(SRC)) continue;
   const after = before.replace(PATTERN, (_m, open) => open + tag());
   if (after !== before) {
     fs.writeFileSync(file, after);

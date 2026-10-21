@@ -29,6 +29,12 @@ registry:
       repository: openg2p/openg2p-livestock-registry-staff-api
       tag: 0.0.0-develop
     envVars:
+      # Off: on every section save the platform's coded-value check reloads ALL
+      # Master Data attribute values (24,637 on the shared dev Master Data, ~7 s)
+      # once its 5-minute cache expires. Codes are checked by the domain services
+      # instead (species, breed, vaccine, disease; attribute_value_known loads
+      # one list only).
+      REGISTRY_STAFF_PORTAL_API_VALIDATE_ATTRIBUTE_VALUES: "false"
       # Platform default is date + seconds-of-day + ONE random digit, so two
       # submissions in the same second collide 1 in 10 ("Unexpected error").
       # Five random digits keep the same shape; see docker-compose.yml.
@@ -40,6 +46,12 @@ registry:
       # docker-compose.yml.
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: "png,jpg,jpeg,webp,pdf,csv,xlsx,xls"
       REGISTRY_CORE_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: "image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip"
+      # The staff API reads its own Settings first (the extension creates them
+      # before any platform import, see _create_app_settings_first), so the
+      # document service takes these under the app's prefix; the
+      # REGISTRY_CORE_ pair above alone is not read.
+      REGISTRY_STAFF_PORTAL_API_DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: "png,jpg,jpeg,webp,pdf,csv,xlsx,xls"
+      REGISTRY_STAFF_PORTAL_API_DOCUMENT_UPLOAD_ALLOWED_MIME_TYPES: "image/png,image/jpeg,image/webp,application/pdf,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip"
       # Shared secret AWE presents when it asks /livestock/approver-resolver
       # who approves a stage (g2p_approver_resolver_controller.py). The seed
       # writes the same value into the AWE rule URLs (dbSeed.envVars below);
@@ -66,6 +78,23 @@ registry:
       KEYCLOAK_BASE_URL: '{{ tpl .Values.global.keycloakBaseUrl $ }}'
       KEYCLOAK_REALM: '{{ tpl .Values.global.keycloakRealm $ }}'
       AUTH_CLIENT_ID: '{{ tpl .Values.global.authClientId $ }}'
+      # Farmer Registry enrichment of the intake form's Farmer section
+      # (farmer_registry_enrichment.py). Off by default; to turn it on, set
+      # ENRICHMENT_ENABLED, the search URL, the Partner Management partner id
+      # (SENDER_ID, without its PARTNER_ prefix), its key id, and the consent
+      # audience/purpose the Consent Manager policy allows — and supply the
+      # partner private key as FARMER_REGISTRY_SIGNING_KEY from a Secret
+      # under envVarsFrom below. Same settings as docker-compose.yml.
+      FARMER_REGISTRY_ENRICHMENT_ENABLED: "false"
+      FARMER_REGISTRY_DCI_SEARCH_URL: ""
+      FARMER_REGISTRY_SENDER_ID: ""
+      FARMER_REGISTRY_RECEIVER_ID: "farmer-registry"
+      FARMER_REGISTRY_SIGNING_KEY_KID: ""
+      FARMER_REGISTRY_SIGNING_ALGORITHM: "RS256"
+      FARMER_REGISTRY_CONSENT_AUDIENCE: ""
+      FARMER_REGISTRY_CONSENT_DATA_CONTROLLER: "farmer-registry"
+      FARMER_REGISTRY_CONSENT_SCOPES: "farmer_personal_details"
+      FARMER_REGISTRY_CONSENT_PURPOSE: ""
     # Rendered as valueFrom, so the client password stays in the Secret
     # keycloak-init creates for this release's client and never appears in
     # values (same wiring the chart uses for partner-api's OAuth secret).
@@ -74,12 +103,20 @@ registry:
         secretKeyRef:
           name: '{{ tpl .Values.global.authClientSecret $ }}'
           key: '{{ tpl .Values.global.authClientSecretKey $ }}'
+      # With Farmer Registry enrichment on, add the partner private key (PEM):
+      # FARMER_REGISTRY_SIGNING_KEY:
+      #   secretKeyRef:
+      #     name: livestock-farmer-registry-partner
+      #     key: private-key.pem
   partnerApi:
     image:
       repository: openg2p/openg2p-livestock-registry-partner-api
       tag: 0.0.0-develop
     envVars:
+      REGISTRY_PARTNER_API_VALIDATE_ATTRIBUTE_VALUES: "false"
       REGISTRY_PARTNER_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:5}"
+      # /partner/ingest_data is patched by the ODK hooks (see celeryWorker).
+      ODK_HOOKS_ENABLED: "true"
   # Celery prefork concurrency. Celery's default is one worker process per CPU
   # core of the HOST, not per the container's CPU limit — so on a 48-core node
   # both pods fork 48 Python processes and the memory they need has nothing to
@@ -99,12 +136,42 @@ registry:
       tag: 0.0.0-develop
     envVars:
       CELERY_OPTS: "worker -Q registry_worker_queue --loglevel=info --concurrency=4"
+      # Coded values (species, breed, disease, vaccine ...) are checked
+      # against their Master Data list; the subchart wires the Master Data API
+      # URL and token settings (global.masterDataApiUrl, pmSeedClientId).
+      REGISTRY_CELERY_WORKERS_VALIDATE_ATTRIBUTE_VALUES: "false"
+      # ODK / partner ingestion hooks (livestock-extension __init__.py): loaded
+      # only by the ingestion processes (celery, partner-api), never staff-api.
+      ODK_HOOKS_ENABLED: "true"
+      # Token the worker starts an ingested (ODK / File Import) submission's
+      # AWE approval with (docker/celery/core-patches, _awe_service_token):
+      # client-credentials on the portal client, which therefore needs
+      # "Service accounts enabled" in Keycloak. Unset = old behaviour (the
+      # submission is finalized without an approval request).
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_URL: "{{ tpl .Values.global.keycloakBaseUrl $ }}/realms/{{ tpl .Values.global.keycloakRealm $ }}/protocol/openid-connect/token"
+      REGISTRY_CELERY_WORKERS_AWE_TOKEN_ISSUER_BASE_URL: '{{ tpl .Values.global.keycloakBaseUrl $ }}'
+      REGISTRY_CELERY_WORKERS_AWE_CLIENT_ID: '{{ tpl .Values.global.authClientId $ }}'
+      # The AWE client the worker creates that approval request with. The
+      # subchart hands the global.awe* values to staff-api only; the worker
+      # reads them under its own prefix. No HMAC secret: the worker never
+      # receives AWE's decision webhooks.
+      REGISTRY_CELERY_WORKERS_AWE_ENABLED: '{{ .Values.global.aweEnabled }}'
+      REGISTRY_CELERY_WORKERS_AWE_BASE_URL: '{{ tpl .Values.global.aweBaseUrl $ }}'
+      REGISTRY_CELERY_WORKERS_AWE_HTTP_TIMEOUT_SECONDS: '{{ .Values.global.aweHttpTimeoutSeconds }}'
+      REGISTRY_CELERY_WORKERS_AWE_DEFAULT_CALLBACK_URL: '{{ tpl .Values.global.aweDefaultCallbackUrl $ }}'
+      REGISTRY_CELERY_WORKERS_AWE_CALLBACK_SECRET_ID: '{{ tpl .Values.global.aweCallbackSecretId $ }}'
+    envVarsFrom:
+      REGISTRY_CELERY_WORKERS_AWE_CLIENT_SECRET:
+        secretKeyRef:
+          name: '{{ tpl .Values.global.authClientSecret $ }}'
+          key: '{{ tpl .Values.global.authClientSecretKey $ }}'
   celeryBeat:
     image:
       repository: openg2p/openg2p-livestock-registry-celery
       tag: 0.0.0-develop
     envVars:
       CELERY_OPTS: "worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db --concurrency=4"
+      ODK_HOOKS_ENABLED: "true"
   dbSeed:
     image:
       repository: openg2p/openg2p-livestock-registry-db-seed
@@ -120,7 +187,10 @@ registry:
     # loads the real Ethiopia hierarchy itself (docker/db-seed/livestock-entrypoint.sh).
     loadGeoData: false
     loadSampleData: false
-    loadImages: true
+    # Off: registry-platform 1.2's db-seed image ships no upload_images.py and
+    # exits 1 when this is on. The images only belong to sample data, which is
+    # off as well (loadSampleData above).
+    loadImages: false
     loadTemplates: true
     envVars:
       # See staffApi.envVars.APPROVER_RESOLVER_SECRET. The resolver's base URL
@@ -240,6 +310,13 @@ reporting:
       memory: 512Mi
 
 dashboardApi:
+  # Generic auth interface; environment-specific trust remains in registry Helm.
+  auth:
+    enabled: true
+    issuer: ""
+    iamUrl: ""
+    audience: livestock-registry-dashboard-api
+    role: charts:read
   enabled: false
   image:
     repository: ""
@@ -256,9 +333,15 @@ dashboardApi:
   # CORS origins. Browsers are not expected to call the service directly.
   allowedOrigins: []
   # Extra environment variables, as NAME: value. Values may use templates.
+  # AUTH_IAM_URL, the namespace's IAM Service (for example
+  # http://commons-services-iam-staff-portal-api-pub), turns on the service's
+  # client-credentials authentication: every chart request then needs the
+  # dashboard's token (role charts:read on the client livestock-registry-dashboard-api).
+  # The trusted Keycloak realms are read from that IAM, so no realm URL is
+  # configured. The development pipeline sets it.
   env: {}
   # Optional hostname route for developers and tools, on a PRIVATE Istio
-  # gateway only (the service has no authentication), e.g.
+  # gateway only (callers need a token once AUTH_IAM_URL is set), e.g.
   #   host: dashboard-api.live.openg2p.test
   #   gateway: internal
   virtualService:
