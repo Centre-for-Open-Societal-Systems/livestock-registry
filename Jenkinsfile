@@ -24,7 +24,7 @@ pipeline {
         HELM_CHART_VER   = '1.2.0'
 
 
-        // Dev cluster: namespace `livestock`, hosts on *-development.oanstaging.com,
+        // Dev cluster: namespace `livestock`, hosts on *.development.oanstaging.com,
         // credential bound to the livestock:livestock-ci ServiceAccount. Values come
         // from helm/openg2p-livestock-registry/values-new-dev.yaml.
         //
@@ -239,6 +239,13 @@ EOF
                                 grep -n 'openg2p\\.org' newdev-rendered-\${BUILD_NUMBER}.yaml | head -20
                                 exit 1
                             fi
+
+                            # Convert manifests with a client dry-run; reject URL/Gateway drift
+                            # before Helm changes the release. Do not print rendered Secrets.
+                            kubectl create --dry-run=client --validate=false -n ${DEV_NAMESPACE} \
+                                -f newdev-rendered-\${BUILD_NUMBER}.yaml -o json | \
+                                python3 ci/check-new-dev-routes.py livestock \
+                                    --release \${HELM_RELEASE} --namespace ${DEV_NAMESPACE}
 
                             helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${DEV_NAMESPACE} \
                                 -f ./helm/openg2p-livestock-registry/values-new-dev.yaml \
