@@ -13,7 +13,7 @@ pipeline {
     environment {
         AWS_REGION       = 'ap-south-1'
         ECR_PATH         = 'openg2p/livestock-registry'
-        RP_VERSION       = '0.0.0-develop.296' // TODO verify — see header note
+        RP_VERSION       = '1.2.2-rc.544' // TODO verify — see header note
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
         // The chart actually running in staging's `live` today — NOT this
@@ -23,15 +23,15 @@ pipeline {
         HELM_CHART_REF   = 'openg2p/openg2p-farmer-registry'
         HELM_CHART_VER   = '1.2.0'
 
-        // Dev-cluster deploy target (see header comment above). Separate
-        // physical cluster from HELM_NAMESPACE/staging-rke2-kubeconfig
-        // above; same chart/release-name convention, different kubeconfig.
-        // Dedicated credential for the dedicated live:livestock-ci
-        // ServiceAccount (ci/k8s/livestock-deploy-rbac.yaml) — NOT
-        // gen2-dev-kubeconfig, which is farmer-ci's own token scoped to
-        // `far` only and is untouched by this pipeline.
-        HELM_NAMESPACE_DEV       = 'live'
-        DEV_KUBECONFIG_CRED_ID   = 'gen2-dev-livestock-kubeconfig'
+
+        // Dev cluster: namespace `livestock`, hosts on *.development.oanstaging.com,
+        // credential bound to the livestock:livestock-ci ServiceAccount. Values come
+        // from helm/openg2p-livestock-registry/values-new-dev.yaml.
+        //
+        // The previous dev cluster (namespace `live`, *.openg2p.test) is RETIRED; its
+        // stage and values-dev.yaml were removed, so there is now one dev target.
+        DEV_NAMESPACE            = 'livestock'
+        DEV_KUBECONFIG_CRED_ID   = 'livestock-dev-kubeconfig'
 
         // livestock-registry-dashboard-api lives in its own (public) repository
         // and is built here beside the registry images. Each branch builds the
@@ -46,7 +46,17 @@ pipeline {
             steps { checkout scm }
         }
 
+        stage('Check chart version') {
+            steps {
+                sh 'bash scripts/check-chart-version.sh'
+            }
+        }
+
         stage('Checkout dashboard-api') {
+            // TEMPORARY: livestock-registry-dashboard-api has not been merged to its
+            // staging branch yet, so staging builds skip it (Deploy to Live never
+            // uses the dashboard-api image). Drop this `when` once it is merged.
+            when { not { branch 'staging' } }
             steps {
                 script {
                     // A PR build (BRANCH_NAME PR-<n>) matches on its source branch.
@@ -96,19 +106,22 @@ pipeline {
                             """
                         }
 
-                        // The dashboard service, from its own repository (cloned
-                        // by 'Checkout dashboard-api'), with its own build context.
-                        // Its ECR repository is created outside CI, like the others.
-                        def api = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api:${env.IMAGE_TAG}"
-                        sh """
-                            echo "=== Building and pushing dashboard-api (${env.DASHBOARD_API_REF_USED} @ ${env.DASHBOARD_API_SHA}) ==="
-                            docker build \
-                                --label org.opencontainers.image.source=${DASHBOARD_API_REPO} \
-                                --label org.opencontainers.image.revision=${env.DASHBOARD_API_SHA} \
-                                --label org.opencontainers.image.ref.name=${env.DASHBOARD_API_REF_USED} \
-                                -f .build/dashboard-api/Dockerfile -t ${api} .build/dashboard-api
-                            docker push ${api}
-                        """
+                        // Skipped when 'Checkout dashboard-api' did not run (staging).
+                        if (env.DASHBOARD_API_SHA) {
+                            // The dashboard service, from its own repository (cloned
+                            // by 'Checkout dashboard-api'), with its own build context.
+                            // Its ECR repository is created outside CI, like the others.
+                            def api = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api:${env.IMAGE_TAG}"
+                            sh """
+                                echo "=== Building and pushing dashboard-api (${env.DASHBOARD_API_REF_USED} @ ${env.DASHBOARD_API_SHA}) ==="
+                                docker build \
+                                    --label org.opencontainers.image.source=${DASHBOARD_API_REPO} \
+                                    --label org.opencontainers.image.revision=${env.DASHBOARD_API_SHA} \
+                                    --label org.opencontainers.image.ref.name=${env.DASHBOARD_API_REF_USED} \
+                                    -f .build/dashboard-api/Dockerfile -t ${api} .build/dashboard-api
+                                docker push ${api}
+                            """
+                        }
                     }
                 }
             }
@@ -163,42 +176,41 @@ EOF
         }
 
         stage('Deploy to Development') {
-            // Unchanged by the branch-gating edit — still runs on every
-            // `develop` push, which is correct per the user (this is the
-            // stage that should keep working exactly as it does today).
+            // Points `develop` merges at the NEW dev cluster, alongside the
+            // existing "Deploy to Development" stage above which still targets
+            // the old one. Same in-repo chart; what differs is the namespace,
+            // the hostnames (values-new-dev.yaml) and the credential.
             //
-            // Uses THIS repo's own chart (helm/openg2p-livestock-registry)
-            // with its checked-in values.yaml PLUS a dev-specific overlay,
-            // values-dev.yaml (hostname/MinIO/id-generator GitLab path/
-            // celery memory — see header UPDATE note for the full
-            // rationale and the one-time manual VirtualService cleanup
-            // documented in README-dev.md). Only the six image refs are
-            // still overridden via --set, matching the Build & Push stage.
+            // The chart version is stamped with +<short-sha> at deploy time.
+            // SemVer build metadata is ignored for ordering, so this cannot
+            // break upgrade comparisons, but `helm list` then shows exactly
+            // which commit produced the running release instead of a
+            // placeholder.
             //
-            // `helm upgrade --install` (not `--reuse-values`) is used
-            // deliberately: every run supplies the full intended value set
-            // (values.yaml + values-dev.yaml + these --set flags) from repo
-            // state, so there's nothing to drift out of sync with and no
-            // dependency on a prior release already existing.
-            //
-            // The `grep -q openg2p\\.org` check below is a regression
-            // guard: if values-dev.yaml's hostname override somehow didn't
-            // take effect, the release would silently go back to being
-            // unreachable (see header UPDATE note) — this fails the build
-            // loudly, before any real cluster mutation, instead of
-            // deploying something broken again.
-            //
-            // Wrapped in catchError so a problem specific to the dev
-            // cluster does NOT block the staging "Deploy to Live" stage
-            // below from running.
+            // catchError for the same reason as the stage above: a problem on
+            // one dev cluster must not block the other or the staging deploy.
             when { branch 'develop' }
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
                         sh """
+                            set -eu
                             helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
                             helm repo update ${HELM_CHART_REPO}
-                            helm dependency build ./helm/openg2p-livestock-registry
+                            helm dependency update ./helm/openg2p-livestock-registry
+
+                            # Stamp the chart version with +<short-sha>. A local chart
+                            # directory ignores `helm --version`, so Chart.yaml is edited
+                            # in the workspace instead. SemVer build metadata does not
+                            # affect ordering, so this cannot break upgrade comparisons.
+                            CHART_VER=\$(awk -F': *' '/^version:/{print \$2; exit}' helm/openg2p-livestock-registry/Chart.yaml)
+                            # Strip any build metadata already present: Jenkins reuses
+                            # workspaces, so a previous run may have left the version
+                            # stamped, which would compound to 1.2.0+abc+def.
+                            CHART_VER="\${CHART_VER%%+*}"
+                            STAMPED="\${CHART_VER}+\$(git rev-parse --short HEAD)"
+                            sed -i "s|^version:.*|version: \${STAMPED}|" helm/openg2p-livestock-registry/Chart.yaml
+                            echo "Deploying chart version \${STAMPED} to ${DEV_NAMESPACE}"
 
                             IMAGE_SET_FLAGS="
                                 --set registry.staffApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-api
@@ -215,45 +227,36 @@ EOF
                                 --set registry.staffUi.image.tag=${env.IMAGE_TAG}
                                 --set registry.sanity.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
                                 --set registry.sanity.image.tag=${env.IMAGE_TAG}
-                                --set reporting.views.enabled=true
-                                --set dashboardApi.enabled=true
-                                --set dashboardApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api
-                                --set dashboardApi.image.tag=${env.IMAGE_TAG}
-                                --set dashboardApi.virtualService.enabled=true
-                                --set dashboardApi.virtualService.host=dashboard-api.${HELM_NAMESPACE_DEV}.openg2p.test
-                                --set dashboardApi.virtualService.gateway=internal
-                                --set dashboardApi.env.AUTH_IAM_URL=http://commons-services-iam-staff-portal-api-pub
                             "
 
-                            helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
-                                -f ./helm/openg2p-livestock-registry/values-dev.yaml \
+                            helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${DEV_NAMESPACE} \
+                                -f ./helm/openg2p-livestock-registry/values-new-dev.yaml \
                                 \$IMAGE_SET_FLAGS \
-                                > dev-rendered-\${BUILD_NUMBER}.yaml
-                            echo "Rendered \$(wc -l < dev-rendered-\${BUILD_NUMBER}.yaml) lines from the in-repo chart's values.yaml + values-dev.yaml + image overrides. Archived for audit."
+                                > newdev-rendered-\${BUILD_NUMBER}.yaml
 
-                            if grep -q 'openg2p\\.org' dev-rendered-\${BUILD_NUMBER}.yaml; then
+                            if grep -q 'openg2p\\.org' newdev-rendered-\${BUILD_NUMBER}.yaml; then
                                 echo "FATAL: rendered manifests still reference the placeholder domain openg2p.org:"
-                                grep -n 'openg2p\\.org' dev-rendered-\${BUILD_NUMBER}.yaml | head -20
+                                grep -n 'openg2p\\.org' newdev-rendered-\${BUILD_NUMBER}.yaml | head -20
                                 exit 1
                             fi
 
-                            helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n \${HELM_NAMESPACE_DEV} \
-                                -f ./helm/openg2p-livestock-registry/values-dev.yaml \
+                            # Convert manifests with a client dry-run; reject URL/Gateway drift
+                            # before Helm changes the release. Do not print rendered Secrets.
+                            kubectl create --dry-run=client --validate=false -n ${DEV_NAMESPACE} \
+                                -f newdev-rendered-\${BUILD_NUMBER}.yaml -o json | \
+                                python3 ci/check-new-dev-routes.py livestock \
+                                    --release \${HELM_RELEASE} --namespace ${DEV_NAMESPACE}
+
+                            helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${DEV_NAMESPACE} \
+                                -f ./helm/openg2p-livestock-registry/values-new-dev.yaml \
                                 \$IMAGE_SET_FLAGS \
-                                --cleanup-on-fail --timeout 10m
+                                --cleanup-on-fail --timeout 15m
 
-                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
-                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui -n \${HELM_NAMESPACE_DEV} --timeout=180s
-                            kubectl rollout status deployment/\${HELM_RELEASE}-partner-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
-                            kubectl rollout status deployment/\${HELM_RELEASE}-dashboard-api -n \${HELM_NAMESPACE_DEV} --timeout=180s
-
-                            # The views exist (the reporting hook ran) and the service
-                            # answers: a 500 from a missing lr_rpt_* view fails here,
-                            # not in the dashboards.
-                            echo "=== dashboard-api smoke test ==="
-                            kubectl exec -n \${HELM_NAMESPACE_DEV} deploy/\${HELM_RELEASE}-dashboard-api -- python -c "import json, urllib.request as u; base = 'http://127.0.0.1:8000'; [print(p, 'OK', len(json.load(u.urlopen(base + p, timeout=30)))) for p in ('/health', '/api/v1/charts/livestockKpis', '/api/v1/charts/livestockBySpecies', '/api/v1/charts/livestockKeepersByRegion')]"
+                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n ${DEV_NAMESPACE} --timeout=180s
+                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui  -n ${DEV_NAMESPACE} --timeout=180s
+                            kubectl rollout status deployment/\${HELM_RELEASE}-partner-api      -n ${DEV_NAMESPACE} --timeout=180s
                         """
-                        archiveArtifacts artifacts: 'dev-rendered-*.yaml', allowEmptyArchive: true
+                        archiveArtifacts artifacts: 'newdev-rendered-*.yaml', allowEmptyArchive: true
                     }
                 }
             }

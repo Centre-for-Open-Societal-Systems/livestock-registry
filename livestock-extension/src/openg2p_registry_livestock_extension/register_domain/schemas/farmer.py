@@ -1,6 +1,7 @@
 from datetime import date
 from typing import Optional
 
+from .admin_area import G2PSchemaAdminArea
 from openg2p_registry_core.schemas import (
     G2PRegisterBaseSchema,
     G2PGeoSchema,
@@ -10,7 +11,7 @@ from openg2p_registry_core.schemas import (
 )
 
 
-class G2PSchemaFarmer:
+class G2PSchemaFarmer(G2PSchemaAdminArea):
 
     farmer_id: Optional[str] = None
     fayda_fan_id: Optional[str] = None

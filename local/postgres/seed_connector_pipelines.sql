@@ -1,4 +1,14 @@
 -- Pre-configure the Livestock Registry ODK Central pipeline in the connector database.
+--
+-- Run by hand against the local Postgres (it is not in docker-entrypoint-initdb.d):
+--   set -a; . local/.env; set +a
+--   docker compose --env-file local/.env exec -T postgres \
+--     psql -U postgres -v odk_email="$ODK_USER" -v odk_password="$ODK_PW" \
+--     -f /dev/stdin < local/postgres/seed_connector_pipelines.sql
+-- The Central login comes from local/.env (ODK_USER / ODK_PW, git-ignored);
+-- nothing secret is committed here. Target: the team's development ODK
+-- Central, project 14, form livestock_registry (published 2026-09-30). The
+-- earlier sandbox odk.13.207.43.8.nip.io was retired on 2026-10-07.
 \connect connector
 
 CREATE TABLE IF NOT EXISTS connector_definitions (
@@ -44,12 +54,12 @@ INSERT INTO connector_definitions (
     'odk_central',
     true,
     false,
-    'MY_DATA_MODEL',
+    'LIVESTOCK_ODK_MODEL',
     'Livestock',
     'Livestock',
-    '{"base_url": "https://odk.13.207.43.8.nip.io", "project_id": 14, "form_id": "livestock_registry", "resolve_nav_links": true, "strict_incremental": false, "target_url": "http://partner-api:8000/partner/ingest_data", "target_headers": {"partner-id": "livestock-partner", "Content-Type": "application/json"}}',
+    '{"base_url": "https://odk-central-development.oanstaging.com", "project_id": 14, "form_id": "livestock_registry", "resolve_nav_links": true, "strict_incremental": false, "target_url": "http://partner-api:8000/partner/ingest_data", "target_headers": {"partner-id": "livestock-partner", "Content-Type": "application/json"}}',
     'odk_session',
-    '{"email": "vilbertraj21@gmail.com", "password": "odksandbox"}',
+    '{"email": "' || :'odk_email' || '", "password": "' || :'odk_password' || '"}',
     'hmac_sha256'
 )
 ON CONFLICT (connector_id) DO UPDATE SET
@@ -65,3 +75,9 @@ ON CONFLICT (connector_id) DO UPDATE SET
     auth_type = EXCLUDED.auth_type,
     auth_secret_json = EXCLUDED.auth_secret_json,
     webhook_verifier = EXCLUDED.webhook_verifier;
+
+-- NOTE: the Kafka "Farmer CR Events" connector (g2p_register_mnemonic 'Farmer')
+-- was removed from this PR. The ODK ingestion hook force-routes non-file-import
+-- payloads into the Livestock register/intake form, so a Farmer-targeted event
+-- would be mis-routed. It will be delivered separately with its own Farmer-event
+-- route + known-farmer check (see PR #58 review).

@@ -1,6 +1,7 @@
 from datetime import date
 from typing import Optional
 
+from .admin_area import G2PSchemaAdminArea
 from openg2p_registry_core.schemas import (
     G2PRegisterBaseSchema,
     G2PGeoSchema,
@@ -11,7 +12,7 @@ from openg2p_registry_core.schemas import (
 from ..models.enums import LivestockStateEnum, SourceSystemEnum, SyncStatusEnum
 
 
-class G2PSchemaLivestock:
+class G2PSchemaLivestock(G2PSchemaAdminArea):
 
     farmer_uuid: Optional[str] = None
     farmer_id: Optional[str] = None

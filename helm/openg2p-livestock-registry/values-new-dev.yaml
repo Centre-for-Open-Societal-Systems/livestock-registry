@@ -1,0 +1,178 @@
+# values-new-dev.yaml — the "new dev" cluster (gen2 new dev, namespace `livestock`).
+#
+# PROVENANCE: captured from `helm get values livestock-registry -n livestock` on
+# 2026-10-15, i.e. the exact value set the release was running under when it was
+# still using the borrowed openg2p-farmer-registry chart. It is NOT a
+# `helm get values --all` dump — only user-supplied overrides are here (147
+# lines), so chart defaults stay owned by the chart.
+#
+# Differs from values-dev.yaml (the OLD dev cluster) in two ways:
+#   * every public host is *.development.oanstaging.com, not *.live.openg2p.test
+#   * backend calls use in-cluster service DNS (commons-postgresql, commons-keycloak)
+#     while browser-facing URLs use the public names — the split-horizon the
+#     platform expects.
+#
+# Contains no secret material: database passwords are secretKeyRef pointers.
+analytics:
+  bulkSample:
+    enabled: false
+  dashboards:
+    enabled: false
+  reportingViews:
+    enabled: true
+global:
+  # Novu is NOT deployed on this cluster (no novu Service, no commons-novu
+  # Secret), so notifications are non-functional here either way. These are the
+  # reserved names under this environment's convention; set explicitly so the
+  # chart default (novu-*.livestock.openg2p.org) cannot leak the placeholder
+  # domain past the rendered-manifest guard.
+  notificationApiHostname: novu-api.development.oanstaging.com
+  notificationWsHostname: novu-ws.development.oanstaging.com
+  aweBaseUrl: http://commons-services-awe.commons.svc.cluster.local
+  aweDefaultCallbackUrl: http://livestock-registry-staff-portal-api.livestock.svc.cluster.local/awe/webhooks/decision
+  aweHostname: awe.development.oanstaging.com
+  idGeneratorHostname: idgenerator-livestock.development.oanstaging.com
+  keycloakBaseUrl: https://keycloak.development.oanstaging.com
+  keycloakIssuerUrl: http://commons-keycloak.commons.svc.cluster.local:80/realms/staff
+  minioHost: minio-farmer.development.oanstaging.com
+  minioSecure: true
+  postgresqlHost: commons-postgresql.commons.svc.cluster.local
+  registryDB: livestock_registry
+  registryDBUser: livestock_registry_user
+  registryHostname: livestock-registry.development.oanstaging.com
+mapsContent:
+  enabled: false
+registry:
+  celeryBeat:
+    envVars:
+      CELERY_OPTS: worker --beat --loglevel=info --schedule=/tmp/celery-beat-schedule.db
+        --concurrency=4
+      REGISTRY_CELERY_BEAT_MASTER_DATA_DB_DBNAME: master_data
+      REGISTRY_CELERY_BEAT_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
+      REGISTRY_CELERY_BEAT_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PORT: "5432"
+      REGISTRY_CELERY_BEAT_MASTER_DATA_DB_USERNAME: master_data_user
+    envVarsFrom:
+      REGISTRY_CELERY_BEAT_MASTER_DATA_DB_PASSWORD:
+        secretKeyRef:
+          key: master-data-db-user-password
+          name: master-data-db-user
+    image:
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/celery
+      tag: 6db60a852e1d
+    resources:
+      limits:
+        memory: 2560Mi
+      requests:
+        cpu: 20m
+        memory: 1Gi
+  celeryWorker:
+    envVars:
+      CELERY_OPTS: worker -Q registry_worker_queue --loglevel=info --concurrency=4
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME: master_data
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT: "5432"
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME: master_data_user
+    envVarsFrom:
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD:
+        secretKeyRef:
+          key: master-data-db-user-password
+          name: master-data-db-user
+    image:
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/celery
+      tag: 6db60a852e1d
+  dbSeed:
+    image:
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/db-seed
+      tag: 6db60a852e1d
+    loadAttributes: false
+    loadGeoData: false
+    loadImages: false
+    loadSampleData: false
+    syncGeoWidgets: false
+  iamRegister:
+    applicationDescription: Livestock Registry
+  idgenerator:
+    global:
+      idGeneratorDB: livestock_registry_idgen
+      idGeneratorDBUser: livestock_registry_idgen_user
+    idGenerator:
+      istio:
+        virtualservice:
+          host: idgenerator-livestock.development.oanstaging.com
+          gateway: istio-system/development
+      image:
+        pullPolicy: IfNotPresent
+        repository: registry.gitlab.com/openg2p/platform-services/id-generator/openg2p-id-generator
+        tag: 0.0.0-develop.42
+    postgres-init:
+      postgresql:
+        host: commons-postgresql.commons.svc.cluster.local
+  keycloak-init:
+    keycloak:
+      url: http://commons-keycloak.commons.svc.cluster.local:80
+  partnerApi:
+    envVars:
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME: master_data
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT: "5432"
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_USERNAME: master_data_user
+    envVarsFrom:
+      REGISTRY_PARTNER_API_MASTER_DATA_DB_PASSWORD:
+        secretKeyRef:
+          key: master-data-db-user-password
+          name: master-data-db-user
+    hostname: partner-livestock.development.oanstaging.com
+    image:
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/partner-api
+      tag: 6db60a852e1d
+    istio:
+      virtualservice:
+        host: partner-livestock.development.oanstaging.com
+        gateway: istio-system/development
+  postgres-init:
+    postgresql:
+      host: commons-postgresql.commons.svc.cluster.local
+  sanity:
+    image:
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/sanity-tests
+      tag: 3ae92a399141
+  staffApi:
+    envVars:
+      REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL: redis://commons-redis-master.commons.svc.cluster.local:6379/0
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME: master_data
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_HOSTNAME: commons-postgresql.commons.svc.cluster.local
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT: "5432"
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME: master_data_user
+    envVarsFrom:
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD:
+        secretKeyRef:
+          key: master-data-db-user-password
+          name: master-data-db-user
+    hostname: staff-livestock.development.oanstaging.com
+    image:
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/staff-api
+      tag: 6db60a852e1d
+    istio:
+      virtualservice:
+        host: staff-livestock.development.oanstaging.com
+        gateway: istio-system/development
+  staffUi:
+    istio:
+      virtualservice:
+        host: livestock-registry.development.oanstaging.com
+        gateway: istio-system/development
+    envVars:
+      COMMON_AUTH_DEFAULT_ISSUERS: '["https://keycloak.development.oanstaging.com/realms/staff"]'
+      COOKIE_DOMAIN: .development.oanstaging.com
+      CSP_SRC_IMG: 'self blob: data: https://minio-farmer.development.oanstaging.com'
+      KEYCLOAK_LOGOUT_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/logout
+      LOGIN_PROVIDER_ID: "1"
+    iamPublicUrl: https://staff-iam.development.oanstaging.com
+    image:
+      repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/staff-ui
+      tag: 6db60a852e1d
+    partnerIngestUrl: https://partner-livestock.development.oanstaging.com/partner/ingest_data?data_model=dcivc

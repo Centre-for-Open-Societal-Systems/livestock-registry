@@ -13,6 +13,8 @@ from sqlalchemy import and_, func, select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    normalize_event_ear_tag,
+    validate_known_code,
     animal_identified_by,
     _animal_models,
     as_int,
@@ -31,6 +33,7 @@ from .domain_validation_utils import (
     intake_rows_as_records,
     tables_for,
     submission_ids_of,
+    live_rows,
 )
 
 _logger = logging.getLogger("g2p-register-domain-service")
@@ -60,6 +63,7 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
         # scopes the ear-tag check to this submission's own animals.
@@ -76,10 +80,12 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
+            await validate_known_code(record, "disease_type", "LIVESTOCK_DISEASE", "Disease")
             await validate_species_matches(record)
             self._validate_not_in_future(record, "event_date")
             self._validate_not_in_future(record, "date_onset")
             self._validate_date_order(record, "date_onset", "date_resolution")
+            self._validate_not_in_future(record, "date_resolution")
             self._validate_offspring_count(record)
             await self._validate_birth_female_only(record)
         # Run only once every record above has passed — so by this point
@@ -122,10 +128,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             validation_error("Please provide the disease before saving the record.")
 
     async def _validate_ear_tag_exists(self, record: dict, application_reference: str | None = None) -> None:
-        value = record.get("ear_tag_id")
-        if value is None or str(value).strip() == "":
+        value = normalize_event_ear_tag(record)
+        if value is None:
             return
-        if not await ear_tag_exists(str(value).strip(), application_reference=application_reference):
+        if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
                 f"'{str(value).strip()}' does not match any registered or drafted animal's "
                 "ear tag or secondary identifier. Add it under Livestock Details first, "
@@ -544,7 +550,11 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 "ear_tag_id": ear_tag_id,
                 "species": vital_event.species,
                 "breed": breed,
-                "gender": vital_event.offspring_gender,
+                # validate_domain_attributes requires the offspring sex on a
+                # Birth event; a Birth approved before that rule existed may
+                # still have none, and the animal's gender is not nullable.
+                # FEMALE keeps what the ODK hooks used to set in that case.
+                "gender": vital_event.offspring_gender or "FEMALE",
                 "date_of_birth": vital_event.event_date,
                 "registration_date": vital_event.event_date,
                 "health_status": "HEALTHY",
@@ -583,6 +593,9 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             created_tags.append(ear_tag_id)
 
         await session.flush()
+        from .domain_validation_utils import refresh_total_animals
+
+        await refresh_total_animals(session, vital_event.link_internal_record_id)
         _logger.info(
             "Birth event %s: created %d offspring Animal row(s) under livestock %s: %s",
             vital_event.internal_record_id, count, vital_event.link_internal_record_id, created_tags,

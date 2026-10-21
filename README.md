@@ -1,5 +1,8 @@
 # Livestock Registry
 
+For the current development hosts, shared Istio Gateway and deployment guard,
+see the [new-dev routing guide](docs/new-dev-routing.md).
+
 An installable **Livestock Registry** built as a thin extension of the OpenG2P
 [registry platform](https://github.com/OpenG2P/registry-platform), following the
 same inverted build model as the
@@ -131,7 +134,7 @@ flowchart TD
     end
 
     subgraph ODKCentral ["Central Collection Server"]
-        B -->|Encrypted Submission Upload| C[ODK Central Server<br/>odk.13.207.43.8.nip.io<br/>Project ID: 14]
+        B -->|Encrypted Submission Upload| C[ODK Central Server<br/>odk-central-development.oanstaging.com<br/>Project ID: 14]
     end
 
     subgraph IngestionGateway ["Connector & Ingestion Gateway"]
@@ -162,7 +165,7 @@ flowchart TD
 
 #### Pipeline Configuration Highlights
 * **Form ID**: Single ODK XLSForm `livestock_registry`
-* **ODK Central Server**: Project ID `14`, hosted at `odk.13.207.43.8.nip.io`
+* **ODK Central Server**: Project ID `14`, hosted at `odk-central-development.oanstaging.com`
 * **Connector Pipeline**: Pre-configured in `local/postgres/seed_connector_pipelines.sql`
 * **Partner API Target**: `http://partner-api:8000/partner/ingest_data` authenticated with header `partner-id: livestock-partner`
 
@@ -256,7 +259,7 @@ $$\text{DRAFT} \longrightarrow \text{KEBELE\_APPROVED} \longrightarrow \text{WOR
 #### Ingestion Architecture: Scheduled OData Pull
 The OpenG2P Connector Service (`connector-api` and `connector-worker`) orchestrates periodic synchronization from ODK Central:
 
-1. **OData Endpoint**: Connects to `https://odk.13.207.43.8.nip.io/v1/projects/14/forms/livestock_registry.svc`.
+1. **OData Endpoint**: Connects to `https://odk-central-development.oanstaging.com/v1/projects/14/forms/livestock_registry.svc`.
 2. **Repeat Group Expansion (`resolve_nav_links: true`)**:
    * ODK Central represents nested repeating sub-tables as `@odata.navigationLink` URLs.
    * The connector recursively navigates each link (`livestock`, `health_events`, `vaccinations`, `vital_events`, `breeding_events`) and injects the child rows into the payload before posting to OpenG2P.

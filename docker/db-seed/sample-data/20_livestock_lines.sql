@@ -100,18 +100,9 @@ INSERT INTO "public"."g2p_register_breedings" (
 ('breed0004','BR-000000000004','ls0009',NULL,'AI ET-AM-0900002',NULL,'Nahom','2026-06-15 00:00:00','2026-06-15 00:00:00','Nahom','BR-000000000004 ET-AM-0900002 CATTLE AI FOG-SEMEN-2026-0212 Alebachew Tesfa Rectovaginal FOG-2026-0212 PENDING VETERINARY Dembiya woreda AI post','ACTIVE',NULL,'ET-AM-0900002','CATTLE','AI','2026-06-15','FOG-SEMEN-2026-0212','VETERINARY','Dembiya woreda AI post','Alebachew Tesfa','Rectovaginal','FOG-2026-0212','2027-03-22',FALSE,NULL,'PENDING','Pregnancy diagnosis due at 60 days.')
 ON CONFLICT ("internal_record_id") DO NOTHING;
 
-INSERT INTO "public"."g2p_register_vaccine_schedules" (
-    "internal_record_id","functional_record_id","link_internal_record_id","link_foundational_id","record_name","record_image_document_id","created_by","created_at","last_approved_at","last_approved_by","search_text","record_status","record_status_reason","vaccine_name","species","interval_days","is_active","notes"
-) VALUES
-('vsched0001','VS-000000000001','ls0001',NULL,'ANTHRAX_CATTLE CATTLE',NULL,'Nahom','2026-03-16 00:00:00','2026-03-16 00:00:00','Nahom','VS-000000000001 ANTHRAX_CATTLE CATTLE Annual, ahead of the main rains.','ACTIVE',NULL,'ANTHRAX_CATTLE','CATTLE',365,TRUE,'Annual, ahead of the main rains.'),
-('vsched0002','VS-000000000002','ls0001',NULL,'BLACKLEG CATTLE',NULL,'Nahom','2026-03-16 00:00:00','2026-03-16 00:00:00','Nahom','VS-000000000002 BLACKLEG CATTLE','ACTIVE',NULL,'BLACKLEG','CATTLE',365,TRUE,NULL),
-('vsched0003','VS-000000000003','ls0002',NULL,'PPR_SHEEP SHEEP',NULL,'Nahom','2026-03-24 00:00:00','2026-03-24 00:00:00','Nahom','VS-000000000003 PPR_SHEEP SHEEP Aligned to the woreda spring campaign.','ACTIVE',NULL,'PPR_SHEEP','SHEEP',365,TRUE,'Aligned to the woreda spring campaign.'),
-('vsched0004','VS-000000000004','ls0003',NULL,'CCPP GOAT',NULL,'Nahom','2026-04-08 00:00:00','2026-04-08 00:00:00','Nahom','VS-000000000004 CCPP GOAT','ACTIVE',NULL,'CCPP','GOAT',365,TRUE,NULL),
-('vsched0005','VS-000000000005','ls0004',NULL,'NEWCASTLE POULTRY',NULL,'Nahom','2026-04-19 00:00:00','2026-04-19 00:00:00','Nahom','VS-000000000005 NEWCASTLE POULTRY Quarterly for backyard layer flocks.','ACTIVE',NULL,'NEWCASTLE','POULTRY',90,TRUE,'Quarterly for backyard layer flocks.'),
-('vsched0006','VS-000000000006','ls0005',NULL,'ANTHRAX_CAMEL CAMEL',NULL,'Nahom','2026-05-02 00:00:00','2026-05-02 00:00:00','Nahom','VS-000000000006 ANTHRAX_CAMEL CAMEL','ACTIVE',NULL,'ANTHRAX_CAMEL','CAMEL',365,TRUE,NULL),
-('vsched0007','VS-000000000007','ls0006',NULL,'PPR_GOAT GOAT',NULL,'Nahom','2026-05-21 00:00:00','2026-05-21 00:00:00','Nahom','VS-000000000007 PPR_GOAT GOAT Reinstated after the July outbreak.','ACTIVE',NULL,'PPR_GOAT','GOAT',365,TRUE,'Reinstated after the July outbreak.'),
-('vsched0008','VS-000000000008','ls0009',NULL,'LSD CATTLE',NULL,'Nahom','2026-07-01 00:00:00','2026-07-01 00:00:00','Nahom','VS-000000000008 LSD CATTLE','ACTIVE',NULL,'LSD','CATTLE',365,TRUE,NULL)
-ON CONFLICT ("internal_record_id") DO NOTHING;
+-- Vaccine schedules are not sample data: every environment needs them for
+-- Next Due Date, so the extension's migration adds them
+-- (livestock-extension/.../vaccine_schedule_defaults.py).
 
 INSERT INTO "public"."g2p_register_import_batches" (
     "internal_record_id","functional_record_id","link_internal_record_id","link_foundational_id","record_name","record_image_document_id","created_by","created_at","last_approved_at","last_approved_by","search_text","record_status","record_status_reason","batch_reference","source_system","state","import_filename","import_file_document_id","total_rows","success_count","failure_count","conflict_count","error_log","processed_by","processing_date"

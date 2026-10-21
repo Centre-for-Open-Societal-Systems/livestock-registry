@@ -10,7 +10,7 @@
 #
 # Build context = repo root (so livestock-extension/ and docker/db-seed/ are both
 # reachable).
-ARG RP_VERSION=0.0.0-develop.296
+ARG RP_VERSION=1.2.2-rc.544
 FROM openg2p/openg2p-registry-db-seed:${RP_VERSION}
 
 # The RP db-seed image ships the reference registry's seed; clear it so only
@@ -20,6 +20,7 @@ RUN rm -rf /seed/meta_data/* /seed/awe_meta_data/* /seed/templates/* /seed/seed-
 COPY livestock-extension/src/openg2p_registry_livestock_extension/meta_data/     /seed/meta_data/
 COPY livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/ /seed/awe_meta_data/
 COPY livestock-extension/src/openg2p_registry_livestock_extension/templates/     /seed/templates/
+COPY livestock-extension/src/openg2p_registry_livestock_extension/master_data/   /seed/master_data/
 COPY docker/db-seed/sample-data/                                               /seed/sample-data/
 
 # Real Ethiopia geo hierarchy + the wrapper entrypoint that loads it into
@@ -27,6 +28,7 @@ COPY docker/db-seed/sample-data/                                               /
 # chart's LOAD_GEO_DATA stays off).
 COPY docker/db-seed/geo/ethiopia_geo_seed.sql.gz /seed/geo/ethiopia_geo_seed.sql.gz
 COPY docker/db-seed/livestock-entrypoint.sh      /seed/livestock-entrypoint.sh
+COPY docker/db-seed/migrate_geo_columns.sql    /seed/migrate_geo_columns.sql
 RUN chmod +x /seed/livestock-entrypoint.sh
 
 # Reporting layer read by livestock-registry-dashboard-api: the lr_rpt_* views

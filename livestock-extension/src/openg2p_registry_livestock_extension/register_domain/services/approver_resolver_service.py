@@ -31,6 +31,7 @@ _LEVEL_TO_ROLE = {
 }
 
 _LOCATION_ATTR = "approver_location_value"
+_ALL_LOCATIONS = "*"
 
 
 def _keycloak_config() -> dict | None:
@@ -200,7 +201,9 @@ async def resolve_approvers(level: str, location_value: str | None) -> list[str]
                 continue
             attrs = user_resp.json().get("attributes") or {}
             values = attrs.get(_LOCATION_ATTR) or []
-            if location_value in values:
+            # "*" scopes the approver to every location at their level (e.g.
+            # test approvers); everyone else matches their listed names only.
+            if location_value in values or _ALL_LOCATIONS in values:
                 matched.append(username)
 
         return matched
