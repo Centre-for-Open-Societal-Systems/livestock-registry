@@ -1,5 +1,8 @@
 # Livestock Registry
 
+For the current development hosts, shared Istio Gateway and deployment guard,
+see the [new-dev routing guide](docs/new-dev-routing.md).
+
 An installable **Livestock Registry** built as a thin extension of the OpenG2P
 [registry platform](https://github.com/OpenG2P/registry-platform), following the
 same inverted build model as the

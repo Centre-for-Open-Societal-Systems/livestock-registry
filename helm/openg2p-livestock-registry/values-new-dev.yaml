@@ -7,7 +7,7 @@
 # lines), so chart defaults stay owned by the chart.
 #
 # Differs from values-dev.yaml (the OLD dev cluster) in two ways:
-#   * every public host is *-development.oanstaging.com, not *.live.openg2p.test
+#   * every public host is *.development.oanstaging.com, not *.live.openg2p.test
 #   * backend calls use in-cluster service DNS (commons-postgresql, commons-keycloak)
 #     while browser-facing URLs use the public names — the split-horizon the
 #     platform expects.
@@ -26,20 +26,20 @@ global:
   # reserved names under this environment's convention; set explicitly so the
   # chart default (novu-*.livestock.openg2p.org) cannot leak the placeholder
   # domain past the rendered-manifest guard.
-  notificationApiHostname: novu-api-development.oanstaging.com
-  notificationWsHostname: novu-ws-development.oanstaging.com
+  notificationApiHostname: novu-api.development.oanstaging.com
+  notificationWsHostname: novu-ws.development.oanstaging.com
   aweBaseUrl: http://commons-services-awe.commons.svc.cluster.local
   aweDefaultCallbackUrl: http://livestock-registry-staff-portal-api.livestock.svc.cluster.local/awe/webhooks/decision
-  aweHostname: awe-development.oanstaging.com
-  idGeneratorHostname: idgenerator-livestock-development.oanstaging.com
-  keycloakBaseUrl: https://keycloak-development.oanstaging.com
+  aweHostname: awe.development.oanstaging.com
+  idGeneratorHostname: idgenerator-livestock.development.oanstaging.com
+  keycloakBaseUrl: https://keycloak.development.oanstaging.com
   keycloakIssuerUrl: http://commons-keycloak.commons.svc.cluster.local:80/realms/staff
-  minioHost: minio-farmer-development.oanstaging.com
+  minioHost: minio-farmer.development.oanstaging.com
   minioSecure: true
   postgresqlHost: commons-postgresql.commons.svc.cluster.local
   registryDB: livestock_registry
   registryDBUser: livestock_registry_user
-  registryHostname: livestock-registry-development.oanstaging.com
+  registryHostname: livestock-registry.development.oanstaging.com
 mapsContent:
   enabled: false
 registry:
@@ -98,6 +98,10 @@ registry:
       idGeneratorDB: livestock_registry_idgen
       idGeneratorDBUser: livestock_registry_idgen_user
     idGenerator:
+      istio:
+        virtualservice:
+          host: idgenerator-livestock.development.oanstaging.com
+          gateway: istio-system/development
       image:
         pullPolicy: IfNotPresent
         repository: registry.gitlab.com/openg2p/platform-services/id-generator/openg2p-id-generator
@@ -120,13 +124,14 @@ registry:
         secretKeyRef:
           key: master-data-db-user-password
           name: master-data-db-user
-    hostname: partner-livestock-development.oanstaging.com
+    hostname: partner-livestock.development.oanstaging.com
     image:
       repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/partner-api
       tag: 6db60a852e1d
     istio:
       virtualservice:
-        host: partner-livestock-development.oanstaging.com
+        host: partner-livestock.development.oanstaging.com
+        gateway: istio-system/development
   postgres-init:
     postgresql:
       host: commons-postgresql.commons.svc.cluster.local
@@ -147,22 +152,27 @@ registry:
         secretKeyRef:
           key: master-data-db-user-password
           name: master-data-db-user
-    hostname: staff-livestock-development.oanstaging.com
+    hostname: staff-livestock.development.oanstaging.com
     image:
       repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/staff-api
       tag: 6db60a852e1d
     istio:
       virtualservice:
-        host: staff-livestock-development.oanstaging.com
+        host: staff-livestock.development.oanstaging.com
+        gateway: istio-system/development
   staffUi:
+    istio:
+      virtualservice:
+        host: livestock-registry.development.oanstaging.com
+        gateway: istio-system/development
     envVars:
-      COMMON_AUTH_DEFAULT_ISSUERS: '["https://keycloak-development.oanstaging.com/realms/staff"]'
-      COOKIE_DOMAIN: .oanstaging.com
-      CSP_SRC_IMG: 'self blob: data: https://minio-farmer-development.oanstaging.com'
-      KEYCLOAK_LOGOUT_URL: https://keycloak-development.oanstaging.com/realms/staff/protocol/openid-connect/logout
+      COMMON_AUTH_DEFAULT_ISSUERS: '["https://keycloak.development.oanstaging.com/realms/staff"]'
+      COOKIE_DOMAIN: .development.oanstaging.com
+      CSP_SRC_IMG: 'self blob: data: https://minio-farmer.development.oanstaging.com'
+      KEYCLOAK_LOGOUT_URL: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/logout
       LOGIN_PROVIDER_ID: "1"
-    iamPublicUrl: https://staff-iam-development.oanstaging.com
+    iamPublicUrl: https://staff-iam.development.oanstaging.com
     image:
       repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/staff-ui
       tag: 6db60a852e1d
-    partnerIngestUrl: https://partner-livestock-development.oanstaging.com/partner/ingest_data?data_model=dcivc
+    partnerIngestUrl: https://partner-livestock.development.oanstaging.com/partner/ingest_data?data_model=dcivc
