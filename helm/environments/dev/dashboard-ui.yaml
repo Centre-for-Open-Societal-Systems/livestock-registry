@@ -1,0 +1,14 @@
+# Registry-owned development configuration. No secrets are embedded.
+environment: ""
+iam:
+  url: https://staff-iam.development.oanstaging.com
+  cookieDomain: .development.oanstaging.com
+links:
+  staffPortalUrl: https://livestock-registry.development.oanstaging.com
+  registryPortalUrl: https://livestock-registry.development.oanstaging.com
+dashboardApi:
+  service: livestock-registry-dashboard-api
+  auth:
+    enabled: true
+iamSetup:
+  grantUsers: []

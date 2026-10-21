@@ -310,6 +310,13 @@ reporting:
       memory: 512Mi
 
 dashboardApi:
+  # Generic auth interface; environment-specific trust remains in registry Helm.
+  auth:
+    enabled: true
+    issuer: ""
+    iamUrl: ""
+    audience: livestock-registry-dashboard-api
+    role: charts:read
   enabled: false
   image:
     repository: ""
