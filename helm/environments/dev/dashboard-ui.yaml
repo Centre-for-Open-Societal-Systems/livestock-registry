@@ -11,7 +11,7 @@ dashboardApi:
   auth:
     enabled: true
 iamSetup:
-  grantUsers: []
+  grantUsers: [admin]
   description: Livestock Dashboard
 host: livestock-registry-dashboard.development.oanstaging.com
 ingress:
