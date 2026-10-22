@@ -22,9 +22,8 @@ from .farmer_registry_enrichment import fetch_farmer_record, to_farmer_fields
 _logger = logging.getLogger("g2p-register-domain-service")
 
 
-# FR- followed by exactly 10 digits, as enforced by _check_farmer_id_format in
-# g2p_livestock_registry/models/livestock_registry.py.
-_FARMER_ID_PATTERN = re.compile(r"^FR-\d{10}$")
+# Farmer Registry IDs use FR- followed by exactly 12 digits.
+_FARMER_ID_PATTERN = re.compile(r"^FR-\d{12}$")
 # Exactly 16 digits (the Fayda FAN carries no letter prefix), as enforced by
 # _check_fayda_fan_id_format in
 # g2p_livestock_registry/models/livestock_registry.py.
@@ -47,7 +46,7 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
             # resolve it before any check (see resolve_today_default).
             resolve_today_default(record, "registration_date")
             # Farmer ID is optional: the form does not mark it required, and
-            # the Old System only checked its format (FR- + 10 digits) when
+            # the Old System only checked its format when
             # one was given -- on its staging data most farmers had none.
             # Requiring it here while the form did not made a draft saved
             # with the field blank fail on reopen with "Farmer ID is
@@ -95,7 +94,7 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
             return
         if not _FARMER_ID_PATTERN.match(str(value).strip().upper()):
             validation_error(
-                "farmer_id must be FR- followed by exactly 10 digits, e.g. FR-1234567890"
+                "farmer_id must be FR- followed by exactly 12 digits, e.g. FR-123456789012"
             )
 
     def _validate_fayda_fan_id(self, record: dict) -> None:

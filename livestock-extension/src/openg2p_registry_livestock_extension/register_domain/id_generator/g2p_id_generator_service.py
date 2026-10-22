@@ -1,12 +1,12 @@
 """Functional-ID affixes per register.
 
 The platform allocates the numeric part; this only decides what it is wrapped in.
-The Farmer prefix stays `FR-` because that is the format the Farmer Registry issues
-and that `_check_farmer_id_format` in g2p_livestock_registry validates against
-(`FR-` followed by ten digits).
+The Farmer register keeps the `FR-` prefix. Its internally generated functional
+ID is separate from the externally supplied `farmer_id`, which the domain
+services validate as `FR-` followed by twelve digits.
 
 Note the OAN ID on a livestock holding is a different identifier: it is built from the
-farmer code and first name (e.g. FR-1234567890-ABEBE-001) by the Odoo module's
+farmer code and first name (e.g. FR-123456789012-ABEBE-001) by the Odoo module's
 `_generate_oan_id`, and is carried on the record as `oan_id` rather than allocated
 here.
 """
