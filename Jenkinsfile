@@ -283,12 +283,19 @@ EOF
                                 exit 1
                             fi
 
-                            # Convert manifests with a client dry-run; reject URL/Gateway drift
-                            # before Helm changes the release. Do not print rendered Secrets.
+                            # Convert once and check each command's exit status. Block
+                            # routing/enrichment regressions before Helm changes the release.
+                            # Neither guard prints rendered Secrets or private key material.
                             kubectl create --dry-run=client --validate=false -n ${DEV_NAMESPACE} \
-                                -f newdev-rendered-\${BUILD_NUMBER}.yaml -o json | \
-                                python3 ci/check-new-dev-routes.py livestock \
-                                    --release \${HELM_RELEASE} --namespace ${DEV_NAMESPACE}
+                                -f newdev-rendered-\${BUILD_NUMBER}.yaml -o json \
+                                > newdev-rendered-\${BUILD_NUMBER}.json
+                            python3 ci/check-new-dev-routes.py livestock \
+                                --release \${HELM_RELEASE} --namespace ${DEV_NAMESPACE} \
+                                < newdev-rendered-\${BUILD_NUMBER}.json
+                            python3 ci/check-farmer-enrichment.py \
+                                --deployment \${HELM_RELEASE}-staff-portal-api \
+                                --namespace ${DEV_NAMESPACE} --check-live-secret \
+                                < newdev-rendered-\${BUILD_NUMBER}.json
 
                             helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${DEV_NAMESPACE} \
                                 -f ./helm/openg2p-livestock-registry/values-new-dev.yaml \
@@ -301,6 +308,12 @@ EOF
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n ${DEV_NAMESPACE} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui  -n ${DEV_NAMESPACE} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-partner-api      -n ${DEV_NAMESPACE} --timeout=180s
+                            kubectl get deployment/\${HELM_RELEASE}-staff-portal-api -n ${DEV_NAMESPACE} -o json \
+                                > newdev-live-staff-api-\${BUILD_NUMBER}.json
+                            python3 ci/check-farmer-enrichment.py \
+                                --deployment \${HELM_RELEASE}-staff-portal-api \
+                                --namespace ${DEV_NAMESPACE} --check-live-secret \
+                                < newdev-live-staff-api-\${BUILD_NUMBER}.json
                         """
                         archiveArtifacts artifacts: 'newdev-rendered-*.yaml', allowEmptyArchive: true
                     }
