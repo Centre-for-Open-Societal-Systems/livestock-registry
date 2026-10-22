@@ -11,9 +11,20 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install --quiet pytest PyYAML
+      - name: New Dev routing and Farmer enrichment deployment regressions
+        run: python -m pytest test/test_new_dev_routes.py test/test_farmer_enrichment_deployment.py -q
       - uses: azure/setup-helm@v4.3.0
         with:
           version: v3.19.0
+      - name: Render the New Dev Farmer lookup configuration
+        run: |
+          helm dependency build helm/openg2p-livestock-registry
+          helm template livestock-registry helm/openg2p-livestock-registry -n livestock \
+            -f helm/openg2p-livestock-registry/values-new-dev.yaml > "$RUNNER_TEMP/livestock-new-dev.yaml"
+          python -c 'import json,sys,yaml; json.dump({"kind":"List","items":[d for d in yaml.safe_load_all(sys.stdin) if d]},sys.stdout)' \
+            < "$RUNNER_TEMP/livestock-new-dev.yaml" > "$RUNNER_TEMP/livestock-new-dev.json"
+          python ci/check-farmer-enrichment.py --deployment livestock-registry-staff-portal-api \
+            --namespace livestock < "$RUNNER_TEMP/livestock-new-dev.json"
       - name: Dashboard digest and semantic version label regressions
         run: python -m pytest test/test_dashboard_delivery.py -q
       - uses: actions/setup-node@v4
