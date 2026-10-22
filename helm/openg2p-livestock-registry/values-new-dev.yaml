@@ -141,6 +141,20 @@ registry:
       tag: 3ae92a399141
   staffApi:
     envVars:
+      # Internal Farmer lookup for the intake form. Key material stays in the
+      # pre-provisioned Secret. PM holds the public key; CM permits this
+      # identity, algorithm and internal-intake purpose.
+      FARMER_REGISTRY_ENRICHMENT_ENABLED: "true"
+      FARMER_REGISTRY_DCI_SEARCH_URL: http://farmer-registry-partner-api.farmer.svc.cluster.local/dci/registry/sync/search
+      FARMER_REGISTRY_SENDER_ID: Live_stock_partner_internal
+      FARMER_REGISTRY_RECEIVER_ID: farmer-registry
+      FARMER_REGISTRY_SIGNING_KEY_KID: livestock-lookup-ed25519-d50109ec16dc9ab4
+      FARMER_REGISTRY_SIGNING_ALGORITHM: EdDSA
+      FARMER_REGISTRY_CONSENT_AUDIENCE: farmer-registry
+      FARMER_REGISTRY_CONSENT_DATA_CONTROLLER: farmer-registry
+      FARMER_REGISTRY_CONSENT_SCOPES: farmer_personal_details
+      FARMER_REGISTRY_CONSENT_PURPOSE: registry_intake
+      FARMER_REGISTRY_TIMEOUT_SECONDS: "10"
       REGISTRY_STAFF_PORTAL_API_AUTH_REDIS_URL: redis://commons-redis-master.commons.svc.cluster.local:6379/0
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME: master_data
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DRIVER: postgresql+asyncpg
@@ -148,6 +162,10 @@ registry:
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT: "5432"
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_USERNAME: master_data_user
     envVarsFrom:
+      FARMER_REGISTRY_SIGNING_KEY:
+        secretKeyRef:
+          name: livestock-farmer-lookup-signing-ed25519
+          key: private-key.pem
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PASSWORD:
         secretKeyRef:
           key: master-data-db-user-password
