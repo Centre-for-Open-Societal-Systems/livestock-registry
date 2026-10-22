@@ -44,8 +44,8 @@ without a join, and mirrors the Fayda FAN into the platform's
 `link_foundational_id` — the column that exists for "this record belongs to a
 person held elsewhere".
 
-`farmer_id` is validated as `FR-` followed by exactly ten digits, matching
-`_check_farmer_id_format` in the Odoo module.
+`farmer_id` is validated as `FR-` followed by exactly twelve digits in both
+the Farmer and Livestock register services, e.g. `FR-123456789012`.
 
 ### Enriched from the Farmer Registry
 
@@ -69,7 +69,7 @@ not return exactly one farmer, the operator's entries stand.
 ### Two identifiers for a holding
 
 * **`oan_id`** is the OAN identifier built from the farmer code and first name,
-  e.g. `FR-1234567890-ABEBE-001`, with a running number per farmer — the format
+  e.g. `FR-123456789012-ABEBE-001`, with a running number per farmer — the format
   `_generate_oan_id` produces. It is what an operator reads and what
   `record_name` uses.
 * **`functional_record_id`** is allocated by the platform's id-generator with the

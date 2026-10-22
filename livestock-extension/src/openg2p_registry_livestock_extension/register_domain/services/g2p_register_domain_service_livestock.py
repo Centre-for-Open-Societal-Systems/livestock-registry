@@ -46,9 +46,8 @@ def _stage_order_to_state():
     return {}
 
 
-# FR- followed by exactly 10 digits, as enforced by _check_farmer_id_format in
-# g2p_livestock_registry/models/livestock_registry.py.
-_FARMER_ID_PATTERN = re.compile(r"^FR-\d{10}$")
+# Farmer Registry IDs use FR- followed by exactly 12 digits.
+_FARMER_ID_PATTERN = re.compile(r"^FR-\d{12}$")
 # Exactly 16 digits (the Fayda FAN carries no letter prefix), as enforced by
 # _check_fayda_fan_id_format in
 # g2p_livestock_registry/models/livestock_registry.py.
@@ -111,7 +110,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
             return
         if not _FARMER_ID_PATTERN.match(str(value).strip().upper()):
             validation_error(
-                "farmer_id must be FR- followed by exactly 10 digits, e.g. FR-1234567890"
+                "farmer_id must be FR- followed by exactly 12 digits, e.g. FR-123456789012"
             )
 
     def _validate_fayda_fan_id(self, record: dict) -> None:
