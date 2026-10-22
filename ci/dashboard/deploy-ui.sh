@@ -6,6 +6,7 @@ image=$3
 tag=$4
 case "$registry" in cropsown|livestock) ;; *) echo 'Unknown registry' >&2; exit 1 ;; esac
 test -n "$tag"
+bash ci/dashboard/validate-deploy-files.sh "$registry"
 chart="helm/${registry}-registry-dashboard"
 release="${registry}-registry-dashboard"
 values="helm/environments/dev/dashboard-ui.yaml"
