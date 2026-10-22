@@ -237,4 +237,7 @@ if [ "$rc" -eq 0 ] && [ "$seed_failed" -ne 0 ]; then
   echo "[db-seed] FAILED: geo column migration or code lists (see above)." >&2
   rc=1
 fi
+if [ "$rc" -eq 0 ]; then
+  python3 /seed/staff_access.py || rc=1
+fi
 exit $rc
