@@ -1132,6 +1132,11 @@ def _patch_ingest_service():
                 # the import file's columns.
                 headers = data["headers"]
                 row = data["body"]
+                # Who uploaded the file (the import worker passes the queue's
+                # queued_by): kept on the row so the ingest worker can show
+                # it as the intake's Created By, "<user> (Import)".
+                if isinstance(row, dict) and headers.get("queued_by"):
+                    row = dict(row, __imported_by=headers["queued_by"])
                 # A CSV / Excel row is flat, but the template reads animals from a
                 # `livestock` list. Animal columns on the row (ear_tag_id,
                 # species, breed, ...) become that row's one animal.
@@ -1142,6 +1147,16 @@ def _patch_ingest_service():
                     }
                     if animal.get("ear_tag_id") or animal.get("species"):
                         row = dict(row, livestock=[animal])
+                # Registration Date is required on an animal; the portal's
+                # dialog fills it with today, so an import row that leaves it
+                # empty gets today too (the template documents this).
+                if isinstance(row, dict) and isinstance(row.get("livestock"), list):
+                    today = date.today().isoformat()
+                    row = dict(row, livestock=[
+                        dict(a, registration_date=today)
+                        if isinstance(a, dict) and _is_blank_cell(a.get("registration_date")) else a
+                        for a in row["livestock"]
+                    ])
                 data = {
                     "body": {
                         "header": {

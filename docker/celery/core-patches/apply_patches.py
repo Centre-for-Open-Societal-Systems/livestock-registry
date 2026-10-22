@@ -361,10 +361,38 @@ def _odk_submitter(incoming_enriched_transformed_data):
     return None
 
 
+def _import_user(incoming_enriched_transformed_data):
+    \"\"\"The portal user who uploaded a File Import (__imported_by, set on the
+    row by the livestock ingest hooks from the import queue's queued_by).\"\"\"
+    data = incoming_enriched_transformed_data.enriched_data_json
+    if isinstance(data, str):
+        try:
+            import json
+
+            data = json.loads(data)
+        except ValueError:
+            return None
+    for _ in range(6):
+        if not isinstance(data, dict):
+            return None
+        name = data.get("__imported_by")
+        if name and str(name).strip():
+            return str(name).strip()
+        nxt = data.get("body") or data.get("message") or data.get("payload")
+        if nxt is None and isinstance(data.get("search_response"), list) and data["search_response"]:
+            nxt = ((data["search_response"][0] or {}).get("data") or {}).get("reg_records", [None])[0]
+        data = nxt
+    return None
+
+
 def _ingestion_created_by(incoming_classified_data):
-    \"\"\"Who the intake shows as its creator: the ODK user, else the platform default.\"\"\"
+    \"\"\"Who the intake shows as its creator: the ODK user, the portal user who
+    uploaded a File Import, else the platform default.\"\"\"
     submitter = getattr(incoming_classified_data, "_odk_submitter", None)
-    return f"{submitter} (ODK)" if submitter else _INGESTION_CREATED_BY
+    if submitter:
+        return f"{submitter} (ODK)"
+    importer = getattr(incoming_classified_data, "_import_user", None)
+    return f"{importer} (Import)" if importer else _INGESTION_CREATED_BY
 """,
     "ingest_data_worker.py: helpers for the ODK submitter as Created By",
 )
@@ -374,8 +402,9 @@ apply(
 """,
     """                raise ValueError(f"Incoming transformed data not found for ingest_id '{ingest_id}'")
             incoming_classified_data._odk_submitter = _odk_submitter(incoming_enriched_transformed_data)
+            incoming_classified_data._import_user = _import_user(incoming_enriched_transformed_data)
 """,
-    "ingest_data_worker.py: remember who sent the ODK submission",
+    "ingest_data_worker.py: remember who sent the ODK submission or uploaded the import",
 )
 apply(
     f"{WORKER_BASE}/tasks/ingest_data_worker.py",
@@ -398,6 +427,94 @@ apply(
             session=session,
 """,
     "ingest_data_worker.py: sections saved by the ODK user too",
+)
+
+# ─── File Import: one Livestock record per farmer, not one per row. The
+# livestock import template has one row per animal; the worker sent every
+# row to ingestion on its own, so a farmer with three animals became three
+# separate records. Rows that name the same farmer (Farmer ID, else Fayda
+# FAN ID) are now merged into one record whose `livestock` list holds every
+# animal (the shape ls_odk_transform.j2 reads); the farmer and location
+# columns come from the first row that fills them. Excel date cells, which
+# arrive as "YYYY-MM-DD 00:00:00", are cut back to the date. Files without
+# both farmer and animal columns are left exactly as parsed.
+apply(
+    f"{WORKER_BASE}/tasks/import_file_process_worker.py",
+    """            all_records = parse_file_to_records(
+                file_content, catalog_doc.source_filename
+            )
+""",
+    """            all_records = parse_file_to_records(
+                file_content, catalog_doc.source_filename
+            )
+            all_records = _group_livestock_rows(all_records)
+""",
+    "import_file_process_worker.py: group a farmer's animal rows into one record",
+)
+apply(
+    f"{WORKER_BASE}/tasks/import_file_process_worker.py",
+    """def parse_file_to_records(file_content: bytes, filename: str) -> list[dict[str, Any]]:
+""",
+    """_LIVESTOCK_ANIMAL_COLUMNS = (
+    "ear_tag_id", "secondary_identifier", "species", "breed", "colour", "weight",
+    "quantity", "gender", "date_of_birth", "age", "health_status",
+    "vaccination_status", "registration_date",
+)
+
+
+def _group_livestock_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    \"\"\"Merge the animal rows of one farmer into one record with a `livestock` list.\"\"\"
+    import re
+
+    if not records:
+        return records
+    columns = set(records[0].keys())
+    if not ({"farmer_id", "fayda_fan_id"} & columns) or not ({"ear_tag_id", "species"} & columns):
+        return records
+    date_only = re.compile(r"^(\\d{4}-\\d{2}-\\d{2})[ T]00:00:00$")
+
+    def blank(value):
+        return value is None or str(value).strip() == ""
+
+    grouped: list[dict[str, Any]] = []
+    by_farmer: dict[str, dict[str, Any]] = {}
+    for row in records:
+        row = {k: (date_only.sub(r"\\1", v.strip()) if isinstance(v, str) else v) for k, v in row.items()}
+        animal = {c: row[c] for c in _LIVESTOCK_ANIMAL_COLUMNS if c in row and not blank(row[c])}
+        holding = {k: v for k, v in row.items() if k not in _LIVESTOCK_ANIMAL_COLUMNS}
+        key = str(row.get("farmer_id") or row.get("fayda_fan_id") or "").strip().upper()
+        target = by_farmer.get(key) if key else None
+        if target is None:
+            target = dict(holding)
+            target["livestock"] = []
+            grouped.append(target)
+            if key:
+                by_farmer[key] = target
+        for k, v in holding.items():
+            if blank(target.get(k)) and not blank(v):
+                target[k] = v
+        if animal:
+            target["livestock"].append(animal)
+    _logger.info("File import: %s row(s) grouped into %s record(s)", len(records), len(grouped))
+    return grouped
+
+
+def parse_file_to_records(file_content: bytes, filename: str) -> list[dict[str, Any]]:
+""",
+    "import_file_process_worker.py: helper that groups livestock rows by farmer",
+)
+
+# ─── File Import: tell ingestion who uploaded the file, so the intake's
+# Created By shows "<user> (Import)" instead of "system" (see
+# _ingestion_created_by above; the livestock ingest hooks copy it onto the row).
+apply(
+    f"{WORKER_BASE}/tasks/import_file_process_worker.py",
+    """                        "signature": _config.import_file_signature,
+                    },""",
+    """                        "signature": _config.import_file_signature,
+                        "queued_by": queue_item.queued_by,
+                    },""",
+    "import_file_process_worker.py: pass the uploading user to ingestion",
 )
 
 print("ALL PATCHES APPLIED")

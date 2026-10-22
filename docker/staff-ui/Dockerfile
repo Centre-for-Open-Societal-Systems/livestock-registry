@@ -28,6 +28,9 @@ ARG DASHBOARD_URL=http://dashboard.localtest.me:3001
 ARG DASHBOARD_LABEL=Dashboard
 
 COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock_bg.jpg /app/public/images/common/livestock_bg.jpg
+# The livestock File Import template, downloadable from the portal at
+# /livestock-import-template.xlsx (built by docs/import/make_livestock_import_template.py).
+COPY --chown=nextjs:nodejs docker/staff-ui/assets/livestock_import_template.xlsx /app/public/livestock-import-template.xlsx
 
 # Repoint the dashboard background at the photo and make it cover the viewport.
 #
