@@ -40,3 +40,6 @@ COPY docker/db-seed/reporting-geo-sync.sh   /seed/reporting-geo-sync.sh
 RUN chmod +x /seed/reporting-geo-sync.sh
 
 ENTRYPOINT ["/seed/livestock-entrypoint.sh"]
+
+# Optional Secret-backed staff provisioning after normal seed stages.
+COPY docker/db-seed/staff_access.py /seed/staff_access.py
