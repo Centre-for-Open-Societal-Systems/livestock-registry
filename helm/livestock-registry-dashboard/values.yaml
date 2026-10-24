@@ -67,6 +67,15 @@ dashboardApi:
     # with (discovered), which the dashboard-api trusts through the same IAM.
     tokenUrl: ""
 
+# Master Data, whose public catalogue holds the OAN geography: the map
+# boundaries and the locations in the filters. Its Service in this namespace
+# (the commons-services release), or a full base URL when it runs elsewhere.
+# The catalogue must be enabled and the geography marked public there.
+masterData:
+  url: http://commons-services-master-data-api
+  # Seconds boundaries and units are served before they are fetched again (min 60).
+  cacheSeconds: 3600
+
 # Seconds chart rows are served before a background refresh (min 60).
 cacheTtlSeconds: 900
 
