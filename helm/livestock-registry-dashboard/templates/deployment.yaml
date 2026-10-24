@@ -52,6 +52,10 @@ spec:
                   name: {{ include "dashboard.clientSecretName" . }}
                   key: {{ .Values.iamSetup.clientSecret.key }}
             {{- end }}
+            - name: MASTER_DATA_URL
+              value: {{ required "masterData.url is required" .Values.masterData.url | quote }}
+            - name: MASTER_DATA_CACHE_SECONDS
+              value: {{ .Values.masterData.cacheSeconds | quote }}
             - name: DASHBOARD_CACHE_TTL_SECONDS
               value: {{ .Values.cacheTtlSeconds | quote }}
             - name: SESSION_CACHE_SECONDS
