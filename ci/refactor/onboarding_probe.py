@@ -23,11 +23,16 @@ else:
     celery_app = importlib.import_module(app_module + ".main").celery_app
     before = dict(celery_app.conf.beat_schedule or {})
     # Exactly the CELERY_IMPORTS path used by unmodified run_celery.py.
-    extra = "openg2p_registry_extensions.farmer_reference.worker"
-    celery_app.conf.update(include=list(celery_app.conf.include or []) + [extra])
+    extra = ["openg2p_registry_extensions.farmer_reference.worker", "openg2p_registry_extensions.tasks"]
+    celery_app.conf.update(include=list(celery_app.conf.include or []) + extra)
     celery_app.loader.import_default_modules()
     assert set(before) <= set(celery_app.conf.beat_schedule)
     assert "coss.farmer_reference.deliver_workflows" in celery_app.tasks
+    tasks = importlib.import_module("openg2p_registry_extensions.tasks")
+    for name, frequency in tasks.DOMAIN_SCHEDULE.items():
+        assert name in celery_app.tasks
+        assert celery_app.conf.beat_schedule[name] == {"task":name, "schedule":frequency}
+    assert all(celery_app.conf.beat_schedule[key] == value for key, value in before.items())
 
 runtime = importlib.import_module("openg2p_registry_extensions.farmer_reference.runtime")
 from openg2p_fastapi_common.context import component_registry

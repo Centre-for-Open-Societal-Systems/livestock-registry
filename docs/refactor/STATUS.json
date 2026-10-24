@@ -17,7 +17,7 @@
     {
       "id": "B04",
       "capability": "Domain scheduled tasks",
-      "evidence": "Native CELERY_IMPORTS now registers an extension task and beat entry without changing native schedules. Port/accept required Livestock reminders, alerts and retention jobs; the hook alone is not parity."
+      "evidence": "Five retained Livestock tasks now load through native CELERY_IMPORTS with standard shared tasks, original cadences and additive schedules. Worker/beat registration is verified; real retention/alert/reminder data and notification acceptance remain NOT RUN."
     },
     {
       "id": "B05",
@@ -109,5 +109,12 @@
     "domain_approval_order": "Approved domain ingestion held without worker attempts until Farmer dependency approval; same native entry released, business approval preserved"
   },
   "implementation_phase": "Extension reference integration candidate; full domain/live preservation acceptance incomplete",
-  "verification_followup": "ONBOARDING_VERIFICATION.json"
+  "verification_followup": "ONBOARDING_VERIFICATION.json",
+  "domain_schedules": {
+    "loader": "openg2p_registry_extensions.tasks",
+    "registered_tasks": 5,
+    "outbreak_seconds": 900,
+    "daily_seconds": 86400,
+    "environment_execution": "NOT RUN"
+  }
 }

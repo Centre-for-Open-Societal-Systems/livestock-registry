@@ -107,6 +107,16 @@ geographic assignments are never automatically deleted or rewritten.
 
 ## Deployment inputs and source gap
 
+Livestock also loads `openg2p_registry_extensions.tasks` through the same native
+comma-separated `CELERY_IMPORTS` setting. Its five retained domain sweeps use
+standard shared tasks and additive schedules: outbreak alerts every 900 seconds;
+audit retention, vaccination/status, pending-approval and calving reminders every
+86400 seconds. Task names and service logic are preserved. They obtain the native
+worker engine when executed, with no import-time connection or beat-app
+replacement. The loader probes verify every task and schedule and compare all
+pre-existing native entries. The sweeps have not run against environment data;
+retention/notification behavior still needs its acceptance evidence.
+
 All names below have the `COSS_FARMER_` environment prefix:
 
 | Input | Meaning |

@@ -1,4 +1,4 @@
-# Livestock Registry — Celery image (workers + beat).
+# Livestock Registry â€” Celery image (workers + beat).
 #
 # Thin extension of the registry-platform celery base image (see
 # docker/staff-api/Dockerfile for the full rationale). Adds only the
@@ -18,4 +18,4 @@ COPY livestock-extension/ /app/livestock-extension/
 RUN pip install --no-cache-dir /app/livestock-extension
 
 # Native dynamic import hook; platform worker and launcher remain unchanged.
-ENV CELERY_IMPORTS=openg2p_registry_extensions.farmer_reference.worker
+ENV CELERY_IMPORTS=openg2p_registry_extensions.farmer_reference.worker,openg2p_registry_extensions.tasks

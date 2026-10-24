@@ -1,13 +1,13 @@
 {
   "registry": "livestock",
-  "verified_at": "2026-10-24T17:53:03.623146+00:00",
+  "verified_at": "2026-10-24T17:59:48.106303+00:00",
   "source_sha256": {
     "ci/refactor/check_port.py": "4228be2498c14598bb69eafde402f0eba455390ff5f043551efd5fdf67f33b0d",
-    "ci/refactor/onboarding_probe.py": "6a01f3629f28b4d4d52a30e2a45cc746ade34590066a82b2709c98dc28c21202",
+    "ci/refactor/onboarding_probe.py": "4e453fcbe11b24542c2db75582f1d86d9f90d53ea8935148b2608ce683f29238",
     "ci/refactor/platform_contract_probe.py": "4b1975e065c4810b2a63623c3847b811e4a3ac656a0833582b7577ceed852760",
     "ci/refactor/runtime_probe.py": "a7884f1cb2d25b942752304278f9e357e351845904ba18a2bb2d7e1a82c9b342",
     "ci/refactor/verify_onboarding.py": "fa561e44911cce25a18f3f66e9db965e7a43d7124bde6872acd670d52e8e4332",
-    "docker/celery/Dockerfile": "3966ff74c4d889c3a3bd47994d8d4ce891f01a062092189f8d2d294f241c2cc0",
+    "docker/celery/Dockerfile": "719615e002378d008cb59279cbd8b2b33e687f602d9b45734c41c3dd9a60ec6c",
     "docker/db-seed/Dockerfile": "ecb511e27de5e46dc6ab106e36f14bdb6090ad2db4523249b87953e4249991b7",
     "docker/partner-api/Dockerfile": "d3fcff434748e770bad6ac4e8999b538be3d46ec394b557f31cd0801a186ab1d",
     "docker/sanity-tests/Dockerfile": "24b79733da0d1a0eb804d64ff3966585e10b888ae4f6b69f07dbe3757c9c5599",
@@ -149,12 +149,12 @@
     "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/reminder_alert_utils.py": "2eb07e1d395a3d6a66c97829d55b0e82c42251bfa2e480d3880a0080fb3c3e1e",
     "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/vaccination_reminder_service.py": "267fa81689631884370f25085204f4e38feda1fea4e402490cd0f90c6a460c68",
     "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/vaccination_status_service.py": "8fe3ef3914d37b23908b55cf83d74dc0502ce59600f2ff814febc5407333c742",
-    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/__init__.py": "da2443187b31b71d07292c58f5f75b43c6facac8adabfc5f70c8495fd5334611",
-    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/approval_pending_reminder_beat_producer.py": "e298a9ffe2676c3bb3de53f3c5f8215179fb9d2b22f9cb404630b776f7223548",
-    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/audit_log_retention_beat_producer.py": "5844a49aa182ed750824874a29b415ebb7a13c9af0843d184e523a1de9a26a56",
-    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/calving_reminder_beat_producer.py": "e31dd023ca470dcc311f947efb1700a1daf1bf3ea63d70e65454e21f48bdc664",
-    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/outbreak_alert_beat_producer.py": "d917cc1ba32b930e184a70dda477614367a04b6832b64ab805747b18b68f115d",
-    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/vaccination_reminder_beat_producer.py": "a37586fa29a2ea4b185b29862a69e1bd67ec1f09d6170a918636e35086e9c625",
+    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/__init__.py": "9415c28215d6c6e03e27071c1e492c603cecc33cacfb36930e1092e6a0481307",
+    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/approval_pending_reminder_beat_producer.py": "015276625d7ef0e03582695d5e155e30c7d4036e95b9236069f0ccb9901e6f9e",
+    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/audit_log_retention_beat_producer.py": "6c9cb953f7b80f9a7cd72071a992d4c5661174ae37cb1899a1a510e1f8cb38f9",
+    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/calving_reminder_beat_producer.py": "35c1895eec643473e19bc7a6a48a172b4091ebbfd3e8370ecf48090bbb25bf80",
+    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/outbreak_alert_beat_producer.py": "655a8c843194c0b3243abc0dec67757917e9428e3edbc53259e9eb0229d628e8",
+    "livestock-extension/src/openg2p_registry_livestock_extension/tasks/vaccination_reminder_beat_producer.py": "9d88b21609028960ddf5dd3769209c4167de1ed1e1e37f0b6399517d2941e921",
     "livestock-extension/src/openg2p_registry_livestock_extension/templates/dci_commons_response.json.j2": "59ecfeda066f9266c39d2cc413e72a4b93d8edfacb5746ceefb70c0729eb7bd7",
     "livestock-extension/src/openg2p_registry_livestock_extension/templates/dci_to_openg2p_livestock.json.j2": "b490a1f384910a15c589aff47c93da2a4a34329e59819b2614c85adcb3f34385",
     "livestock-extension/src/openg2p_registry_livestock_extension/templates/ls_odk_transform.j2": "3e87fd272c5280b63c84e9aba52460e005c02f9a8bff309e4ce039027b74a71e",
@@ -288,7 +288,7 @@
       "exit_code": 0,
       "expected_exit_code": 0,
       "result": "PASS",
-      "image_id": "sha256:14211931fd5be14abf30b2646fa984272775566c13eafd182e2d46bce3ce9ce0"
+      "image_id": "sha256:e448be535adf15d1e1d5b25b000a3f99ed75fb2fc1eab85cb86bb6def8fa0003"
     },
     {
       "check": "installed-staff-registration",
@@ -307,7 +307,7 @@
       "exit_code": 0,
       "expected_exit_code": 0,
       "result": "PASS",
-      "image_id": "sha256:40b39526cee2c8f4dc79637fe28e99a70b31464a5f80153314ed9ec10edb4c55"
+      "image_id": "sha256:9f32f229b7708ee01eb0f46e532e26f1cba2ec00ce941be6f815cc0949da217e"
     },
     {
       "check": "installed-partner-registration",
@@ -326,7 +326,7 @@
       "exit_code": 0,
       "expected_exit_code": 0,
       "result": "PASS",
-      "image_id": "sha256:202b4adc6b3d20581011fbe0c94084dba3c1104ee725d666e4cba938e62b22ed"
+      "image_id": "sha256:0ce0ff158b7bfcd664e029819b6a858b8c495da420137fe8c068863dc59ece3d"
     },
     {
       "check": "installed-worker-registration",
@@ -345,7 +345,7 @@
       "exit_code": 0,
       "expected_exit_code": 0,
       "result": "PASS",
-      "image_id": "sha256:6c7f66e34f8221f686781434de785ca72ce2466193240ba33e2944f09a2f7d80"
+      "image_id": "sha256:d6645d766b6a07a0814c79b6bf563bcb107ac46431acad208fc9cde416e2000d"
     },
     {
       "check": "preservation-seed-gate",
