@@ -149,5 +149,34 @@ class GeographicPolicyTests(unittest.TestCase):
         self.assertEqual(result["farmer_reference_approver_ids"], ["new-reviewer"])
 
 
+class PublishedPolicyTests(unittest.TestCase):
+    def condition(self, ids):
+        return {"type":"CONDITION", "field_id":"woreda_id", "operator":"IN", "values":ids}
+
+    def test_standard_woreda_eq_and_in_have_finite_scopes(self):
+        self.assertEqual(g.finite_woredas({"type":"CONDITION", "field_id":"woreda_id", "operator":"eq", "value":"A"}), {"A"})
+        self.assertEqual(g.finite_woredas(self.condition(["A", "B"])), {"A", "B"})
+
+    def test_nested_standard_and_or_preserve_scope_intersection(self):
+        children = [self.condition(["A", "B"]), self.condition(["B", "C"])]
+        self.assertEqual(g.finite_woredas({"type":"GROUP", "operator":"AND", "children":children}), {"B"})
+        self.assertEqual(g.finite_woredas({"type":"GROUP", "operator":"OR", "children":children}), {"A", "B", "C"})
+
+    def test_disallow_policy_wins_and_missing_assignment_grants_nothing(self):
+        from types import SimpleNamespace
+        allow = SimpleNamespace(policy_type="ALLOW", policy_filter_expression=self.condition(["A", "B"]))
+        deny = SimpleNamespace(policy_type="DISALLOW", policy_filter_expression=self.condition(["B"]))
+        self.assertEqual(g.policy_woredas([allow, deny]), frozenset({"A"}))
+        self.assertEqual(g.policy_woredas([]), frozenset())
+
+    def test_broad_unknown_and_non_geographic_policies_never_become_unscoped_approvers(self):
+        for expression in ({}, {"type":"GROUP", "operator":"AND", "children":[]},
+                           {"type":"GROUP", "operator":"NOT", "children":[self.condition(["A"])]},
+                           {"type":"CONDITION", "field_id":"role", "operator":"eq", "value":"admin"},
+                           {"type":"CONDITION", "field_id":"woreda_id", "operator":"contains", "value":""}):
+            with self.subTest(expression=expression), self.assertRaisesRegex(p.FarmerReferenceError, "UNSUPPORTED_GEOGRAPHIC_POLICY"):
+                g.finite_woredas(expression)
+
+
 if __name__ == "__main__":
     unittest.main()

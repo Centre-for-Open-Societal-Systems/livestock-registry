@@ -1,0 +1,28 @@
+{
+  "policy_key": "coss.livestock.farmer-reference.v1",
+  "name": "Livestock Farmer reference approval",
+  "description": "Independent Farmer ADD and UPDATE approval at the approved Woreda scope",
+  "artifact_type": "registry.change_request",
+  "forbid_self_approval": true,
+  "stages": [
+    {
+      "name": "Woreda Farmer reference review",
+      "stage_order": 1,
+      "mode": "any-n",
+      "mode_value": 1,
+      "on_empty": "block",
+      "rules": [
+        {
+          "rule_type": "expression",
+          "rule_value": {
+            "logic": {
+              "var": "farmer_reference_approver_ids"
+            }
+          },
+          "kind": "approver",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

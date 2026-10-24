@@ -1,43 +1,43 @@
 {
   "promotion_ready": false,
-  "domain_port_only": true,
+  "domain_port_only": false,
   "base": "ed1e70ccf18df5476fa404ed8018e12d55e418fa",
   "source": "35d21bbe07853324d9493279630fe35600d98c0f",
   "blockers": [
     {
-      "id": "B01",
-      "capability": "Worker extension initialization",
-      "evidence": "Native worker main.py initializes its own app.Initializer; it aliases extension models/config but never invokes the domain initializer. No documented extension service override registration in workers."
-    },
-    {
       "id": "B02",
       "capability": "Kafka-created approval tasks",
-      "evidence": "change_request_ingest_worker -> G2PChangeRequestWorkerService.create_change_request persists CR/payload without start_change_request_workflow or an AWE bearer. No supported domain hook around that transaction."
+      "evidence": "Native receiving-service override, current signed source lookup, committed AWE outbox, service identity and server-generated Woreda context are implemented. Actual Kafka-created tasks/independent decisions/recovery remain NOT RUN."
     },
     {
       "id": "B03",
       "capability": "Session-aware domain validations",
-      "evidence": "Native intake save calls validate_domain_attributes(records) without session/section context; legacy session-dependent cross-section validations need a documented hook or approved subclass entry point in every API/worker."
+      "evidence": "Reference finalization/ingestion and pre/post-approval hooks are registered across APIs/workers. Full legacy domain session/section and cross-section validation parity remains incomplete."
     },
     {
       "id": "B04",
       "capability": "Domain scheduled tasks",
-      "evidence": "Native beat app has a fixed schedule and include list. Legacy Livestock patched it; documented extension registration must replace this before reminders/retention can pass."
+      "evidence": "Native CELERY_IMPORTS now registers an extension task and beat entry without changing native schedules. Port/accept required Livestock reminders, alerts and retention jobs; the hook alone is not parity."
     },
     {
       "id": "B05",
       "capability": "Linked ADD dependency lifecycle",
-      "evidence": "Native post-approve/post-ingest hooks now require stable approved local Farmer links and project identity mirrors in the caller transaction. Durable onboarding/correlation, trusted current-source lookup, persisted source ordering, Kafka task routing and PostgreSQL concurrency acceptance remain incomplete."
+      "evidence": "Signed fail-closed lookup, PostgreSQL concurrent ADD reuse/provenance, native ADD/UPDATE/history application, held-domain release and projection are implemented. Real portal access for pending ADD, both approval orders/recovery across the actual pipeline, and preservation migration remain unaccepted."
     },
     {
       "id": "B06",
       "capability": "Metadata, widgets and geographic routing",
-      "evidence": "Identity/contact/location allowlist and pure geographic eligibility intersection are implemented/tested. Production IAM/data-policy resolution, AWE expression binding, separate Farmer-reference policy seeds and complete widget/metadata reconciliation remain incomplete."
+      "evidence": "Separate one-stage Farmer-reference AWE policy artifacts/bindings, read-only standard role/DP-policy resolution and native expression context are implemented. Supported policy subset is finite Farmer REGISTER_RECORD Woreda EQ/IN AND/OR with DISALLOW subtraction. Existing/GEO-policy migration, all widgets/forms and live access denial remain incomplete."
     },
     {
       "id": "B07",
       "capability": "Preservation and live acceptance",
-      "evidence": "Fresh install, restored-copy upgrades, native imports/ODK, signed DCI, consent, authenticated dashboard, current-source Kafka and independent target decisions NOT RUN."
+      "evidence": "Real signed Farmer/Consent Manager lookup, Kafka/AWE tasks, native import/ODK/attachments, all domain rules/jobs, authenticated dashboards, fresh application installation and restored-copy upgrades remain NOT RUN."
+    },
+    {
+      "id": "B09",
+      "capability": "Source identity/lookup contract",
+      "evidence": "User confirmed 16-digit UID/FAN. Inspected OAN Farmer 4901f11dba9e4debf710e182b769120f5906892a uses 12-digit FIN and its DCI personal template lacks the complete required identity/provenance/geography contract. Source inspection is not deployed-response proof. Do not substitute FIN or notification values; source-owner contract is required and Farmer changes are out of scope."
     }
   ],
   "acceptance": {
@@ -65,7 +65,12 @@
     "All eleven history schemas now inherit domain fields",
     "Animal colour is retained by live/history/intake schemas",
     "Explicit identity/contact/location allowlist and full model/schema field coverage",
-    "Stable farmer_uuid projection; no pair/sibling ownership inference; approved dependency required in native ingest hook"
+    "Stable farmer_uuid projection; no pair/sibling ownership inference; approved dependency required in native ingest hook",
+    "Signed consent-aware lookup with source-pinned response signature, correlation, freshness and strict identity checks",
+    "Durable source/version/request/submission/outbox tables; no trusted shell Farmer before approval",
+    "Native dynamic worker/beat loading through CELERY_IMPORTS; no worker/main replacement",
+    "Native reference CR construction, registered native approval/history application and source ordering guard",
+    "Held domain ingestion and same-entry release after Farmer approval; no business approval replay"
   ],
   "documentation_contract": "Confluence 203653123 v5 verified through connected Atlassian reader. Explicit implementation plan narrows profile to identity/contact/location and replaces legacy geographic attributes with IAM/data policies.",
   "resolved_blockers": [
@@ -74,22 +79,35 @@
       "capability": "Live governing architecture",
       "result": "RESOLVED",
       "evidence": "Connected Atlassian reader returned page 203653123 snapshot v:5, updated 2026-10-23T09:43:47.742Z; user-provided API key was not read."
+    },
+    {
+      "id": "B01",
+      "capability": "Worker extension initialization",
+      "result": "RESOLVED",
+      "evidence": "Published native launcher supports CELERY_IMPORTS; API/worker/beat probes verify registered subclasses, idempotent loading, and preserved native schedules. No OpenG2P edits."
     }
   ],
   "profile_contract": {
     "allowlist": "farmer_reference/profile.py:SOURCE_TO_LOCAL_FIELDS",
     "geography": "farmer_reference/geography.py",
-    "pure_rule_tests": 21,
-    "source_lookup_verification": "NOT IMPLEMENTED",
-    "durable_version_ledger": "NOT IMPLEMENTED",
-    "awe_task_creation": "NOT IMPLEMENTED",
-    "production_iam_policy_adapter": "NOT IMPLEMENTED",
+    "pure_rule_tests": 25,
+    "source_lookup_verification": "IMPLEMENTED; real signed HTTP to local simulation passed. Authoritative Farmer/Consent Manager acceptance remains blocked by B09.",
+    "durable_version_ledger": "IMPLEMENTED; PostgreSQL concurrency/rollback/restart tests; extension-owned tables included in native migration list",
+    "awe_task_creation": "IMPLEMENTED through committed outbox and native AWE integration; actual task creation/Kafka E2E NOT RUN",
+    "production_iam_policy_adapter": "IMPLEMENTED read-only standard functional/DP role intersection for finite Farmer REGISTER_RECORD Woreda policies; live/other-policy acceptance NOT RUN",
     "existing_database_profile_migration": "Additive SQL review artifact prepared; NOT executed or wired into deployment",
     "automatic_installation": "BLOCKED",
     "stable_reference_projection": "IMPLEMENTED through native post_approve/post_ingest; isolated transaction tests; real Kafka/AWE acceptance NOT RUN",
     "transaction_projection_tests": 8,
     "concrete_orm_checks": "API and worker context, source and installed package probes",
     "record_display_naming": "Preserved: Crop uses Farmer ID; Livestock uses approved Farmer name",
-    "policy_context_delivery": "Pure rules only; production IAM policy resolution and AWE delivery NOT IMPLEMENTED"
-  }
+    "policy_context_delivery": "Server-generated old/new Woreda context and exact independent Farmer policy required; actual native IAM/AWE HTTP clients tested against Postman, including lost-response retry and bounded IAM failure. Real engine/realm acceptance remains NOT RUN",
+    "durable_onboarding_tests": 14,
+    "native_service_tests": 12,
+    "signed_http_tests": 7,
+    "identity_contract": "16-digit UID/FAN confirmed by user; 12-digit FIN remains distinct and rejected",
+    "domain_approval_order": "Approved domain ingestion held without worker attempts until Farmer dependency approval; same native entry released, business approval preserved"
+  },
+  "implementation_phase": "Extension reference integration candidate; full domain/live preservation acceptance incomplete",
+  "verification_followup": "ONBOARDING_VERIFICATION.json"
 }

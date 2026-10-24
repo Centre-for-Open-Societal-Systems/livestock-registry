@@ -22,20 +22,13 @@ staff API, partner API, Celery, seed, staff UI and sanity tests. Building the
 sanity image does not run its E2E suite. Custom widgets/forms still require
 semantic metadata reconciliation and visual acceptance.
 
-The following are still required: signed consent-aware identity-pair lookup,
-durable/concurrent local ADD reuse, linked requests and activation dependencies;
-versioned current-source Kafka UPDATE CRs with real AWE tasks and independent
-target approvals; approved-reference projection; Woreda-scoped IAM/data-policy
-intersection; native import/ODK parity; scheduled-task registration; restored-copy
-upgrade and live authenticated acceptance. No manual-approval workaround or
-platform patch is accepted as delivery.
-
-The installed native worker does not run the extension initializer or start an
-AWE workflow in its CR creation service. The documented contract does not supply
-the legacy post-save or scheduler hooks. Evidence is recorded separately;
-resolving these contracts with the platform owner is required before completing
-the lifecycle. Upstream platform and authoritative Farmer changes are outside
-this branch's scope.
+The reference integration follow-up is described in ONBOARDING.md and
+ONBOARDING_VERIFICATION.json. Native CELERY_IMPORTS resolves the previously
+reported worker-registration gap. Signed lookup, durable correlation, registered
+native reference application and dependency release are implemented. Real
+Farmer/Consent Manager, Kafka/AWE/portal behavior, remaining domain/metadata/job
+parity and preservation acceptance still block promotion. The user confirmed
+16-digit UID/FAN; the inspected OAN source's 12-digit FIN is not a substitute.
 
 Retain existing Jenkins jobs/agents/credential references/ECR paths and deploy
 helpers. Jenkins validates this source port; its deployment stages remain bound

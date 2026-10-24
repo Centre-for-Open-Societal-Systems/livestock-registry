@@ -50,3 +50,35 @@ def approver_context(action: str, candidates: tuple[ApproverEligibility, ...], *
     if not user_ids:
         raise FarmerReferenceError("FARMER_REFERENCE_NO_ELIGIBLE_APPROVER")
     return {"farmer_reference_woreda_id": woreda_id, "farmer_reference_approver_ids": user_ids}
+
+
+def finite_woredas(expression, depth=0):
+    """Resolve the supported finite subset of standard policy filter trees."""
+    if depth > 10 or not isinstance(expression, dict):
+        raise FarmerReferenceError("FARMER_REFERENCE_UNSUPPORTED_GEOGRAPHIC_POLICY")
+    if expression.get("type") == "CONDITION" and expression.get("field_id") == "woreda_id":
+        operator = expression.get("operator", "").lower()
+        values = [expression.get("value")] if operator == "eq" else expression.get("values") if operator == "in" else None
+        if not isinstance(values, list) or not values or any(not isinstance(value, str) or not value.strip() for value in values):
+            raise FarmerReferenceError("FARMER_REFERENCE_UNSUPPORTED_GEOGRAPHIC_POLICY")
+        return set(values)
+    if expression.get("type") == "GROUP" and expression.get("operator") in {"AND", "OR"}:
+        children = expression.get("children")
+        if not isinstance(children, list) or not children or len(children) > 100:
+            raise FarmerReferenceError("FARMER_REFERENCE_UNSUPPORTED_GEOGRAPHIC_POLICY")
+        sets = [finite_woredas(child, depth + 1) for child in children]
+        return set.intersection(*sets) if expression["operator"] == "AND" else set.union(*sets)
+    raise FarmerReferenceError("FARMER_REFERENCE_UNSUPPORTED_GEOGRAPHIC_POLICY")
+
+
+def policy_woredas(policies):
+    allow, deny = set(), set()
+    for policy in policies:
+        scopes = finite_woredas(policy.policy_filter_expression)
+        if policy.policy_type == "ALLOW":
+            allow.update(scopes)
+        elif policy.policy_type == "DISALLOW":
+            deny.update(scopes)
+        else:
+            raise FarmerReferenceError("FARMER_REFERENCE_UNSUPPORTED_GEOGRAPHIC_POLICY")
+    return frozenset(allow - deny)

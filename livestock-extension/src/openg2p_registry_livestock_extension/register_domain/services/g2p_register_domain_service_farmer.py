@@ -169,21 +169,14 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
 
         return " ".join(record_name).strip()
 
-    async def post_intake_upsert(self, rows: list, session) -> None:
-        """Legacy draft-mirroring helper; not registered by the pinned base.
 
-        It cannot verify source identity, create a trusted Farmer or satisfy
-        the activation dependency. Native approved-reference hooks below own
-        the approved domain identity projection.
-        """
-        for row in rows:
-            await sync_admin_area(row)
-            await ensure_livestock_intake_row(session, row)
-            await sync_farmer_identity_to_livestock(
-                session, getattr(row, "application_reference", None), farmer=row
-            )
+    async def pre_approve(self, change_request, session):
+        from ...farmer_reference.native import guard_farmer_approval
+        await guard_farmer_approval(change_request, session)
 
     async def post_approve(self, change_request, session) -> None:
+        from ...farmer_reference.native import record_native_decision
+        await record_native_decision(session, change_request.change_request_id, True)
         """A Location edit on an approved Farmer writes the dropdowns' geo ids;
         refresh the names from them (see admin_area_sync)."""
         if change_request.section_register_id != FARMER_REGISTER_ID:
@@ -199,11 +192,10 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
             )
         ).scalar_one_or_none()
         if farmer is not None:
-            await sync_admin_area(farmer)
             await self._refresh_linked_domains(session, farmer.internal_record_id)
 
-    async def post_ingest(self, register_id, register_row, session) -> None:
-        await self._refresh_linked_domains(session, register_row.internal_record_id)
+    async def post_ingest(self, register_id, register_row, session):
+        raise FarmerReferenceError("FARMER_REFERENCE_CHANGE_REQUEST_REQUIRED")
 
     async def _refresh_linked_domains(self, session, reference_id) -> None:
         from ...farmer_reference.projection import refresh_linked_domains

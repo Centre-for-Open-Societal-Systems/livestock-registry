@@ -1,0 +1,10 @@
+version: 1
+name: Farmer reference signed DCI boundary
+slug: farmer-reference
+protocol: http
+port: 49183
+interceptRequests: true
+scenarios:
+  - name: default
+    path: ./default.js
+    default: true

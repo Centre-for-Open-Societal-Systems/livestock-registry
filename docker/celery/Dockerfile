@@ -16,3 +16,6 @@ ENV REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension
 
 COPY livestock-extension/ /app/livestock-extension/
 RUN pip install --no-cache-dir /app/livestock-extension
+
+# Native dynamic import hook; platform worker and launcher remain unchanged.
+ENV CELERY_IMPORTS=openg2p_registry_extensions.farmer_reference.worker
