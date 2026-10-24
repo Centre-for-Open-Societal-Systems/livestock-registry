@@ -27,22 +27,17 @@
     {
       "id": "B05",
       "capability": "Linked ADD dependency lifecycle",
-      "evidence": "Durable concurrent ADD reuse, atomic request correlation, native activation gate and current approved projection are not implemented by this source port. Native ingester inserts Farmer sibling sections; old patched path cannot be retained."
+      "evidence": "Native post-approve/post-ingest hooks now require stable approved local Farmer links and project identity mirrors in the caller transaction. Durable onboarding/correlation, trusted current-source lookup, persisted source ordering, Kafka task routing and PostgreSQL concurrency acceptance remain incomplete."
     },
     {
       "id": "B06",
       "capability": "Metadata, widgets and geographic routing",
-      "evidence": "Legacy final-row metadata and UI behavior need reconciliation with current section schemas/registered source widgets. Keycloak HTTP rules retired; IAM/DP_ scope resolution and native context expressions require accepted contract evidence."
+      "evidence": "Identity/contact/location allowlist and pure geographic eligibility intersection are implemented/tested. Production IAM/data-policy resolution, AWE expression binding, separate Farmer-reference policy seeds and complete widget/metadata reconciliation remain incomplete."
     },
     {
       "id": "B07",
       "capability": "Preservation and live acceptance",
       "evidence": "Fresh install, restored-copy upgrades, native imports/ODK, signed DCI, consent, authenticated dashboard, current-source Kafka and independent target decisions NOT RUN."
-    },
-    {
-      "id": "B08",
-      "capability": "Live governing architecture",
-      "evidence": "Confluence v5 could not be read through available web/browser tools; supplied user plan governs; local versions 1/3/4 are not v5 evidence."
     }
   ],
   "acceptance": {
@@ -68,7 +63,33 @@
     "No custom geographic resolver or custom bulk import endpoint",
     "Synchronized base image/chart pins; UI source pinned to base image OCI revision",
     "All eleven history schemas now inherit domain fields",
-    "Animal colour is retained by live/history/intake schemas"
+    "Animal colour is retained by live/history/intake schemas",
+    "Explicit identity/contact/location allowlist and full model/schema field coverage",
+    "Stable farmer_uuid projection; no pair/sibling ownership inference; approved dependency required in native ingest hook"
   ],
-  "documentation_contract": "Official OpenG2P GitHub latest snapshots read; Confluence v5 remains unverified"
+  "documentation_contract": "Confluence 203653123 v5 verified through connected Atlassian reader. Explicit implementation plan narrows profile to identity/contact/location and replaces legacy geographic attributes with IAM/data policies.",
+  "resolved_blockers": [
+    {
+      "id": "B08",
+      "capability": "Live governing architecture",
+      "result": "RESOLVED",
+      "evidence": "Connected Atlassian reader returned page 203653123 snapshot v:5, updated 2026-10-23T09:43:47.742Z; user-provided API key was not read."
+    }
+  ],
+  "profile_contract": {
+    "allowlist": "farmer_reference/profile.py:SOURCE_TO_LOCAL_FIELDS",
+    "geography": "farmer_reference/geography.py",
+    "pure_rule_tests": 21,
+    "source_lookup_verification": "NOT IMPLEMENTED",
+    "durable_version_ledger": "NOT IMPLEMENTED",
+    "awe_task_creation": "NOT IMPLEMENTED",
+    "production_iam_policy_adapter": "NOT IMPLEMENTED",
+    "existing_database_profile_migration": "Additive SQL review artifact prepared; NOT executed or wired into deployment",
+    "automatic_installation": "BLOCKED",
+    "stable_reference_projection": "IMPLEMENTED through native post_approve/post_ingest; isolated transaction tests; real Kafka/AWE acceptance NOT RUN",
+    "transaction_projection_tests": 8,
+    "concrete_orm_checks": "API and worker context, source and installed package probes",
+    "record_display_naming": "Preserved: Crop uses Farmer ID; Livestock uses approved Farmer name",
+    "policy_context_delivery": "Pure rules only; production IAM policy resolution and AWE delivery NOT IMPLEMENTED"
+  }
 }

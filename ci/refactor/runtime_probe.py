@@ -51,6 +51,18 @@ owned_models = {name for name, cls in vars(models).items() if inspect.isclass(cl
 assert owned_models == set(extension_app.MODEL_NAMES), f"Migration coverage mismatch: {owned_models.symmetric_difference(extension_app.MODEL_NAMES)}"
 checks = []
 from openg2p_registry_core.errors import G2PRegistryException
+profile_rules = importlib.import_module("openg2p_registry_extensions.farmer_reference.profile")
+for name in ("G2PRegisterFarmer", "G2PRegisterHistoryFarmer", "G2PIntakeFormFarmer"):
+    assert profile_rules.PROFILE_FIELDS <= set(getattr(models, name).__table__.columns.keys()), f"Missing profile model field: {name}"
+for name in ("G2PRegisterSchemaFarmer", "G2PRegisterHistorySchemaFarmer", "G2PIntakeFormSchemaFarmer"):
+    cls = getattr(schemas, name)
+    assert profile_rules.PROFILE_FIELDS <= set(cls.model_fields), f"Missing profile schema field: {name}"
+    profile = profile_rules.local_profile({"farmer_id": "FR-000000000001", "approved_uid": "0000000000000001",
+                                          "birth_date": "2000-01-01", "address_line_1": "Test address",
+                                          "first_name_amh": "Test local name", "email": None})
+    parsed = cls(**profile)
+    assert parsed.date_of_birth == date(2000, 1, 1) and parsed.address_line_1 == "Test address"
+checks.append("identity/contact/location fields survive every schema trio")
 
 
 def rejects(name, callback):
@@ -60,6 +72,36 @@ def rejects(name, callback):
         checks.append(name)
     else:
         raise AssertionError(f"Expected domain rejection: {name}")
+
+
+farmer_service = services.G2PRegisterDomainServiceFarmer()
+draft = {"farmer_id": "", "fayda_fan_id": None}
+asyncio.run(farmer_service.validate_domain_attributes([draft]))
+assert draft["farmer_id"] == "" and draft["fayda_fan_id"] is None
+checks.append("native Farmer service accepts partial drafts")
+normalized = {"farmer_id": " FR-000000000001 ", "fayda_fan_id": "0000 0000 0000 0001"}
+asyncio.run(farmer_service.validate_domain_attributes([normalized]))
+assert normalized["farmer_id"] == "FR-000000000001" and normalized["fayda_fan_id"] == "0000000000000001"
+checks.append("native Farmer service normalizes identity without numeric coercion")
+rejects("native Farmer service rejects Unicode digits", lambda: asyncio.run(farmer_service.validate_domain_attributes([{"farmer_id": "FR-" + "١" * 12}])))
+projection = importlib.import_module("openg2p_registry_extensions.farmer_reference.projection")
+farmer = models.G2PRegisterFarmer(internal_record_id="local-test-reference", farmer_id="FR-000000000001",
+                                  fayda_fan_id="0000000000000002", first_name="Approved", middle_name=None,
+                                  last_name="Farmer")
+domain_class = models.G2PRegisterCropSown if domain == "cropsown" else models.G2PRegisterLivestock
+domain_row = domain_class(internal_record_id="local-test-domain", farmer_uuid="local-test-reference",
+                         farmer_id="FR-000000000001", fayda_fan_id="0000000000000001", farmer_name="Old Farmer")
+if domain == "cropsown":
+    domain_row.crop_year = "2026"
+    domain_row.production_season = "domain-season"
+assert projection._mirror(domain_row, farmer) == 1
+assert domain_row.farmer_uuid == "local-test-reference" and domain_row.fayda_fan_id == "0000000000000002"
+assert domain_row.farmer_name == "Approved Farmer"
+assert domain_row.record_name == domain_row.get_record_name_fields()
+assert domain_row.record_name == ("FR-000000000001" if domain == "cropsown" else "Approved Farmer")
+if domain == "cropsown":
+    assert domain_row.crop_year == "2026" and domain_row.production_season == "domain-season"
+checks.append("approved identity mirror works with concrete domain ORM and naming services")
 
 
 if domain == "cropsown":

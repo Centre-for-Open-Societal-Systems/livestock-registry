@@ -53,6 +53,7 @@ Official contracts:
 - https://github.com/OpenG2P/openg2p-documentation/blob/latest/products/registry/registry/design/awe-integration.md
 - https://github.com/OpenG2P/openg2p-documentation/blob/latest/products/registry/registry/design/intake-forms/input-mechanisms.md
 
-The user-supplied Confluence v5 design governs target behavior. Live Confluence
-content could not yet be authenticated through this session. Earlier local
-snapshots are not v5 verification.
+Confluence page 203653123 version 5 is now verified through the connected
+Atlassian reader. The explicitly authorized plan narrows the broader proposed
+profile to identity/contact/location and replaces legacy geographic attributes
+with IAM/data-policy scope intersection. See PROFILE_V5.md for this follow-up.

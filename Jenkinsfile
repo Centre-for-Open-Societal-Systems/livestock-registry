@@ -57,6 +57,8 @@ pipeline {
         stage('Validate refactor contracts') {
             steps {
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/refactor/check_port.py . livestock'
+                sh 'docker build --quiet -f ci/refactor/profile-tests.Dockerfile -t oan/livestock-reference-tests:rc557 .'
+                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src oan/livestock-reference-tests:rc557 -m unittest discover -s livestock-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
 

@@ -1797,5 +1797,12 @@
     "translation/",
     "performance-testing/",
     ".github/workflows/"
-  ]
+  ],
+  "follow_up_v5": {
+    "confluence_snapshot": "v:5",
+    "changes": "Profile allowlist and schema trios; strict native identity validation; pure source ordering/geographic eligibility; stable approved-reference projections through native hooks",
+    "evidence": "PROFILE_V5_VERIFICATION.json",
+    "migration": "migrations/20261024_farmer_profile_additions.sql (review artifact, not executed)",
+    "runtime_acceptance": "NOT RUN"
+  }
 }

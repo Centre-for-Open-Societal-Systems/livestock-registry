@@ -235,12 +235,10 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         )
 
     async def post_ingest(self, register_id: str, register_row, session) -> None:
-        """Same Farmer-identity sync as post_approve, above, for a Livestock
-        record reaching the register via a still-draft submission's first
-        approval. Safe to run here: the form's own section order (section_order
-        10 for Farmer Details vs. 30+ for every Livestock section) guarantees
-        the sibling Farmer row this submission carries is already inserted —
-        and its history row already recorded — by the time this fires.
+        """Require an approved stable Farmer dependency before ingest commits.
+
+        No sibling-submission or ID-pair fallback may choose a Farmer owner.
+        Onboarding/link migration must supply the verified farmer_uuid first.
         """
         if register_id != LIVESTOCK_REGISTER_ID:
             return
@@ -250,71 +248,9 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         await refresh_total_animals(session, register_row.internal_record_id)
 
     async def _sync_farmer_identity(self, livestock, session) -> None:
-        G2PRegisterFarmer = _extension_models().G2PRegisterFarmer
-
-        farmer_internal_id = livestock.farmer_uuid or await self._find_sibling_farmer_internal_record_id(
-            livestock, session
-        )
-        if not farmer_internal_id:
-            return
-
-        farmer = (
-            await session.execute(
-                select(G2PRegisterFarmer).where(
-                    G2PRegisterFarmer.internal_record_id == farmer_internal_id
-                )
-            )
-        ).scalar_one_or_none()
-        if not farmer:
-            return
-
-        livestock.farmer_uuid = farmer_internal_id
-        livestock.farmer_id = farmer.farmer_id
-        livestock.fayda_fan_id = farmer.fayda_fan_id
-        # Farmer rows registered before farmer_name was composed at intake
-        # (see G2PRegisterDomainServiceFarmer._fill_farmer_name) still carry
-        # NULL there; compose from the name parts rather than mirror the NULL.
-        livestock.farmer_name = (
-            farmer.farmer_name
-            if not is_blank(farmer.farmer_name)
-            else compose_farmer_name(farmer.first_name, farmer.middle_name, farmer.last_name)
-        )
-        # Mirrors the Fayda FAN into link_foundational_id — see G2PLivestock's
-        # own module docstring and G2PFarmer's identical comment on this field.
-        livestock.link_foundational_id = farmer.fayda_fan_id
-
-    async def _find_sibling_farmer_internal_record_id(self, livestock, session) -> str | None:
-        """This Livestock record's own submission_id, off its most recent
-        history row, joined back to whichever Farmer register history row
-        shares that same submission_id — i.e. the Farmer submitted alongside
-        it on the same form. Farmer and Livestock have no other relationship
-        the platform tracks (see LIVESTOCK_REGISTER_ID's comment above), so
-        this is the only thing connecting them.
-        """
-        models = _extension_models()
-        G2PRegisterHistoryFarmer = models.G2PRegisterHistoryFarmer
-        G2PRegisterHistoryLivestock = models.G2PRegisterHistoryLivestock
-
-        submission_id = (
-            await session.execute(
-                select(G2PRegisterHistoryLivestock.submission_id)
-                .where(G2PRegisterHistoryLivestock.internal_record_id == livestock.internal_record_id)
-                .where(G2PRegisterHistoryLivestock.submission_id.is_not(None))
-                .order_by(G2PRegisterHistoryLivestock.created_at.asc())
-                .limit(1)
-            )
-        ).scalar()
-        if not submission_id:
-            return None
-
-        return (
-            await session.execute(
-                select(G2PRegisterHistoryFarmer.internal_record_id)
-                .where(G2PRegisterHistoryFarmer.submission_id == submission_id)
-                .order_by(G2PRegisterHistoryFarmer.created_at.asc())
-                .limit(1)
-            )
-        ).scalar()
+        from ...farmer_reference.projection import refresh_domain_on_ingest
+        farmer_model = _extension_models().G2PRegisterFarmer
+        await refresh_domain_on_ingest(session, farmer_model, livestock)
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for livestock record")
