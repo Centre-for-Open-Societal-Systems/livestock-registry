@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
+python3 ci/deploy/oan_chart.py require-deployable dashboard dev
 registry=$1
 namespace=$2
 image=$3
 tag=$4
-case "$registry" in cropsown|livestock) ;; *) echo 'Unknown registry' >&2; exit 1 ;; esac
 test -n "$tag"
 bash ci/dashboard/validate-deploy-files.sh "$registry"
-chart="helm/${registry}-registry-dashboard"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+chart="$(python3 ci/deploy/oan_chart.py fetch dashboard "$work")"
+values="$(python3 ci/deploy/oan_chart.py values dashboard "$work/public-values.yaml")"
 release="${registry}-registry-dashboard"
-values="helm/environments/dev/dashboard-ui.yaml"
-helm lint "$chart" -f "$values" --set-string "image.repository=$image" --set-string "image.tag=$tag"
-helm template "$release" "$chart" -n "$namespace" -f "$values" \
+# Preserve installed settings and Secrets; a new release uses the central public overlay.
+saved=()
+if helm status "$release" -n "$namespace" >/dev/null 2>&1; then
+  (umask 077; helm get values "$release" -n "$namespace" --all -o yaml > "$work/current-values.yaml")
+  test -s "$work/current-values.yaml"
+  saved=(-f "$work/current-values.yaml")
+fi
+helm lint "$chart" "${saved[@]}" -f "$values" --set-string "image.repository=$image" --set-string "image.tag=$tag"
+helm template "$release" "$chart" -n "$namespace" "${saved[@]}" -f "$values" \
   --set-string "image.repository=$image" --set-string "image.tag=$tag" > /dev/null
-helm upgrade --install "$release" "$chart" -n "$namespace" -f "$values" \
+helm upgrade --install "$release" "$chart" -n "$namespace" "${saved[@]}" -f "$values" \
   --set-string "image.repository=$image" --set-string "image.tag=$tag" \
   --wait --wait-for-jobs --timeout 15m

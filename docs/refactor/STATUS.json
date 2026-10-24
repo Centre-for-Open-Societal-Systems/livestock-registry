@@ -27,7 +27,7 @@
     {
       "id": "B06",
       "capability": "Metadata, widgets and geographic routing",
-      "evidence": "Separate one-stage Farmer-reference AWE policy artifacts/bindings, read-only standard role/DP-policy resolution and native expression context are implemented. Supported policy subset is finite Farmer REGISTER_RECORD Woreda EQ/IN AND/OR with DISALLOW subtraction. Existing/GEO-policy migration, all widgets/forms and live access denial remain incomplete."
+      "evidence": "Authenticated New Dev comparison retains all 316 declared fields, 14 sections and 1 form IDs with type/history/intake/path checks. Native repeated seeds and both UI source builds pass; location is schema/widget driven using Farmer's registered extension and MDM develop.118. Full portal, translated widgets, geographic denial and existing policy/open-task preservation remain unaccepted."
     },
     {
       "id": "B07",
@@ -38,6 +38,16 @@
       "id": "B09",
       "capability": "Source identity/lookup contract",
       "evidence": "User confirmed 16-digit UID/FAN. Inspected OAN Farmer 4901f11dba9e4debf710e182b769120f5906892a uses 12-digit FIN and its DCI personal template lacks the complete required identity/provenance/geography contract. Source inspection is not deployed-response proof. Do not substitute FIN or notification values; source-owner contract is required and Farmer changes are out of scope."
+    },
+    {
+      "id": "B10",
+      "capability": "Central chart and Master Data location upgrade preservation",
+      "evidence": "Immutable oan-helm dev.9 and dashboard 0.1.2 pins are delivered. Commons/Crop/Livestock remain fail-closed. Native Master Data develop.118 snapshot/image provenance is recorded; existing data, country-pack/catalogue, standard geographic assignments and open AWE tasks need supported administration and restored-copy acceptance."
+    },
+    {
+      "id": "B11",
+      "capability": "Independent connector operational handoff",
+      "evidence": "Vendored connector build/update source is retired with full blob/ignored-file recovery evidence. Existing connector releases, images, topic/subscription contracts and checkpoints are unchanged. Canonical standalone source/artifact ownership and Kafka recovery acceptance remain unverified."
     }
   ],
   "acceptance": {
@@ -116,5 +126,7 @@
     "outbreak_seconds": 900,
     "daily_seconds": 86400,
     "environment_execution": "NOT RUN"
-  }
+  },
+  "metadata_verification": "new-dev/comparison.json",
+  "chart_profile": "../../ci/deploy/oan-chart.json"
 }

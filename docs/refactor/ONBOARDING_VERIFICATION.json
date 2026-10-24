@@ -1,17 +1,22 @@
 {
   "registry": "livestock",
-  "verified_at": "2026-10-24T17:59:48.106303+00:00",
+  "verified_at": "2026-10-24T19:58:53.577935+00:00",
   "source_sha256": {
-    "ci/refactor/check_port.py": "4228be2498c14598bb69eafde402f0eba455390ff5f043551efd5fdf67f33b0d",
+    "ci/refactor/check_port.py": "cf39b9d2ab8ba926583be5d7077e5a7f0302cf31449e4f4e9daa4aa0382056c4",
+    "ci/refactor/compare_new_dev.py": "927b0441fcbf35d1beb0e6bdf0013d4fd00f167e7d8be9e451ccca1f3d923c80",
+    "ci/refactor/deployment_guard.py": "219d0d61b7b7cd034f1ad2301b2824abb90214a628ec500959875f669ab51f34",
+    "ci/refactor/metadata_probe.py": "8dea6f637ad7aa6061c33d8195d6fed0c3b44c94131f4dbf88f373ea449d2111",
+    "ci/refactor/new_dev_metadata.py": "99ba819346c81c212fa1ec06c3345bfa7784f3c5ee225bbe779be5a9f911db73",
     "ci/refactor/onboarding_probe.py": "4e453fcbe11b24542c2db75582f1d86d9f90d53ea8935148b2608ce683f29238",
     "ci/refactor/platform_contract_probe.py": "4b1975e065c4810b2a63623c3847b811e4a3ac656a0833582b7577ceed852760",
+    "ci/refactor/rehearse_metadata.py": "529c0e476b526e3f411f75d25d79fcf6b22e638fa5d8fa86724494cdd2b803ab",
     "ci/refactor/runtime_probe.py": "a7884f1cb2d25b942752304278f9e357e351845904ba18a2bb2d7e1a82c9b342",
     "ci/refactor/verify_onboarding.py": "fa561e44911cce25a18f3f66e9db965e7a43d7124bde6872acd670d52e8e4332",
     "docker/celery/Dockerfile": "719615e002378d008cb59279cbd8b2b33e687f602d9b45734c41c3dd9a60ec6c",
     "docker/db-seed/Dockerfile": "ecb511e27de5e46dc6ab106e36f14bdb6090ad2db4523249b87953e4249991b7",
     "docker/partner-api/Dockerfile": "d3fcff434748e770bad6ac4e8999b538be3d46ec394b557f31cd0801a186ab1d",
     "docker/sanity-tests/Dockerfile": "24b79733da0d1a0eb804d64ff3966585e10b888ae4f6b69f07dbe3757c9c5599",
-    "docker/staff-api/Dockerfile": "1c49dcc30b4fb972d13087193b916f6c09404881186eeee8d8e53b4c73559819",
+    "docker/staff-api/Dockerfile": "659ad4a758cd982cbdf25c59b2f7df768fd2563ac806f979d3f06f3cc4263394",
     "docker/staff-ui/Dockerfile": "7eeb7c690b0ae685afb979fa16565caa92f8b20f9018da6bcb59d109164cdfd3",
     "livestock-extension/pyproject.toml": "79b15e4d9627a537153926927e16641f164bdec7f14fefc161a696b4362cdac8",
     "livestock-extension/src/openg2p_registry_livestock_extension/__init__.py": "de475afb82432246f8297151862f756cc86efbc6678808c9de34e79a44ccc8f3",
@@ -38,16 +43,16 @@
     "livestock-extension/src/openg2p_registry_livestock_extension/master_data/code_lists/10_g2p_attributes.sql": "9f255c0eb9ab3e05f8d087b3a4939bbd62e8efdafb7a8a852e70903254e0722c",
     "livestock-extension/src/openg2p_registry_livestock_extension/master_data/code_lists/20_g2p_attribute_values.sql": "d2022762f3d7621091c8006284ad832f2275882f222f011d9337e31c138e3ad3",
     "livestock-extension/src/openg2p_registry_livestock_extension/master_data_lists.py": "2bd57c3a08a3c407348d120f94820a8cdeba583da25536379c5a25fabf938646",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/data-models/data_models.sql": "d2f99c3b0ae58844c40b1e9252893512a3c32cc6b72a41f62b07159204528d2d",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql": "10f8cb6d7076d10ba2db44ce04f8fcdcf55440552534b754cf8172a4c8505edf",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql": "654c0d787478b0648ddba870c698edbf18b139bc2bda3fca943f5ac637b05c51",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql": "c1de53679b2d6c9385cc8930f73120b9c2d954f97ec425b6c9b9f1810590583a",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_definitions.sql": "9c2b850b289532774ba366a82d2c712c9245518f651c42aecd4a92a84b1ce509",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_schemas.sql": "7e7ea2baa594f99444790dc84925f4bd36ae86ed7ef65dcb5b115b94db12d36c",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_sections.sql": "458a4a98a28dbd54db531274198cb48c3df9c49e066b70c0fa3b355da67d52c2",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql": "ed141e26e7fba8ef3902557fa1b7c79dfc06fc341adc7a4c73434ac166832cd6",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql": "99cb2f7c8dd4831072a241781e18f47e9c0ed256a0caa917ae25266cc549c351",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_registry_documents.sql": "ad6ff6f81faef50a21489e79db6188245252a0e261d694a7d4b0e8a3e3d52718",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/data-models/data_models.sql": "905e4aba48593cc870a09fd68ed6647b58924b200d84fb878473c66dcb735f89",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql": "6b2ddef06cc1873c32a189ba9951fba664a4161f83fc5f8cdf804842f7b98b0f",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql": "de4db6ef8f2fd6436b53ea937851122e7da2293f0c2b22e4a1fef676cb0c8a9d",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql": "c6e5c7b06830606ee49990e36043be6db169e358213535663affef0ed03115fa",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_definitions.sql": "58ac465e220ddf7cc11e1c4dcd66941cc0d23aae96793321f5bcd4275346300a",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_schemas.sql": "fc4def0a8d1c4399c69f965bfc45645b9a2754288bdb1de30b65b6c3836e883a",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_sections.sql": "84646c8edbcdf0f9ec8c7c5eaf8e88a46e58b721462cf39004811781a8d22b02",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql": "d149a7f2fbd8b46ecc18421837d4093c96b2b6edd0a3e2ddb19048198f41e1f3",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql": "a55b9405f62a99a41ca55d24672cd0bf1395bb28c6b685e793d076b05939d60c",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_registry_documents.sql": "a5912181d0c5684eed119a037822f2bd0b499056c13c2285eedde9dbfd20fd31",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_colour_column.sql": "120c75899c80cf319e17119de801b93c720a8126138797b1af40d1b948e477d3",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_ear_tag_optional.sql": "566b78fdc3f29980bf73e1b9423e513586cc05e979facbccbdcf8950b76262f5",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_quantity_column.sql": "0a75ad8fbd1a7c1c010910e23b820337c8cd6bc15508eb2fdb0ecce4e41613c9",
@@ -82,17 +87,18 @@
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_gender.sql": "24bc20be13ce653db59073c17577fc4bad57f86dae5dbd7c9b5812404d07a718",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zz_patch_no_past_only_date_constraint.sql": "4055803d2b5281b107ca7f8b044a80dd700acbd039e68ce7e65ecdd73c4d6084",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zzz_farmer_reference_awe.sql": "6a9e39d644b959d8514b4769b7776252883b9cb7897f8841c37320a41d53e2ed",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zzzz_location_widgets.sql": "b62534ef2bb067e2d5270848191d33b48ff323dac6aeb8d14ca0ecd42ce85b29",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_input_mechanisms.sql": "1932dd3adbf9114d720c93bf4e7f10f9da8aa149ca23c3860615e0aa95a4952f",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_configuration.sql": "0d96326e9c956d6b660382bdb5ae6f8e38974d1b1c4bb1d3662d91f44363aee7",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_configuration.sql": "647023d5e20082f58a6bcd9bdb17bbed5185b487f24115edd1b74a616a19b3e1",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_vc_configurations.sql": "96e23c9bc551b8952a8a28c13fed57943d428c409378baf70e92f83ba008a525",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_languages.sql": "539f14f3c5ecfb45be88c3a8187ee69b5dc273e139a5037e067891d8d7fd51e6",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes.sql": "20cc57ce2afbbcfc586e2699403372d3f779421c7ec4b172a8f2627835a7d1a6",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes_values.sql": "bd64bca4af8cb3b065a2b47294bacfea599b9b581f234c6d4c8b78e94e145ff3",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql": "11f9b37d62499edfa573d2bd791673f86413e538704eb6c823aa0a5955ad9415",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql": "91eac9d8d99e5ad397a8b6fa1d68dee7b202861617795136527df87c015af951",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql": "a0fcd152c55f6ed7e4f0fddc78851829d37848fa10bcd6288a1092a39327ca6e",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_languages.sql": "59011a9f8b40e53924df41d8966bf66107b3befe08932b7e4c030f2da92fc589",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes.sql": "260b4c0ed90dc2d47bae523403b066d6d93e8cf6d24363792cb4bfcbae11249e",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes_values.sql": "496e2d1f7d25d4ab614b53de4ee61fd677eca501ed6da72b6a0c33cbe1b08461",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql": "47da46f696aa9d6164ad0eff9a777b8eee918d33e591ea4c587b8c6e12759884",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql": "7a620880c61e9651329b08f213803f6962ae3488ff2cb1279cf0c23e3bedbc73",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql": "a4d5b189be8e9036395fee98dc14e7984f94eeeb7a442861fc01770551ec3ef4",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/patch_livestock_odk_ingestion.sql": "e602b2a24c26a644ff87d2a114c3d50af109906f248c4dcdb0d34b18232306e5",
-    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql": "01b9a8e052e14271542d770158d64ddfa3c4cf409c3cd069e5085881971f4d00",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql": "f05d5e2467f0c8c4e9bafd4de636be3ef9a5e0b0443425c7a6f6cda903516bdb",
     "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/controllers/__init__.py": "f422fb40b408cbba04b5591cbb507fb84db810ef3e1ac0c3c9efda1ea2bb051c",
     "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/controllers/g2p_form_config_controller.py": "6ee24f1ba01ea81531476edea66d314227500f788e3c80395c661a5c5541feba",
@@ -264,7 +270,7 @@
       "listening": true,
       "requests": 74,
       "statuses": {
-        "200": 64,
+        "200": 63,
         "503": 7,
         "401": 1,
         "429": 1,
@@ -272,86 +278,10 @@
         "307": 1
       },
       "methods": {
-        "POST": 46,
+        "POST": 45,
         "GET": 29
       },
       "raw_traffic_saved": false
-    },
-    {
-      "check": "build-staff-api",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "image-staff-api",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS",
-      "image_id": "sha256:e448be535adf15d1e1d5b25b000a3f99ed75fb2fc1eab85cb86bb6def8fa0003"
-    },
-    {
-      "check": "installed-staff-registration",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "build-partner-api",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "image-partner-api",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS",
-      "image_id": "sha256:9f32f229b7708ee01eb0f46e532e26f1cba2ec00ce941be6f815cc0949da217e"
-    },
-    {
-      "check": "installed-partner-registration",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "build-celery",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "image-celery",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS",
-      "image_id": "sha256:0ce0ff158b7bfcd664e029819b6a858b8c495da420137fe8c068863dc59ece3d"
-    },
-    {
-      "check": "installed-worker-registration",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "build-db-seed",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS"
-    },
-    {
-      "check": "image-db-seed",
-      "exit_code": 0,
-      "expected_exit_code": 0,
-      "result": "PASS",
-      "image_id": "sha256:d6645d766b6a07a0814c79b6bf563bcb107ac46431acad208fc9cde416e2000d"
-    },
-    {
-      "check": "preservation-seed-gate",
-      "exit_code": 1,
-      "expected_exit_code": 1,
-      "result": "PASS"
     },
     {
       "check": "source-unchanged-during-verification",

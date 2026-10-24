@@ -1,1 +1,0 @@
-{{- fail "develop-refactor is incomplete: native Farmer dependency, Kafka AWE routing, geographic policy and preservation acceptance are required; see docs/refactor/STATUS.json" -}}

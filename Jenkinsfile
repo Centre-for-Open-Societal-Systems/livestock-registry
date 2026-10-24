@@ -14,20 +14,15 @@ pipeline {
         AWS_REGION       = 'ap-south-1'
         ECR_PATH         = 'openg2p/livestock-registry'
         DASHBOARD_UI_ECR = 'oan/livestock-registry/dashboard-ui'
-        RP_VERSION       = '1.2.2-rc.544' // TODO verify — see header note
+        RP_VERSION       = '1.2.2-rc.557' // Same native platform as the immutable central profile
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
-        // The chart actually running in staging's `live` today — NOT this
-        // repo's own helm/openg2p-livestock-registry. See header comment.
-        HELM_CHART_REPO  = 'openg2p'
-        HELM_CHART_URL   = 'https://openg2p.github.io/openg2p-helm'
-        HELM_CHART_REF   = 'openg2p/openg2p-farmer-registry'
-        HELM_CHART_VER   = '1.2.0'
-
+        // Chart ownership: immutable COSS oan-helm profile in ci/deploy/oan-chart.json.
+        // Staging stays blocked until separately rehearsed against its existing owner.
 
         // Dev cluster: namespace `livestock`, hosts on *.development.oanstaging.com,
         // credential bound to the livestock:livestock-ci ServiceAccount. Values come
-        // from helm/openg2p-livestock-registry/values-new-dev.yaml.
+        // from the same central commit as the chart, with complete saved release values.
         //
         // The previous dev cluster (namespace `live`, *.openg2p.test) is RETIRED; its
         // stage and values-dev.yaml were removed, so there is now one dev target.
@@ -58,6 +53,8 @@ pipeline {
             steps {
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/refactor/check_port.py . livestock'
                 sh 'docker build --quiet -f ci/refactor/profile-tests.Dockerfile -t oan/livestock-reference-tests:rc557 .'
+                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_oan_chart.py -v'
+                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_deployment_guard.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src oan/livestock-reference-tests:rc557 -m unittest discover -s livestock-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
@@ -223,41 +220,23 @@ EOF
         }
 
         stage('Deploy to Development') {
-            // Points `develop` merges at the NEW dev cluster, alongside the
-            // existing "Deploy to Development" stage above which still targets
-            // the old one. Same in-repo chart; what differs is the namespace,
-            // the hostnames (values-new-dev.yaml) and the credential.
-            //
-            // The chart version is stamped with +<short-sha> at deploy time.
-            // SemVer build metadata is ignored for ordering, so this cannot
-            // break upgrade comparisons, but `helm list` then shows exactly
-            // which commit produced the running release instead of a
-            // placeholder.
-            //
-            // catchError for the same reason as the stage above: a problem on
-            // one dev cluster must not block the other or the staging deploy.
+            // Use the existing development job, namespace and credentials.
+            // Chart bytes and version are immutable; the profile blocks promotion
+            // until domain and existing-data acceptance have been recorded.
             when { branch 'develop' }
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
                         sh """
                             set -eu
-                            helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
-                            helm repo update ${HELM_CHART_REPO}
-                            helm dependency update ./helm/openg2p-livestock-registry
-
-                            # Stamp the chart version with +<short-sha>. A local chart
-                            # directory ignores `helm --version`, so Chart.yaml is edited
-                            # in the workspace instead. SemVer build metadata does not
-                            # affect ordering, so this cannot break upgrade comparisons.
-                            CHART_VER=\$(awk -F': *' '/^version:/{print \$2; exit}' helm/openg2p-livestock-registry/Chart.yaml)
-                            # Strip any build metadata already present: Jenkins reuses
-                            # workspaces, so a previous run may have left the version
-                            # stamped, which would compound to 1.2.0+abc+def.
-                            CHART_VER="\${CHART_VER%%+*}"
-                            STAMPED="\${CHART_VER}+\$(git rev-parse --short HEAD)"
-                            sed -i "s|^version:.*|version: \${STAMPED}|" helm/openg2p-livestock-registry/Chart.yaml
-                            echo "Deploying chart version \${STAMPED} to ${DEV_NAMESPACE}"
+                            python3 ci/deploy/oan_chart.py require-deployable registry dev
+                            WORK=\$(mktemp -d)
+                            trap 'rm -rf "\$WORK"' EXIT
+                            CHART=\$(python3 ci/deploy/oan_chart.py fetch registry "\$WORK/chart")
+                            CENTRAL_VALUES=\$(python3 ci/deploy/oan_chart.py values registry "\$WORK/public-values.yaml")
+                            umask 077
+                            helm get values \${HELM_RELEASE} -n ${DEV_NAMESPACE} --all -o yaml > "\$WORK/current-values.yaml"
+                            test -s "\$WORK/current-values.yaml"
 
                             IMAGE_SET_FLAGS="
                                 --set registry.staffApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-api
@@ -280,8 +259,8 @@ EOF
                                 --set reporting.views.enabled=true
                             "
 
-                            helm template \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${DEV_NAMESPACE} \
-                                -f ./helm/openg2p-livestock-registry/values-new-dev.yaml \
+                            helm template \${HELM_RELEASE} "\$CHART" -n ${DEV_NAMESPACE} \
+                                -f "\$WORK/current-values.yaml" -f "\$CENTRAL_VALUES" \
                                 \$IMAGE_SET_FLAGS \
                                 > newdev-rendered-\${BUILD_NUMBER}.yaml
 
@@ -300,13 +279,13 @@ EOF
                             python3 ci/check-new-dev-routes.py livestock \
                                 --release \${HELM_RELEASE} --namespace ${DEV_NAMESPACE} \
                                 < newdev-rendered-\${BUILD_NUMBER}.json
-                            python3 ci/check-farmer-enrichment.py \
-                                --deployment \${HELM_RELEASE}-staff-portal-api \
+                            python3 ci/refactor/deployment_guard.py \
+                                --release \${HELM_RELEASE} \
                                 --namespace ${DEV_NAMESPACE} --check-live-secret \
                                 < newdev-rendered-\${BUILD_NUMBER}.json
 
-                            helm upgrade --install \${HELM_RELEASE} ./helm/openg2p-livestock-registry -n ${DEV_NAMESPACE} \
-                                -f ./helm/openg2p-livestock-registry/values-new-dev.yaml \
+                            helm upgrade --install \${HELM_RELEASE} "\$CHART" -n ${DEV_NAMESPACE} \
+                                -f "\$WORK/current-values.yaml" -f "\$CENTRAL_VALUES" \
                                 \$IMAGE_SET_FLAGS \
                                 --cleanup-on-fail --timeout 15m
 
@@ -316,10 +295,10 @@ EOF
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n ${DEV_NAMESPACE} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui  -n ${DEV_NAMESPACE} --timeout=180s
                             kubectl rollout status deployment/\${HELM_RELEASE}-partner-api      -n ${DEV_NAMESPACE} --timeout=180s
-                            kubectl get deployment/\${HELM_RELEASE}-staff-portal-api -n ${DEV_NAMESPACE} -o json \
+                            kubectl get deployment \${HELM_RELEASE}-staff-portal-api \${HELM_RELEASE}-celery-worker \${HELM_RELEASE}-celery-beat-producer -n ${DEV_NAMESPACE} -o json \
                                 > newdev-live-staff-api-\${BUILD_NUMBER}.json
-                            python3 ci/check-farmer-enrichment.py \
-                                --deployment \${HELM_RELEASE}-staff-portal-api \
+                            python3 ci/refactor/deployment_guard.py \
+                                --release \${HELM_RELEASE} \
                                 --namespace ${DEV_NAMESPACE} --check-live-secret \
                                 < newdev-live-staff-api-\${BUILD_NUMBER}.json
                         """
@@ -341,8 +320,12 @@ EOF
             steps {
                 withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
                     sh """
-                        helm repo add ${HELM_CHART_REPO} ${HELM_CHART_URL} || true
-                        helm repo update ${HELM_CHART_REPO}
+                        set -eu
+                        python3 ci/deploy/oan_chart.py require-deployable registry staging
+                        WORK=\$(mktemp -d)
+                        trap 'rm -rf "\$WORK"' EXIT
+                        CHART=\$(python3 ci/deploy/oan_chart.py fetch registry "\$WORK/chart")
+                        umask 077
 
                         # Dry-run + diff, kept even without a human gate so there's an
                         # audit trail to look at if a deploy ever needs investigating.
@@ -354,7 +337,7 @@ EOF
                         # instead -- this is the actual on-disk equivalent of what
                         # --reuse-values does internally on a real upgrade.
                         helm get values \${HELM_RELEASE} -n \${HELM_NAMESPACE} -a -o yaml > live-values-before-\${BUILD_NUMBER}.yaml
-                        helm template \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
+                        helm template \${HELM_RELEASE} "\$CHART" -n \${HELM_NAMESPACE} \
                             -f live-values-before-\${BUILD_NUMBER}.yaml \
                             -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
                             > live-rendered-\${BUILD_NUMBER}.yaml
@@ -368,7 +351,7 @@ EOF
                         # failure; the explicit `kubectl rollout status` checks below are
                         # the real verification step, scoped to the three deployments
                         # this pipeline actually cares about.
-                        helm upgrade \${HELM_RELEASE} ${HELM_CHART_REF} --version ${HELM_CHART_VER} -n \${HELM_NAMESPACE} \
+                        helm upgrade \${HELM_RELEASE} "\$CHART" -n \${HELM_NAMESPACE} \
                             --reuse-values -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml \
                             --cleanup-on-fail --timeout 10m
 

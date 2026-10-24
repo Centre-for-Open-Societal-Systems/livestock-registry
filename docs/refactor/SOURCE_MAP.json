@@ -15,8 +15,8 @@
     },
     {
       "source": "ci/check-farmer-enrichment.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "replaced-native-extension-guard",
+      "reason": "ci/refactor/deployment_guard.py checks COSS_FARMER_* files/Secret contract, without runtime patch log requirements"
     },
     {
       "source": "ci/check-new-dev-routes.py",
@@ -50,123 +50,123 @@
     },
     {
       "source": "helm/livestock-registry-dashboard/Chart.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/_helpers.tpl",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/client-secret.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/deployment.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/ecr-pull-secret.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/iam-setup-job.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/routing.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/service.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/serviceaccount.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/smoke-job.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/values.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/.gitignore",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/.helmignore",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/Chart.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/README-dev.md",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/app-readme.md",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/files/reporting-views-refresh.sh",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/templates/_reporting.tpl",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/templates/dashboard-api.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/templates/reporting-views-refresh.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/templates/reporting-views.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/values-live.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/values-new-dev.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/values.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "livestock-extension/LICENSE",
@@ -925,793 +925,793 @@
     },
     {
       "source": "openg2p-connector-service/.dockerignore",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/.gitignore",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/DEPLOYMENT.md",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/Dockerfile",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/README.md",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy.env.example",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/.DS_Store",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/Archive.zip",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/Chart.lock",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/Chart.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/charts/postgres-init-0.0.0-develop.tgz",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/_helpers.tpl",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-deployment.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-hpa.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-service.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/beat-deployment.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/consumer-deployment.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/gateway.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/serviceaccount.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/ui-deployment.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/ui-service.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/virtualservice.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/worker-deployment.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/values-kif-cluster.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/values-nsr-v2-prod.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/deploy/charts/openg2p-connector/values.yaml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/docker-entrypoint.sh",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/package-lock.json",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/pyproject.toml",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/base.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/registry.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/none_auth.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/oauth2_client_credentials.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/oauth2_password.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/odk_session.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/static_bearer.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/clients/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/clients/partner_ingest_client.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/config.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/consumer_supervisor.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/connectors.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/health.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/metadata.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/runs.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/webhook.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/database.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/db_migrations.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/main.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/mappers/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/mappers/base.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/mappers/jmespath_mapper.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/mappers/passthrough.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/metrics.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/models/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/models/base.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/models/connector_definition.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/models/dead_letter.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/models/idempotency_key.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/models/ingestion_run.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/observability.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/schemas/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/schemas/connector.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/schemas/run.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/schemas/webhook.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/services/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/services/connector_service.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/services/ingestion_service.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/services/websub_hub_sync.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/base.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/checkpoints.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/events/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/events/base.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/events/kafka_consumer.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/odk_central.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/registry.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/webhook.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/transports/websub.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/webhooks/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/__init__.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/hmac_sha256.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/plain_shared_token.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/src/openg2p_connector_service/worker.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/__init__.py",
-      "decision": "ported",
-      "reason": "Replace import-time platform mutation with side-effect-free extension metadata"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/conftest.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_auth_strategies.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_checkpoints.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_connectors_crud.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_event_consumers.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_health.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_mappers.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_meta_and_read.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_odk_checkpoint_polling.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_utils.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_webhook.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/tests/test_websub_hub_sync.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-service/uv.lock",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/.gitignore",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/Dockerfile",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/README.md",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/eslint.config.js",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/index.html",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/OpenG2P-Connector-User-Manual.docx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/USER-MANUAL.md",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/01-pipeline-list.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/02-pipeline-overview.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/03-pipeline-runs.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/04-pipeline-dlq.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/05-pipeline-new.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/06-pipeline-edit.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/07-pipeline-edit-websub.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/08-global-runs.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/annotated/09-global-dlq.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/capture.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/export.sh",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/make-reference-docx.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/postprocess-docx.py",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/reference.docx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/01-pipeline-list.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/02-pipeline-overview.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/03-pipeline-runs.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/04-pipeline-dlq.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/05-pipeline-new.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/06-pipeline-edit.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/07-pipeline-edit-websub.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/08-global-runs.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/manual/screenshots/09-global-dlq.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/nginx.conf",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/package-lock.json",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/package.json",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/public/favicon.svg",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/public/icons.svg",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/App.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/api/client.ts",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/api/errors.ts",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/api/types.ts",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/assets/hero.png",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/components/ApiConnectionBar.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/components/Card.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/components/Layout.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/components/StatusBadge.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/index.css",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/lib/api-target.ts",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/lib/edrmc-websub-template.ts",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/main.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/pages/DLQList.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/pages/PipelineDetails.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/pages/PipelineForm.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/pages/PipelineList.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/src/pages/RunsList.tsx",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/tsconfig.app.json",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/tsconfig.json",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/tsconfig.node.json",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "openg2p-connector-ui/vite.config.ts",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
     },
     {
       "source": "scripts/bump-rp-version.sh",
@@ -1804,5 +1804,6 @@
     "evidence": "PROFILE_V5_VERIFICATION.json",
     "migration": "migrations/20261024_farmer_profile_additions.sql (review artifact, not executed)",
     "runtime_acceptance": "NOT RUN"
-  }
+  },
+  "new_dev_parity_and_cleanup": "NEW_DEV_PARITY_AND_CLEANUP.md"
 }

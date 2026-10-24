@@ -1,0 +1,793 @@
+{
+  "registry": "livestock",
+  "native_psql_semantics": true,
+  "steps": [
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/data-models/data_models.sql",
+      "sha256": "905e4aba48593cc870a09fd68ed6647b58924b200d84fb878473c66dcb735f89",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql",
+      "sha256": "6b2ddef06cc1873c32a189ba9951fba664a4161f83fc5f8cdf804842f7b98b0f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql",
+      "sha256": "de4db6ef8f2fd6436b53ea937851122e7da2293f0c2b22e4a1fef676cb0c8a9d",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql",
+      "sha256": "c6e5c7b06830606ee49990e36043be6db169e358213535663affef0ed03115fa",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_definitions.sql",
+      "sha256": "58ac465e220ddf7cc11e1c4dcd66941cc0d23aae96793321f5bcd4275346300a",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_schemas.sql",
+      "sha256": "fc4def0a8d1c4399c69f965bfc45645b9a2754288bdb1de30b65b6c3836e883a",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_sections.sql",
+      "sha256": "84646c8edbcdf0f9ec8c7c5eaf8e88a46e58b721462cf39004811781a8d22b02",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql",
+      "sha256": "d149a7f2fbd8b46ecc18421837d4093c96b2b6edd0a3e2ddb19048198f41e1f3",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql",
+      "sha256": "a55b9405f62a99a41ca55d24672cd0bf1395bb28c6b685e793d076b05939d60c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_registry_documents.sql",
+      "sha256": "a5912181d0c5684eed119a037822f2bd0b499056c13c2285eedde9dbfd20fd31",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_colour_column.sql",
+      "sha256": "120c75899c80cf319e17119de801b93c720a8126138797b1af40d1b948e477d3",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_ear_tag_optional.sql",
+      "sha256": "566b78fdc3f29980bf73e1b9423e513586cc05e979facbccbdcf8950b76262f5",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_quantity_column.sql",
+      "sha256": "0a75ad8fbd1a7c1c010910e23b820337c8cd6bc15508eb2fdb0ecce4e41613c9",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_search_result_fields.sql",
+      "sha256": "c099cff50b1a1741756ff8334462cb1018aa01bb711da66b4fad082791c1fea6",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_attribute_value_species_configs_table.sql",
+      "sha256": "3dd1cf1b6a4c27dfa5324e6c523c117490ca7bcfd648d751e617395b2510be2f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_dedup_config.sql",
+      "sha256": "11e7d8bf618c957cacc60e1a9ca7afc0466c1c41e92d80076491938d36096950",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_dialog_titles_from_description.sql",
+      "sha256": "68103a6333dc97334cfbcad43ecc08465f99508497c105ccf6f4c04037eb2626",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_details_registration_gender_status.sql",
+      "sha256": "d519beb906375be09e7a34d7a54863fe5a848280feb5d3a70e4654fd52133f2c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_name_backfill.sql",
+      "sha256": "00fd3b6df13456333ac9240160402c75bdb95ca6ed1712fdedee3c17477f778f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_name_optional.sql",
+      "sha256": "ca73bd9f337e43b28de8fa8323472ff8ab98ed7ae2a8874f47ed0007d3c5ed55",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_fayda_fan_prefix.sql",
+      "sha256": "23013f4d40b3cbbc3a4e1f30fae526460fee18f92d9a6a254daa9c8e99cadfa6",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_female_only_ear_tag_filters.sql",
+      "sha256": "017ea3eea70de9f7d19352d513c3599aaa486e3145591888c0418f78706562d5",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_livestock_species_no_ear_tag_defaults.sql",
+      "sha256": "d8559ea9cf9612138ed67a45c6921172244754164182e7bea3bc5b2bff8ef988",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_age_from_date.sql",
+      "sha256": "651e99e258b1a6d7a33c798f61f600d4a3a2ecc1c88e072c8f3bb71488f9030d",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_dob_gender.sql",
+      "sha256": "844e6f0ca57b69f7a859d2389acb7d9fe6b08183b39cb2582776d442fa089728",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_dynamic_species_config.sql",
+      "sha256": "ace2984abace46d8169682f49bdd523184800b8dc94015aa66edb0cfa8100208",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_health_status_badges.sql",
+      "sha256": "8f962b168e3bec95f0121d185617d5c0b453cd24bd71f1aa0a8928693cc6b451",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_quantity.sql",
+      "sha256": "3eac703f7571b761536c600ff8881a83c2bdcd624bdb1bedbee9c5dbee3d4dee",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_species_identifier.sql",
+      "sha256": "84b83b52eca1b2cfeb58afd9b9439559c5e91ea5c89c927eacb1898fae096e3c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_sync_ui_schema.sql",
+      "sha256": "eede41d225c8a223681a421a4b3c367b9dc30818422a30c8dc859e2c4bda0840",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_breeding_details_sync_ui_schema.sql",
+      "sha256": "ece33a49c55cbc690717e634d1c94cb101e1ebdd902296ddbc70e64959f6d3b7",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_event_dialogs_identifier_label.sql",
+      "sha256": "76f20fb64824d3d43efff05e332f31fa1d16dd66a355668e4dc8d2512c0d083c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_event_tables_age_column.sql",
+      "sha256": "09286a2af93c631b7b7c87a302664604f11a15490b27ca682af7250130d1b047",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_farmer_location_sync_ui_schema.sql",
+      "sha256": "e028372c85366e8b6a3370ec8ffafcb7768aee7e5fac256bfc90352a2d41281c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_health_event_details_sync_ui_schema.sql",
+      "sha256": "1651feea51e75ba64528f8dff3712984e8b32f546dfea533cfa4ff64f96af64c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_livestock_location_sync_ui_schema.sql",
+      "sha256": "6482505ad51b996a7c4e14dd23f91b73f48d5151c009a9ba823f634227cc25f0",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_retagging_details_section.sql",
+      "sha256": "a047a8ace850c22a7f3f4819ca05a585b4750eef88e820b2c00ad213d3b50f20",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_vaccination_details_sync_ui_schema.sql",
+      "sha256": "d2aa9fe402ae865deaaa1822d31752650a0ba16886fea672e85777415ee8e658",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_vital_event_details_sync_ui_schema.sql",
+      "sha256": "2ee5c85e88bc59a0699626623a0e7ed2ec102c104d6b3bc551592fa4b2f86984",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_total_animals_backfill.sql",
+      "sha256": "75d22d34d150fec12d5688ea5548baa475da7abc96ff27c738a546566c127d0c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_ear_tags.sql",
+      "sha256": "b7537db780af60096f31aadfa501839aea1f575ed1cbe2102527a64253a9c872",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_gender.sql",
+      "sha256": "24bc20be13ce653db59073c17577fc4bad57f86dae5dbd7c9b5812404d07a718",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zz_patch_no_past_only_date_constraint.sql",
+      "sha256": "4055803d2b5281b107ca7f8b044a80dd700acbd039e68ce7e65ecdd73c4d6084",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zzz_farmer_reference_awe.sql",
+      "sha256": "6a9e39d644b959d8514b4769b7776252883b9cb7897f8841c37320a41d53e2ed",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zzzz_location_widgets.sql",
+      "sha256": "b62534ef2bb067e2d5270848191d33b48ff323dac6aeb8d14ca0ecd42ce85b29",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_input_mechanisms.sql",
+      "sha256": "1932dd3adbf9114d720c93bf4e7f10f9da8aa149ca23c3860615e0aa95a4952f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_configuration.sql",
+      "sha256": "647023d5e20082f58a6bcd9bdb17bbed5185b487f24115edd1b74a616a19b3e1",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_vc_configurations.sql",
+      "sha256": "96e23c9bc551b8952a8a28c13fed57943d428c409378baf70e92f83ba008a525",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_languages.sql",
+      "sha256": "59011a9f8b40e53924df41d8966bf66107b3befe08932b7e4c030f2da92fc589",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes.sql",
+      "sha256": "260b4c0ed90dc2d47bae523403b066d6d93e8cf6d24363792cb4bfcbae11249e",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes_values.sql",
+      "sha256": "496e2d1f7d25d4ab614b53de4ee61fd677eca501ed6da72b6a0c33cbe1b08461",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql",
+      "sha256": "47da46f696aa9d6164ad0eff9a777b8eee918d33e591ea4c587b8c6e12759884",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql",
+      "sha256": "7a620880c61e9651329b08f213803f6962ae3488ff2cb1279cf0c23e3bedbc73",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql",
+      "sha256": "a4d5b189be8e9036395fee98dc14e7984f94eeeb7a442861fc01770551ec3ef4",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/patch_livestock_odk_ingestion.sql",
+      "sha256": "e602b2a24c26a644ff87d2a114c3d50af109906f248c4dcdb0d34b18232306e5",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
+      "sha256": "f05d5e2467f0c8c4e9bafd4de636be3ef9a5e0b0443425c7a6f6cda903516bdb",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/data-models/data_models.sql",
+      "sha256": "905e4aba48593cc870a09fd68ed6647b58924b200d84fb878473c66dcb735f89",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql",
+      "sha256": "6b2ddef06cc1873c32a189ba9951fba664a4161f83fc5f8cdf804842f7b98b0f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql",
+      "sha256": "de4db6ef8f2fd6436b53ea937851122e7da2293f0c2b22e4a1fef676cb0c8a9d",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql",
+      "sha256": "c6e5c7b06830606ee49990e36043be6db169e358213535663affef0ed03115fa",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_definitions.sql",
+      "sha256": "58ac465e220ddf7cc11e1c4dcd66941cc0d23aae96793321f5bcd4275346300a",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_schemas.sql",
+      "sha256": "fc4def0a8d1c4399c69f965bfc45645b9a2754288bdb1de30b65b6c3836e883a",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_sections.sql",
+      "sha256": "84646c8edbcdf0f9ec8c7c5eaf8e88a46e58b721462cf39004811781a8d22b02",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql",
+      "sha256": "d149a7f2fbd8b46ecc18421837d4093c96b2b6edd0a3e2ddb19048198f41e1f3",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql",
+      "sha256": "a55b9405f62a99a41ca55d24672cd0bf1395bb28c6b685e793d076b05939d60c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_registry_documents.sql",
+      "sha256": "a5912181d0c5684eed119a037822f2bd0b499056c13c2285eedde9dbfd20fd31",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_colour_column.sql",
+      "sha256": "120c75899c80cf319e17119de801b93c720a8126138797b1af40d1b948e477d3",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_ear_tag_optional.sql",
+      "sha256": "566b78fdc3f29980bf73e1b9423e513586cc05e979facbccbdcf8950b76262f5",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_quantity_column.sql",
+      "sha256": "0a75ad8fbd1a7c1c010910e23b820337c8cd6bc15508eb2fdb0ecce4e41613c9",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_search_result_fields.sql",
+      "sha256": "c099cff50b1a1741756ff8334462cb1018aa01bb711da66b4fad082791c1fea6",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_attribute_value_species_configs_table.sql",
+      "sha256": "3dd1cf1b6a4c27dfa5324e6c523c117490ca7bcfd648d751e617395b2510be2f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_dedup_config.sql",
+      "sha256": "11e7d8bf618c957cacc60e1a9ca7afc0466c1c41e92d80076491938d36096950",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_dialog_titles_from_description.sql",
+      "sha256": "68103a6333dc97334cfbcad43ecc08465f99508497c105ccf6f4c04037eb2626",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_details_registration_gender_status.sql",
+      "sha256": "d519beb906375be09e7a34d7a54863fe5a848280feb5d3a70e4654fd52133f2c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_name_backfill.sql",
+      "sha256": "00fd3b6df13456333ac9240160402c75bdb95ca6ed1712fdedee3c17477f778f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_name_optional.sql",
+      "sha256": "ca73bd9f337e43b28de8fa8323472ff8ab98ed7ae2a8874f47ed0007d3c5ed55",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_fayda_fan_prefix.sql",
+      "sha256": "23013f4d40b3cbbc3a4e1f30fae526460fee18f92d9a6a254daa9c8e99cadfa6",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_female_only_ear_tag_filters.sql",
+      "sha256": "017ea3eea70de9f7d19352d513c3599aaa486e3145591888c0418f78706562d5",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_livestock_species_no_ear_tag_defaults.sql",
+      "sha256": "d8559ea9cf9612138ed67a45c6921172244754164182e7bea3bc5b2bff8ef988",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_age_from_date.sql",
+      "sha256": "651e99e258b1a6d7a33c798f61f600d4a3a2ecc1c88e072c8f3bb71488f9030d",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_dob_gender.sql",
+      "sha256": "844e6f0ca57b69f7a859d2389acb7d9fe6b08183b39cb2582776d442fa089728",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_dynamic_species_config.sql",
+      "sha256": "ace2984abace46d8169682f49bdd523184800b8dc94015aa66edb0cfa8100208",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_health_status_badges.sql",
+      "sha256": "8f962b168e3bec95f0121d185617d5c0b453cd24bd71f1aa0a8928693cc6b451",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_quantity.sql",
+      "sha256": "3eac703f7571b761536c600ff8881a83c2bdcd624bdb1bedbee9c5dbee3d4dee",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_species_identifier.sql",
+      "sha256": "84b83b52eca1b2cfeb58afd9b9439559c5e91ea5c89c927eacb1898fae096e3c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_sync_ui_schema.sql",
+      "sha256": "eede41d225c8a223681a421a4b3c367b9dc30818422a30c8dc859e2c4bda0840",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_breeding_details_sync_ui_schema.sql",
+      "sha256": "ece33a49c55cbc690717e634d1c94cb101e1ebdd902296ddbc70e64959f6d3b7",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_event_dialogs_identifier_label.sql",
+      "sha256": "76f20fb64824d3d43efff05e332f31fa1d16dd66a355668e4dc8d2512c0d083c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_event_tables_age_column.sql",
+      "sha256": "09286a2af93c631b7b7c87a302664604f11a15490b27ca682af7250130d1b047",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_farmer_location_sync_ui_schema.sql",
+      "sha256": "e028372c85366e8b6a3370ec8ffafcb7768aee7e5fac256bfc90352a2d41281c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_health_event_details_sync_ui_schema.sql",
+      "sha256": "1651feea51e75ba64528f8dff3712984e8b32f546dfea533cfa4ff64f96af64c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_livestock_location_sync_ui_schema.sql",
+      "sha256": "6482505ad51b996a7c4e14dd23f91b73f48d5151c009a9ba823f634227cc25f0",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_retagging_details_section.sql",
+      "sha256": "a047a8ace850c22a7f3f4819ca05a585b4750eef88e820b2c00ad213d3b50f20",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_vaccination_details_sync_ui_schema.sql",
+      "sha256": "d2aa9fe402ae865deaaa1822d31752650a0ba16886fea672e85777415ee8e658",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_vital_event_details_sync_ui_schema.sql",
+      "sha256": "2ee5c85e88bc59a0699626623a0e7ed2ec102c104d6b3bc551592fa4b2f86984",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_total_animals_backfill.sql",
+      "sha256": "75d22d34d150fec12d5688ea5548baa475da7abc96ff27c738a546566c127d0c",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_ear_tags.sql",
+      "sha256": "b7537db780af60096f31aadfa501839aea1f575ed1cbe2102527a64253a9c872",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_gender.sql",
+      "sha256": "24bc20be13ce653db59073c17577fc4bad57f86dae5dbd7c9b5812404d07a718",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zz_patch_no_past_only_date_constraint.sql",
+      "sha256": "4055803d2b5281b107ca7f8b044a80dd700acbd039e68ce7e65ecdd73c4d6084",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zzz_farmer_reference_awe.sql",
+      "sha256": "6a9e39d644b959d8514b4769b7776252883b9cb7897f8841c37320a41d53e2ed",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zzzz_location_widgets.sql",
+      "sha256": "b62534ef2bb067e2d5270848191d33b48ff323dac6aeb8d14ca0ecd42ce85b29",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_input_mechanisms.sql",
+      "sha256": "1932dd3adbf9114d720c93bf4e7f10f9da8aa149ca23c3860615e0aa95a4952f",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_configuration.sql",
+      "sha256": "647023d5e20082f58a6bcd9bdb17bbed5185b487f24115edd1b74a616a19b3e1",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_vc_configurations.sql",
+      "sha256": "96e23c9bc551b8952a8a28c13fed57943d428c409378baf70e92f83ba008a525",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_languages.sql",
+      "sha256": "59011a9f8b40e53924df41d8966bf66107b3befe08932b7e4c030f2da92fc589",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes.sql",
+      "sha256": "260b4c0ed90dc2d47bae523403b066d6d93e8cf6d24363792cb4bfcbae11249e",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes_values.sql",
+      "sha256": "496e2d1f7d25d4ab614b53de4ee61fd677eca501ed6da72b6a0c33cbe1b08461",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql",
+      "sha256": "47da46f696aa9d6164ad0eff9a777b8eee918d33e591ea4c587b8c6e12759884",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql",
+      "sha256": "7a620880c61e9651329b08f213803f6962ae3488ff2cb1279cf0c23e3bedbc73",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql",
+      "sha256": "a4d5b189be8e9036395fee98dc14e7984f94eeeb7a442861fc01770551ec3ef4",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/patch_livestock_odk_ingestion.sql",
+      "sha256": "e602b2a24c26a644ff87d2a114c3d50af109906f248c4dcdb0d34b18232306e5",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
+      "sha256": "f05d5e2467f0c8c4e9bafd4de636be3ef9a5e0b0443425c7a6f6cda903516bdb",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    }
+  ],
+  "repeat_metadata_identical": true,
+  "existing_environment_modified": false,
+  "disposable_database_removed": true
+}

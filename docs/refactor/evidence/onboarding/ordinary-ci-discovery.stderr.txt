@@ -66,6 +66,6 @@ test_unapproved_or_inactive_reference_blocks_projection (test_farmer_reference_p
 test_unlinked_ingest_rolls_back_without_guessing_owner (test_farmer_reference_projection.ProjectionTests.test_unlinked_ingest_rolls_back_without_guessing_owner) ... ok
 
 ----------------------------------------------------------------------
-Ran 66 tests in 1.619s
+Ran 66 tests in 1.695s
 
 OK (skipped=33)

@@ -42,8 +42,16 @@ def verify(repo: Path, domain: str) -> dict:
         pin = re.search(r"^ARG RP_VERSION=(\S+)", path.read_text(encoding="utf-8"), re.M)
         if pin:
             pins.add(pin[1])
-    chart = (repo / f"helm/openg2p-{domain}-registry/Chart.yaml").read_text(encoding="utf-8")
-    pins.add(re.search(r"- name: openg2p-registry\s+alias: registry\s+version: (\S+)", chart)[1])
+    profile = json.loads((repo / "ci/deploy/oan-chart.json").read_text(encoding="utf-8"))
+    pin = profile["registry"]
+    pins.add(pin["platformVersion"])
+    if not re.fullmatch(r"https://raw\.githubusercontent\.com/Centre-for-Open-Societal-Systems/oan-helm/[0-9a-f]{40}/repository/",pin["repository"]):
+        errors.append("central chart commit is not immutable")
+    if pin["promotionReady"] is not False or profile["dashboard"]["promotionReady"] is not False:
+        errors.append("incomplete refactor deployment enabled")
+    for name in ("helm", "openg2p-connector-service", "openg2p-connector-ui"):
+        if any((repo / name).rglob("Chart.yaml")) or (repo / name / "Dockerfile").exists():
+            errors.append("retired vendored source remains: " + name)
     if pins != {"1.2.2-rc.557"}:
         errors.append(f"split platform pins: {pins}")
     if (repo / "farmer-extension").exists():
@@ -61,9 +69,8 @@ def verify(repo: Path, domain: str) -> dict:
     preflight = (repo / "ci/refactor/seed-preflight.sh").read_text(encoding="utf-8")
     if not preflight.rstrip().endswith("exit 1"):
         errors.append("incomplete port can seed an environment")
-    render_gate = repo / f"helm/openg2p-{domain}-registry/templates/refactor-promotion-gate.yaml"
-    if not render_gate.exists() or '{{- fail "' not in render_gate.read_text(encoding="utf-8"):
-        errors.append("incomplete port can render deployment manifests")
+    if not re.fullmatch(r"[0-9a-f]{64}",pin["sha256"]):
+        errors.append("missing immutable central chart checksum")
     # No branch-specific auto-deployment may be introduced by curation.
     jenkins = (repo / "Jenkinsfile").read_text(encoding="utf-8")
     if "branch 'develop-refactor'" in jenkins or 'branch "develop-refactor"' in jenkins:

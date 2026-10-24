@@ -1,0 +1,793 @@
+{
+  "registry": "livestock",
+  "live_captured_at": "2026-10-24T18:37:40.160506+00:00",
+  "runtime_model_presence": [
+    {
+      "register": "Farmer",
+      "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+      "live_fields": [
+        "address_line_1",
+        "address_line_2",
+        "altitude",
+        "country_code",
+        "created_at",
+        "created_by",
+        "date_of_birth",
+        "farmer_id",
+        "farmer_name",
+        "fayda_fan_id",
+        "first_name",
+        "functional_record_id",
+        "gender",
+        "geo_code_hierarchy_json",
+        "geo_lowest_level_value_id",
+        "internal_record_id",
+        "kebele",
+        "kebele_id",
+        "last_approved_at",
+        "last_approved_by",
+        "last_name",
+        "latitude",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "longitude",
+        "middle_name",
+        "mobile_number",
+        "plus_code",
+        "postal_code",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "region",
+        "region_id",
+        "registration_date",
+        "search_text",
+        "status",
+        "woreda",
+        "woreda_id",
+        "zone",
+        "zone_id"
+      ],
+      "live_field_count": 42,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": [
+        "email",
+        "first_name_amh",
+        "first_name_other",
+        "kebele_name",
+        "last_name_amh",
+        "last_name_other",
+        "middle_name_amh",
+        "middle_name_other",
+        "region_name",
+        "woreda_name",
+        "zone_name"
+      ]
+    },
+    {
+      "register": "Livestock",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "live_fields": [
+        "address_line_1",
+        "address_line_2",
+        "altitude",
+        "country_code",
+        "created_at",
+        "created_by",
+        "farmer_id",
+        "farmer_name",
+        "farmer_uuid",
+        "fayda_fan_id",
+        "functional_record_id",
+        "geo_code_hierarchy_json",
+        "geo_lowest_level_value_id",
+        "internal_record_id",
+        "kebele",
+        "kebele_id",
+        "last_approved_at",
+        "last_approved_by",
+        "latitude",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "longitude",
+        "notes",
+        "oan_id",
+        "plus_code",
+        "postal_code",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "region",
+        "region_id",
+        "registration_date",
+        "search_text",
+        "secondary_identifier",
+        "source_system",
+        "state",
+        "state_date",
+        "status",
+        "supervisor_mobile_number",
+        "supervisor_name",
+        "surveyor_mobile_number",
+        "surveyor_name",
+        "sync_status",
+        "total_animals",
+        "woreda",
+        "woreda_id",
+        "zone",
+        "zone_id"
+      ],
+      "live_field_count": 49,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "Animal",
+      "register_id": "041a9f79-2142-548a-a15b-a4c76fc9f6f7",
+      "live_fields": [
+        "age",
+        "animal_name",
+        "breed",
+        "colour",
+        "created_at",
+        "created_by",
+        "date_of_birth",
+        "ear_tag_id",
+        "functional_record_id",
+        "gender",
+        "health_status",
+        "internal_record_id",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "quantity",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "registration_date",
+        "search_text",
+        "secondary_identifier",
+        "species",
+        "state",
+        "vaccination_status",
+        "weight"
+      ],
+      "live_field_count": 28,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "HealthEvent",
+      "register_id": "a40e4a02-1b82-5b31-89df-71624bd96545",
+      "live_fields": [
+        "age",
+        "created_at",
+        "created_by",
+        "date_onset",
+        "date_resolution",
+        "disease_type",
+        "ear_tag_id",
+        "event_type",
+        "functional_record_id",
+        "internal_record_id",
+        "is_notifiable",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "location",
+        "location_details",
+        "notes",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "search_text",
+        "species",
+        "treatment",
+        "veterinarian_name"
+      ],
+      "live_field_count": 26,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "Vaccination",
+      "register_id": "51c1f6d6-856a-5e2f-84e9-ff5abdc4fb75",
+      "live_fields": [
+        "administered_by",
+        "age",
+        "batch_number",
+        "created_at",
+        "created_by",
+        "ear_tag_id",
+        "functional_record_id",
+        "internal_record_id",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "next_due_date",
+        "notes",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "search_text",
+        "species",
+        "vaccination_date",
+        "vaccine_type"
+      ],
+      "live_field_count": 22,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "VitalEvent",
+      "register_id": "76811bf6-07df-5ed4-9466-13b782f627fe",
+      "live_fields": [
+        "age",
+        "cause",
+        "created_at",
+        "created_by",
+        "date_onset",
+        "date_resolution",
+        "disease_type",
+        "ear_tag_id",
+        "event_date",
+        "event_type",
+        "functional_record_id",
+        "internal_record_id",
+        "is_notifiable",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "location",
+        "location_details",
+        "notes",
+        "offspring_count",
+        "offspring_ear_tag_prefix",
+        "offspring_ear_tags",
+        "offspring_gender",
+        "offspring_generated",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "reporting_officer",
+        "search_text",
+        "species",
+        "treatment",
+        "veterinarian_name"
+      ],
+      "live_field_count": 34,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "Breeding",
+      "register_id": "192c08b0-5403-5167-968a-2676d4af2879",
+      "live_fields": [
+        "age",
+        "ai_technician_name",
+        "ai_technique",
+        "breeding_date",
+        "created_at",
+        "created_by",
+        "ear_tag_id",
+        "event_type",
+        "expected_calving_date",
+        "functional_record_id",
+        "internal_record_id",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "location",
+        "location_details",
+        "notes",
+        "outcome",
+        "pregnancy_confirmation_date",
+        "pregnancy_confirmed",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "search_text",
+        "semen_batch_number",
+        "sire_or_semen_id",
+        "species"
+      ],
+      "live_field_count": 29,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "Retagging",
+      "register_id": "b853f1db-6dd6-5b16-a0d8-25a8524142e6",
+      "live_fields": [
+        "applied_on",
+        "approving_officer",
+        "created_at",
+        "created_by",
+        "ear_tag_id",
+        "functional_record_id",
+        "internal_record_id",
+        "justification",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "new_ear_tag_id",
+        "reason",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "retag_date",
+        "search_text",
+        "species"
+      ],
+      "live_field_count": 21,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "VaccineSchedule",
+      "register_id": "5cdf80bf-0cdb-53e4-a4cf-71927f809250",
+      "live_fields": [
+        "created_at",
+        "created_by",
+        "functional_record_id",
+        "internal_record_id",
+        "interval_days",
+        "is_active",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "notes",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "search_text",
+        "species",
+        "vaccine_name"
+      ],
+      "live_field_count": 18,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "ImportBatch",
+      "register_id": "0fd11be9-83d7-5d2e-9dea-e0653add7059",
+      "live_fields": [
+        "batch_reference",
+        "conflict_count",
+        "created_at",
+        "created_by",
+        "error_log",
+        "failure_count",
+        "functional_record_id",
+        "import_file_document_id",
+        "import_filename",
+        "internal_record_id",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "processed_by",
+        "processing_date",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "search_text",
+        "source_system",
+        "state",
+        "success_count",
+        "total_rows"
+      ],
+      "live_field_count": 25,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    },
+    {
+      "register": "AuditLog",
+      "register_id": "6a3699f0-4b17-5d0d-b8b3-4822bfdab7aa",
+      "live_fields": [
+        "action_type",
+        "changes",
+        "created_at",
+        "created_by",
+        "event_timestamp",
+        "functional_record_id",
+        "internal_record_id",
+        "ip_address",
+        "last_approved_at",
+        "last_approved_by",
+        "link_foundational_id",
+        "link_internal_record_id",
+        "record_image_document_id",
+        "record_name",
+        "record_status",
+        "record_status_reason",
+        "res_model",
+        "res_record_id",
+        "search_text",
+        "session_id",
+        "user_name",
+        "user_role"
+      ],
+      "live_field_count": 22,
+      "missing_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [
+          "last_approved_at",
+          "last_approved_by",
+          "search_text"
+        ],
+        "G2PIntakeForm": []
+      },
+      "missing_domain_by_model": {
+        "G2PRegister": [],
+        "G2PRegisterHistory": [],
+        "G2PIntakeForm": []
+      },
+      "type_mismatches": [],
+      "added_register_fields": []
+    }
+  ],
+  "sections": [
+    {
+      "section_id": "livestock_farmer_identity_section_01",
+      "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+      "section_register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_farmer_location_section_02",
+      "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+      "section_register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_animal_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "041a9f79-2142-548a-a15b-a4c76fc9f6f7",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_audit_log_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "6a3699f0-4b17-5d0d-b8b3-4822bfdab7aa",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_breeding_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "192c08b0-5403-5167-968a-2676d4af2879",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_health_event_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "a40e4a02-1b82-5b31-89df-71624bd96545",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_import_batch_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "0fd11be9-83d7-5d2e-9dea-e0653add7059",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_livestock_location_section_03",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [
+        "997676d3-7008-59f9-b23e-613ad79bbb08.geo_code_hierarchy_json",
+        "997676d3-7008-59f9-b23e-613ad79bbb08.geo_lowest_level_value_id",
+        "997676d3-7008-59f9-b23e-613ad79bbb08.latitude",
+        "997676d3-7008-59f9-b23e-613ad79bbb08.longitude"
+      ],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_livestock_record_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_retagging_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "b853f1db-6dd6-5b16-a0d8-25a8524142e6",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_survey_personnel_section_02",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_vaccination_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "51c1f6d6-856a-5e2f-84e9-ff5abdc4fb75",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_vaccine_schedule_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "5cdf80bf-0cdb-53e4-a4cf-71927f809250",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    },
+    {
+      "section_id": "livestock_vital_event_details_section_01",
+      "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+      "section_register_id": "76811bf6-07df-5ed4-9466-13b782f627fe",
+      "present": true,
+      "removed_field_paths": [],
+      "added_field_paths": [],
+      "relationship_preserved": true
+    }
+  ],
+  "forms": [
+    {
+      "form_id": "e92e8be1-207f-518e-99c2-8bc21cc1f112",
+      "form_mnemonic": "Livestock Intake",
+      "present": true,
+      "tabs": [
+        {
+          "tab_id": "0ebdc221-187d-5df6-9dc3-c6f4c4ee160e",
+          "present": true,
+          "bindings": [
+            {
+              "tab_section_id": "intake_tab_section_1",
+              "section_id": "livestock_farmer_identity_section_01",
+              "target_section_id": "livestock_livestock_record_section_01",
+              "present": true
+            },
+            {
+              "tab_section_id": "intake_tab_section_4",
+              "section_id": "livestock_survey_personnel_section_02",
+              "target_section_id": "livestock_survey_personnel_section_02",
+              "present": true
+            },
+            {
+              "tab_section_id": "intake_tab_section_5",
+              "section_id": "livestock_livestock_location_section_03",
+              "target_section_id": "livestock_livestock_location_section_03",
+              "present": true
+            },
+            {
+              "tab_section_id": "intake_tab_section_6",
+              "section_id": "livestock_animal_details_section_01",
+              "target_section_id": "livestock_animal_details_section_01",
+              "present": true
+            },
+            {
+              "tab_section_id": "intake_tab_section_7",
+              "section_id": "livestock_health_event_details_section_01",
+              "target_section_id": "livestock_health_event_details_section_01",
+              "present": true
+            },
+            {
+              "tab_section_id": "intake_tab_section_8",
+              "section_id": "livestock_vaccination_details_section_01",
+              "target_section_id": "livestock_vaccination_details_section_01",
+              "present": true
+            },
+            {
+              "tab_section_id": "intake_tab_section_9",
+              "section_id": "livestock_vital_event_details_section_01",
+              "target_section_id": "livestock_vital_event_details_section_01",
+              "present": true
+            },
+            {
+              "tab_section_id": "intake_tab_section_10",
+              "section_id": "livestock_breeding_details_section_01",
+              "target_section_id": "livestock_breeding_details_section_01",
+              "present": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "physical_database_columns_verified": false,
+  "standards_scope": "Native extension DDL, seeded metadata and registered runtime declared fields; not full business/live acceptance",
+  "sql_errors": [],
+  "repeat_metadata_identical": true,
+  "all_live_register_fields_present": true,
+  "all_section_field_paths_preserved": true,
+  "all_form_ids_preserved": true,
+  "all_domain_history_intake_fields_present": true,
+  "all_register_field_types_match": true,
+  "field_count": 316
+}
