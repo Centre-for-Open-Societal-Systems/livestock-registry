@@ -211,3 +211,6 @@ local/
 # Existing Jenkins source dependencies and tools
 .build/
 .tools/
+
+# Immutable verified CI chart transport; never source or private release values.
+.central-charts/

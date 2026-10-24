@@ -24,3 +24,10 @@ authorized --credentials path. It never captures registry records or submits
 approval actions. Credentials/cookies remain in memory, and metadata snapshots
 remove credential values. Rehearse/compare scripts run serially using disposable
 test databases; they do not bypass the real seed promotion preflight.
+
+Crop's build agent runs `prefetch registry` and `prefetch dashboard` before
+stashing `.central-charts/**`. Archives and public values are cached by SHA-256;
+the VPN deploy node rechecks the exact package and values without GitHub access.
+A corrupt cached archive fails closed and does not trigger a network fallback.
+Manual runs can prefetch on a connected machine and carry that directory with
+the same immutable profile. Cached archives are not editable Helm sources.

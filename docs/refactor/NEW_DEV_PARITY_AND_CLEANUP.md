@@ -35,7 +35,7 @@ new-dev/baseline-20261025; only target-pass-1/2 and seed-rehearsal are current.
 
 | Source/capability | Owning implementation | Decision/evidence |
 | --- | --- | --- |
-| Core Helm/dependency/reporting/auth | COSS oan-helm core chart 1.0.0-dev.9 | Exact commit f0bea108e6fcf0b428c58034770eedbf5763f762, archive SHA-256 in ci/deploy/oan-chart.json |
+| Core Helm/dependency/reporting/auth | COSS oan-helm core chart 1.0.0-dev.10 | Exact commit ff16b7b7522d3e1e2c5cd0bf1b917ea69d195da9, archive SHA-256 in ci/deploy/oan-chart.json |
 | Dashboard release chart | COSS oan-helm addon 0.1.2 | Existing independent release names, IAM settings, human Dashboard Viewer and service charts:read retained |
 | Dashboard API/UI application | Existing independent COSS sources | Registry Jenkins still resolves source revisions, builds and pushes its existing ECR images |
 | Connector service/UI source | Independently operated integration dependency | Vendored source/build/update paths retired; runtime releases, images and checkpoints untouched |
@@ -73,3 +73,7 @@ MY_DATA_MODEL example is intentionally retired.
 
 No live registry records, documents, approvals, grants, environment settings,
 connector checkpoints or deployments were changed by this work.
+
+Hosted Linux [Helm CI](https://github.com/Centre-for-Open-Societal-Systems/oan-helm/actions/runs/40128364896) passes for the pinned dev.10 correction: 20 unit tests, six core packages/index and three independent dashboard charts. Published dev.9 bytes were retained after CI caught a Windows-only source newline seal; dev.10 fixes the source and rejects that condition before packaging. Registry Jenkins runtime status is unverified; its syntax and focused commands were checked locally.
+
+Verified central cache transport preserves Crop deploy-node isolation: build-agent prefetch/stash plus deploy-time checksum checks, including rejection of corrupt cached archives without a network fallback. Ten chart-client tests and six configuration guard tests pass, plus the platform pin and four geometry checks.

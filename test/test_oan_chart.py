@@ -7,6 +7,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 import yaml
 
 MODULE = Path(__file__).parents[1] / "ci/deploy/oan_chart.py"
@@ -59,5 +60,25 @@ class CentralChartTests(unittest.TestCase):
     def test_dev_approval_does_not_authorize_staging(self):
         self.package(); self.pin["promotionReady"]=True
         with self.assertRaisesRegex(ValueError,"Deployment blocked"):chart.require_deployable(self.pin,"staging")
+
+    def test_verified_prefetched_archive_works_without_network(self):
+        self.package()
+        cache=Path(self.temp.name)/'cache'
+        target=cache/self.pin['sha256']/(self.pin['name']+'-'+self.pin['version']+'.tgz')
+        target.parent.mkdir(parents=True)
+        target.write_bytes(self.path.read_bytes())
+        with patch.object(chart,'CENTRAL_CACHE',cache), patch.object(chart.urllib.request,'urlopen',side_effect=AssertionError('Deploy node must remain offline')):
+            result=chart.fetch(self.pin,Path(self.temp.name)/'deploy')
+            self.assertEqual(result.read_bytes(),self.path.read_bytes())
+
+    def test_corrupt_prefetched_archive_fails_without_network_fallback(self):
+        self.package()
+        cache=Path(self.temp.name)/'cache'
+        target=cache/self.pin['sha256']/(self.pin['name']+'-'+self.pin['version']+'.tgz')
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b'corrupt')
+        with patch.object(chart,'CENTRAL_CACHE',cache), patch.object(chart.urllib.request,'urlopen',side_effect=AssertionError('No fallback')):
+            with self.assertRaisesRegex(ValueError,'checksum'):
+                chart.fetch(self.pin,Path(self.temp.name)/'deploy')
 
 if __name__=="__main__":unittest.main()

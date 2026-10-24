@@ -42,7 +42,7 @@
     {
       "id": "B10",
       "capability": "Central chart and Master Data location upgrade preservation",
-      "evidence": "Immutable oan-helm dev.9 and dashboard 0.1.2 pins are delivered. Commons/Crop/Livestock remain fail-closed. Native Master Data develop.118 snapshot/image provenance is recorded; existing data, country-pack/catalogue, standard geographic assignments and open AWE tasks need supported administration and restored-copy acceptance."
+      "evidence": "Immutable oan-helm dev.10 and dashboard 0.1.2 pins are delivered. Commons/Crop/Livestock remain fail-closed. Native Master Data develop.118 snapshot/image provenance is recorded; existing data, country-pack/catalogue, standard geographic assignments and open AWE tasks need supported administration and restored-copy acceptance."
     },
     {
       "id": "B11",

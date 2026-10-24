@@ -12,6 +12,7 @@ import tarfile
 import urllib.request
 
 PROFILE = Path(__file__).with_name("oan-chart.json")
+CENTRAL_CACHE = Path(__file__).resolve().parents[2] / ".central-charts"
 
 
 def yaml_document(data):
@@ -73,11 +74,19 @@ def fetch(pin, destination):
     target_dir = Path(destination)
     target_dir.mkdir(parents=True,exist_ok=True)
     target = target_dir / (pin["name"] + "-" + pin["version"] + ".tgz")
+    if target.exists():
+        verify(target,pin)
+        return target.resolve()
+    cached = CENTRAL_CACHE / pin['sha256'] / target.name
     # Atomic replacement only after a successful bounded download/checksum.
     partial = target.with_suffix(".partial")
     try:
-        with urllib.request.urlopen(url(pin),timeout=30) as response:
-            data = response.read(32*1024*1024+1)
+        if cached.exists():
+            verify(cached,pin)
+            data = cached.read_bytes()
+        else:
+            with urllib.request.urlopen(url(pin),timeout=30) as response:
+                data = response.read(32*1024*1024+1)
         if len(data)>32*1024*1024:
             raise ValueError("Central chart exceeds approved size limit")
         partial.write_bytes(data)
@@ -102,9 +111,13 @@ def fetch_values(pin, destination):
         raise ValueError('Invalid central public-values path')
     if not re.fullmatch(r'[a-f0-9]{64}',values['sha256']):
         raise ValueError('Missing central public-values checksum')
-    uri = pin['repository'].removesuffix('repository/')+values['path']
-    with urllib.request.urlopen(uri,timeout=30) as response:
-        data = response.read(1024*1024+1)
+    cached = CENTRAL_CACHE / values['sha256'] / Path(values['path']).name
+    if cached.exists():
+        data = cached.read_bytes()
+    else:
+        uri = pin['repository'].removesuffix('repository/')+values['path']
+        with urllib.request.urlopen(uri,timeout=30) as response:
+            data = response.read(1024*1024+1)
     if len(data)>1024*1024 or hashlib.sha256(data).hexdigest()!=values['sha256']:
         raise ValueError('Central public-values checksum mismatch')
     if not isinstance(yaml_document(data),dict):
@@ -116,7 +129,7 @@ def fetch_values(pin, destination):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action",choices=("url","verify","fetch","values","require-deployable","platform","version"))
+    parser.add_argument("action",choices=("url","verify","fetch","values","prefetch","require-deployable","platform","version"))
     parser.add_argument("role",choices=("registry","dashboard"))
     parser.add_argument("argument",nargs="?")
     args = parser.parse_args()
@@ -125,6 +138,10 @@ def main():
     elif args.action=="verify": verify(args.argument,pin); print("PASS: central chart checksum, identity and native platform")
     elif args.action=="fetch": print(fetch(pin,args.argument))
     elif args.action=="values": print(fetch_values(pin,args.argument))
+    elif args.action=="prefetch":
+        fetch(pin,CENTRAL_CACHE / pin['sha256'])
+        fetch_values(pin,CENTRAL_CACHE / pin['values']['sha256'] / Path(pin['values']['path']).name)
+        print('PASS: central archive and public values verified for offline deploy transport')
     elif args.action=="require-deployable": require_deployable(pin,args.argument or "dev")
     elif args.action=="platform": print(pin["platformVersion"])
     elif args.action=="version": print(pin["version"])
