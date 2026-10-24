@@ -1,0 +1,74 @@
+{
+  "promotion_ready": false,
+  "domain_port_only": true,
+  "base": "ed1e70ccf18df5476fa404ed8018e12d55e418fa",
+  "source": "35d21bbe07853324d9493279630fe35600d98c0f",
+  "blockers": [
+    {
+      "id": "B01",
+      "capability": "Worker extension initialization",
+      "evidence": "Native worker main.py initializes its own app.Initializer; it aliases extension models/config but never invokes the domain initializer. No documented extension service override registration in workers."
+    },
+    {
+      "id": "B02",
+      "capability": "Kafka-created approval tasks",
+      "evidence": "change_request_ingest_worker -> G2PChangeRequestWorkerService.create_change_request persists CR/payload without start_change_request_workflow or an AWE bearer. No supported domain hook around that transaction."
+    },
+    {
+      "id": "B03",
+      "capability": "Session-aware domain validations",
+      "evidence": "Native intake save calls validate_domain_attributes(records) without session/section context; legacy session-dependent cross-section validations need a documented hook or approved subclass entry point in every API/worker."
+    },
+    {
+      "id": "B04",
+      "capability": "Domain scheduled tasks",
+      "evidence": "Native beat app has a fixed schedule and include list. Legacy Livestock patched it; documented extension registration must replace this before reminders/retention can pass."
+    },
+    {
+      "id": "B05",
+      "capability": "Linked ADD dependency lifecycle",
+      "evidence": "Durable concurrent ADD reuse, atomic request correlation, native activation gate and current approved projection are not implemented by this source port. Native ingester inserts Farmer sibling sections; old patched path cannot be retained."
+    },
+    {
+      "id": "B06",
+      "capability": "Metadata, widgets and geographic routing",
+      "evidence": "Legacy final-row metadata and UI behavior need reconciliation with current section schemas/registered source widgets. Keycloak HTTP rules retired; IAM/DP_ scope resolution and native context expressions require accepted contract evidence."
+    },
+    {
+      "id": "B07",
+      "capability": "Preservation and live acceptance",
+      "evidence": "Fresh install, restored-copy upgrades, native imports/ODK, signed DCI, consent, authenticated dashboard, current-source Kafka and independent target decisions NOT RUN."
+    },
+    {
+      "id": "B08",
+      "capability": "Live governing architecture",
+      "evidence": "Confluence v5 could not be read through available web/browser tools; supplied user plan governs; local versions 1/3/4 are not v5 evidence."
+    }
+  ],
+  "acceptance": {
+    "A01": "NOT RUN",
+    "A02": "NOT RUN",
+    "A03": "NOT RUN",
+    "A04": "NOT RUN",
+    "A05": "NOT RUN",
+    "A06": "NOT RUN",
+    "A07": "NOT RUN",
+    "A08": "NOT RUN",
+    "A09": "NOT RUN",
+    "A10": "NOT RUN"
+  },
+  "blocking_installation": [
+    "Helm render fails before any deployment manifests are emitted",
+    "Native seed preflight exits before seed execution"
+  ],
+  "verified_source_changes": [
+    "Native selected-extension factory resolution",
+    "Every domain ORM is included in native migration coverage",
+    "No platform worker or compiled UI patches",
+    "No custom geographic resolver or custom bulk import endpoint",
+    "Synchronized base image/chart pins; UI source pinned to base image OCI revision",
+    "All eleven history schemas now inherit domain fields",
+    "Animal colour is retained by live/history/intake schemas"
+  ],
+  "documentation_contract": "Official OpenG2P GitHub latest snapshots read; Confluence v5 remains unverified"
+}

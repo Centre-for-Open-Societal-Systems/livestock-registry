@@ -99,7 +99,17 @@ fetch_staff_ui() {
     local log
     log=$(mktemp)
     say "Cloning ${repo} @ ${ref} (${sub_path})…"
-    if ! git clone --quiet --depth 1 --filter=blob:none --sparse --branch "$ref" "$repo" "$clone_dir" >"$log" 2>&1; then
+    if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+        if ! { git init --quiet "$clone_dir" &&
+               git -C "$clone_dir" remote add origin "$repo" &&
+               git -C "$clone_dir" sparse-checkout init --cone &&
+               git -C "$clone_dir" fetch --quiet --depth 1 --filter=blob:none origin "$ref" &&
+               git -C "$clone_dir" checkout --quiet --detach FETCH_HEAD; } >"$log" 2>&1; then
+            cat "$log" >&2
+            rm -f "$log"
+            fail "git fetch of pinned source revision failed"
+        fi
+    elif ! git clone --quiet --depth 1 --filter=blob:none --sparse --branch "$ref" "$repo" "$clone_dir" >"$log" 2>&1; then
         cat "$log" >&2
         rm -f "$log"
         fail "git clone failed"

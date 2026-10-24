@@ -1,15 +1,15 @@
 """Guard: the openg2p-registry pin must be identical in every place it appears.
 
 A variant extends ONE registry-platform version, used two ways:
-  * the Docker base images — `ARG RP_VERSION=<v>` in every docker/*/Dockerfile
-  * the Helm chart — the `openg2p-registry` dependency `version:` in Chart.yaml
+  * the Docker base images â€” `ARG RP_VERSION=<v>` in every docker/*/Dockerfile
+  * the Helm chart â€” the `openg2p-registry` dependency `version:` in Chart.yaml
 
 If these drift, the sanity image is built FROM one base while the chart deploys
 another, and the overlay lands on a harness it does not match (the failure that
 bit us repeatedly). `scripts/bump-rp-version.sh` moves them together; this test
 fails the build if anything ever splits them again.
 
-No dependencies beyond the stdlib + pytest — runs anywhere the other tests do.
+No dependencies beyond the stdlib + pytest â€” runs anywhere the other tests do.
 """
 
 import pathlib
@@ -18,7 +18,7 @@ import re
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-CHART = REPO / "helm" / "openg2p-farmer-registry" / "Chart.yaml"
+CHART = REPO / "helm" / "openg2p-livestock-registry" / "Chart.yaml"
 
 
 def _docker_pins():
@@ -49,7 +49,7 @@ def test_rp_pin_is_in_lockstep():
         lines = [f"  Chart.yaml openg2p-registry dependency: {chart}"]
         lines += [f"  {p}: {v}" for p, v in docker.items()]
         pytest.fail(
-            "openg2p-registry pin has SPLIT — images and chart must be identical:\n"
+            "openg2p-registry pin has SPLIT â€” images and chart must be identical:\n"
             + "\n".join(lines)
             + "\n\nFix with: ./scripts/bump-rp-version.sh <version>"
         )

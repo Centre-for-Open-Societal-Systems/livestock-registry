@@ -1,7 +1,7 @@
 Both celery codebases (celery-workers and celery-beat-producers), plus the
 `run_celery.py` startup wrapper, live in the registry-platform base image
-`openg2p/openg2p-registry-celery`. Farmer's `docker/celery/Dockerfile` only
-extends that base with the farmer domain model — it no longer installs celery
+`openg2p/openg2p-registry-celery`. Livestock's `docker/celery/Dockerfile` only
+extends that base with the livestock domain model — it no longer installs celery
 itself.
 
 Because both codebases are present in the base, we select which application to

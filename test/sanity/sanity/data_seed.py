@@ -1,4 +1,4 @@
-"""Idempotent injection of the sanity test farmer into the registry database.
+"""Idempotent injection of the sanity livestock record into the registry database.
 
 Why SQL and not an API:
   * every staff-portal-api register write is a **change request** — using it to
@@ -7,9 +7,9 @@ Why SQL and not an API:
   * the record must exist in a known, ACTIVE, already-approved state so the DCI
     search is deterministic.
 
-Why the test data is injected at all rather than reusing seeded sample data:
-the sample farmers are only present when `dbSeed.loadSampleData=true`, which a
-production install turns off — the e2e must not depend on them.
+Why the test data is injected at all rather than reusing seeded sample data: the
+livestock sample records are only present when the sample-data set is applied,
+which a production install does not do — the e2e must not depend on them.
 
 **`search_text` is written explicitly.** On the ORM it is auto-populated by
 SQLAlchemy event listeners, which do NOT fire for raw SQL. db-seed's
@@ -25,25 +25,27 @@ _COLUMNS = [
     "record_name", "created_by", "created_at",
     "last_approved_at", "last_approved_by",
     "search_text", "record_status",
-    "foundational_id", "first_name", "last_name", "given_name",
-    "gender", "birth_date", "marital_status", "education_level",
-    "language_code", "registration_date", "middle_name",
+    "farmer_id", "fayda_fan_id", "farmer_name", "oan_id", "status",
+    "state", "source_system", "surveyor_name",
 ]
 
 # Re-runnable: a second install/upgrade updates the row rather than colliding on
-# the primary key, and resets the change-request field (middle_name) and
+# the primary key, and resets the change-request field (surveyor_name) and
 # search_text so every run starts from a known state.
 _UPSERT = f"""
-INSERT INTO "public"."g2p_register_farmers" ({", ".join(f'"{c}"' for c in _COLUMNS)})
+INSERT INTO "public"."g2p_register_livestocks" ({", ".join(f'"{c}"' for c in _COLUMNS)})
 VALUES ({", ".join(["%s"] * len(_COLUMNS))})
 ON CONFLICT ("internal_record_id") DO UPDATE SET
-    "search_text"   = EXCLUDED."search_text",
-    "record_status" = EXCLUDED."record_status",
-    "middle_name"   = EXCLUDED."middle_name",
-    "first_name"    = EXCLUDED."first_name",
-    "last_name"     = EXCLUDED."last_name",
-    "birth_date"    = EXCLUDED."birth_date",
-    "gender"        = EXCLUDED."gender";
+    "search_text"          = EXCLUDED."search_text",
+    "record_status"        = EXCLUDED."record_status",
+    "surveyor_name"        = EXCLUDED."surveyor_name",
+    "farmer_name"          = EXCLUDED."farmer_name",
+    "farmer_id"            = EXCLUDED."farmer_id",
+    "fayda_fan_id"         = EXCLUDED."fayda_fan_id",
+    "oan_id"               = EXCLUDED."oan_id",
+    "status"               = EXCLUDED."status",
+    "state"                = EXCLUDED."state",
+    "source_system"        = EXCLUDED."source_system";
 """
 
 _CREATED_AT = "2026-01-01 00:00:00"
@@ -51,30 +53,33 @@ _CREATED_AT = "2026-01-01 00:00:00"
 
 def _row():
     f = fixtures.FARMER
-    full_name = f"{f['first_name']} {f['last_name']}"
+    record_name = f"{f['farmer_name']} {f['oan_id']}"
     # The marker must be inside search_text — that is the only column the DCI
     # search matches on.
     search_text = " ".join([
         fixtures.SEARCH_MARKER,
         fixtures.FARMER_FUNCTIONAL_ID,
-        full_name,
-        f["gender"],
-        f["birth_date"],
+        f["oan_id"],
+        f["farmer_name"],
+        f["farmer_id"],
+        f["fayda_fan_id"],
+        f["status"],
+        f["state"],
+        f["source_system"],
     ])
     return (
         fixtures.FARMER_INTERNAL_ID, fixtures.FARMER_FUNCTIONAL_ID,
-        full_name, fixtures.CREATED_BY, _CREATED_AT,
+        record_name, fixtures.CREATED_BY, _CREATED_AT,
         _CREATED_AT, fixtures.CREATED_BY,
         search_text, "ACTIVE",
-        fixtures.FARMER_FOUNDATIONAL_ID, f["first_name"],
-        f["last_name"], full_name,
-        f["gender"], f["birth_date"], f["marital_status"], f["education_level"],
-        f["language_code"], _CREATED_AT, fixtures.CR_VALUE_INITIAL,
+        f["farmer_id"], f["fayda_fan_id"], f["farmer_name"],
+        f["oan_id"], f["status"], f["state"],
+        f["source_system"], fixtures.CR_VALUE_INITIAL,
     )
 
 
 def ensure_seeded(cfg) -> str:
-    """Insert (or reset) the sanity farmer. Returns "seeded"."""
+    """Insert (or reset) the sanity livestock record. Returns "seeded"."""
     from . import db
 
     db.execute(cfg.registry_dsn, _UPSERT, _row())
@@ -93,9 +98,9 @@ def main() -> int:
     try:
         status = ensure_seeded(cfg)
     except Exception as exc:  # noqa: BLE001
-        print(f"[data-seed] FAILED to seed farmer '{fixtures.FARMER_FUNCTIONAL_ID}': {exc}")
+        print(f"[data-seed] FAILED to seed livestock '{fixtures.FARMER_FUNCTIONAL_ID}': {exc}")
         return 1
-    print(f"[data-seed] farmer '{fixtures.FARMER_FUNCTIONAL_ID}': {status}")
+    print(f"[data-seed] livestock '{fixtures.FARMER_FUNCTIONAL_ID}': {status}")
     return 0
 
 

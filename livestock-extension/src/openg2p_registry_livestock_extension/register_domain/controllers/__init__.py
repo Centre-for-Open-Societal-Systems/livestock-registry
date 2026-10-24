@@ -1,0 +1,1 @@
+from .g2p_form_config_controller import G2PLivestockFormConfigController

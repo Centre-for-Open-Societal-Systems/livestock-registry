@@ -1,0 +1,9 @@
+{
+  "domain": "livestock",
+  "python_files_parsed": 71,
+  "platform_pins": [
+    "1.2.2-rc.557"
+  ],
+  "promotion_ready": false,
+  "source_checks": "PASS"
+}

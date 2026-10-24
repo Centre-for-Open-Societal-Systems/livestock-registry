@@ -25,9 +25,9 @@ AWE does not apply the decision itself — it POSTs an HMAC-signed webhook to th
 registry, which applies the change and writes history. So the change lands
 asynchronously and the assertions below poll rather than read once.
 
-Farmer field-specific test (Set 2): the register/history rows the change is
-verified against live in the farmer register tables (g2p_register_farmers /
-g2p_register_history_farmers). The register id, CR tab and section are supplied
+Livestock field-specific test (Set 2): the register/history rows the change is
+verified against live in the livestock register tables (g2p_register_livestocks /
+g2p_register_history_livestocks). The register id, CR tab and section are supplied
 as env by the Helm chart (sanity.* values).
 """
 
@@ -43,11 +43,11 @@ from sanity import audit, db, fixtures
 def _field_value(cfg):
     rows = db.query(
         cfg.registry_dsn,
-        f'SELECT "{fixtures.CR_FIELD}" AS v FROM "public"."g2p_register_farmers" '
+        f'SELECT "{fixtures.CR_FIELD}" AS v FROM "public"."g2p_register_livestocks" '
         f'WHERE "internal_record_id" = %s',
         (fixtures.FARMER_INTERNAL_ID,),
     )
-    assert rows, f"sanity farmer {fixtures.FARMER_INTERNAL_ID} not found"
+    assert rows, f"sanity livestock record {fixtures.FARMER_INTERNAL_ID} not found"
     return rows[0]["v"]
 
 
@@ -204,7 +204,7 @@ def test_approval_through_awe_applies_the_change(cfg, staff_client, change_reque
 
 _HISTORY = (
     'SELECT "history_record_id", "change_request_id" '
-    'FROM "public"."g2p_register_history_farmers" '
+    'FROM "public"."g2p_register_history_livestocks" '
     'WHERE "internal_record_id" = %s'
 )
 
@@ -214,7 +214,7 @@ def test_version_history_retains_the_previous_record(cfg, staff_client, change_r
     """Approval must write a history row; the previous value survives in the DB.
 
     Polled, because the webhook that applies the change and writes history lands
-    asynchronously — the row can lag the `middle_name` update by a moment.
+    asynchronously — the row can lag the `surveyor_name` update by a moment.
     """
     rows = []
 
@@ -224,7 +224,7 @@ def test_version_history_retains_the_previous_record(cfg, staff_client, change_r
         return bool(rows)
 
     assert _wait_until(_has_history, timeout=cfg.awe_settle_timeout), (
-        "no history row for the sanity farmer after approval — history is written by "
+        "no history row for the sanity livestock record after approval — history is written by "
         "insert_into_register_history during approve, so its absence means the change "
         "was never applied through the approval path"
     )

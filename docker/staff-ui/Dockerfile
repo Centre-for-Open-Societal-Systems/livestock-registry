@@ -1,17 +1,17 @@
-# Farmer Registry — Staff Portal UI image.
+# Livestock Registry — Staff Portal UI image.
 #
 # Same steps as a local build. The image has no .app/ yet, so npm install clones
 # staff-ui (deps.json) and applies overrides/. npm run build finds .app/ already
 # present, skips the clone, applies overrides/ again, then builds Next.
 #
 #   docker build -f docker/staff-ui/Dockerfile \
-#     -t openg2p/openg2p-farmer-registry-staff-ui:local .
+#     -t openg2p/openg2p-livestock-registry-staff-ui:local .
 
 FROM node:20-alpine AS builder
 
 RUN apk add --no-cache git bash
 
-WORKDIR /open/farmer-registry/ui/staff-ui
+WORKDIR /open/livestock-registry/ui/staff-ui
 
 COPY ui/staff-ui/package.json ui/staff-ui/.npmrc ui/staff-ui/deps.json ./
 COPY ui/staff-ui/scripts ./scripts

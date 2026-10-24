@@ -1,0 +1,6 @@
+{
+  "result": "PASS",
+  "exit_code": 1,
+  "deployment_manifests_emitted": false,
+  "diagnostic": "Error: execution error at (openg2p-livestock-registry/templates/refactor-promotion-gate.yaml:1:4): develop-refactor is incomplete: native Farmer dependency, Kafka AWE routing, geographic policy and preservation acceptance are required; see docs/refactor/STATUS.json\n\nUse --debug flag to render out invalid YAML"
+}

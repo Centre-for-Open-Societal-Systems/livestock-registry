@@ -1,0 +1,300 @@
+{
+  "domain": "livestock",
+  "runtime_acceptance": "NOT RUN",
+  "registry_stacks_started": 0,
+  "steps": [
+    {
+      "check": "source-check",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "python_files_parsed": 71,
+        "platform_pins": [
+          "1.2.2-rc.557"
+        ],
+        "promotion_ready": false,
+        "source_checks": "PASS"
+      }
+    },
+    {
+      "check": "staff-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "runtime": "staff",
+        "model_columns": {
+          "G2PRegisterFarmer": 42,
+          "G2PRegisterHistoryFarmer": 49,
+          "G2PIntakeFormFarmer": 44,
+          "G2PRegisterLivestock": 49,
+          "G2PRegisterHistoryLivestock": 56,
+          "G2PIntakeFormLivestock": 51,
+          "G2PRegisterAnimal": 28,
+          "G2PRegisterHistoryAnimal": 35,
+          "G2PIntakeFormAnimal": 30,
+          "G2PRegisterHealthEvent": 26,
+          "G2PRegisterHistoryHealthEvent": 33,
+          "G2PIntakeFormHealthEvent": 28,
+          "G2PRegisterVaccination": 22,
+          "G2PRegisterHistoryVaccination": 29,
+          "G2PIntakeFormVaccination": 24,
+          "G2PRegisterVitalEvent": 34,
+          "G2PRegisterHistoryVitalEvent": 41,
+          "G2PIntakeFormVitalEvent": 36,
+          "G2PRegisterBreeding": 29,
+          "G2PRegisterHistoryBreeding": 36,
+          "G2PIntakeFormBreeding": 31,
+          "G2PRegisterRetagging": 21,
+          "G2PRegisterHistoryRetagging": 28,
+          "G2PIntakeFormRetagging": 23,
+          "G2PRegisterVaccineSchedule": 18,
+          "G2PRegisterHistoryVaccineSchedule": 25,
+          "G2PIntakeFormVaccineSchedule": 20,
+          "G2PRegisterImportBatch": 25,
+          "G2PRegisterHistoryImportBatch": 32,
+          "G2PIntakeFormImportBatch": 27,
+          "G2PRegisterAuditLog": 22,
+          "G2PRegisterHistoryAuditLog": 29,
+          "G2PIntakeFormAuditLog": 24
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "flock count normalization",
+          "missing flock count",
+          "zero flock count",
+          "negative animal weight",
+          "positive animal weight",
+          "registration before birth"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "worker-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "runtime": "worker",
+        "model_columns": {
+          "G2PRegisterFarmer": 42,
+          "G2PRegisterHistoryFarmer": 49,
+          "G2PIntakeFormFarmer": 44,
+          "G2PRegisterLivestock": 49,
+          "G2PRegisterHistoryLivestock": 56,
+          "G2PIntakeFormLivestock": 51,
+          "G2PRegisterAnimal": 28,
+          "G2PRegisterHistoryAnimal": 35,
+          "G2PIntakeFormAnimal": 30,
+          "G2PRegisterHealthEvent": 26,
+          "G2PRegisterHistoryHealthEvent": 33,
+          "G2PIntakeFormHealthEvent": 28,
+          "G2PRegisterVaccination": 22,
+          "G2PRegisterHistoryVaccination": 29,
+          "G2PIntakeFormVaccination": 24,
+          "G2PRegisterVitalEvent": 34,
+          "G2PRegisterHistoryVitalEvent": 41,
+          "G2PIntakeFormVitalEvent": 36,
+          "G2PRegisterBreeding": 29,
+          "G2PRegisterHistoryBreeding": 36,
+          "G2PIntakeFormBreeding": 31,
+          "G2PRegisterRetagging": 21,
+          "G2PRegisterHistoryRetagging": 28,
+          "G2PIntakeFormRetagging": 23,
+          "G2PRegisterVaccineSchedule": 18,
+          "G2PRegisterHistoryVaccineSchedule": 25,
+          "G2PIntakeFormVaccineSchedule": 20,
+          "G2PRegisterImportBatch": 25,
+          "G2PRegisterHistoryImportBatch": 32,
+          "G2PIntakeFormImportBatch": 27,
+          "G2PRegisterAuditLog": 22,
+          "G2PRegisterHistoryAuditLog": 29,
+          "G2PIntakeFormAuditLog": 24
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "flock count normalization",
+          "missing flock count",
+          "zero flock count",
+          "negative animal weight",
+          "positive animal weight",
+          "registration before birth"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:1f015129bf193dfc95add386502633f2d408cdb7f362ce8b55a85a9e36ef3eea"
+    },
+    {
+      "check": "installed-staff-api-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "runtime": "staff",
+        "model_columns": {
+          "G2PRegisterFarmer": 42,
+          "G2PRegisterHistoryFarmer": 49,
+          "G2PIntakeFormFarmer": 44,
+          "G2PRegisterLivestock": 49,
+          "G2PRegisterHistoryLivestock": 56,
+          "G2PIntakeFormLivestock": 51,
+          "G2PRegisterAnimal": 28,
+          "G2PRegisterHistoryAnimal": 35,
+          "G2PIntakeFormAnimal": 30,
+          "G2PRegisterHealthEvent": 26,
+          "G2PRegisterHistoryHealthEvent": 33,
+          "G2PIntakeFormHealthEvent": 28,
+          "G2PRegisterVaccination": 22,
+          "G2PRegisterHistoryVaccination": 29,
+          "G2PIntakeFormVaccination": 24,
+          "G2PRegisterVitalEvent": 34,
+          "G2PRegisterHistoryVitalEvent": 41,
+          "G2PIntakeFormVitalEvent": 36,
+          "G2PRegisterBreeding": 29,
+          "G2PRegisterHistoryBreeding": 36,
+          "G2PIntakeFormBreeding": 31,
+          "G2PRegisterRetagging": 21,
+          "G2PRegisterHistoryRetagging": 28,
+          "G2PIntakeFormRetagging": 23,
+          "G2PRegisterVaccineSchedule": 18,
+          "G2PRegisterHistoryVaccineSchedule": 25,
+          "G2PIntakeFormVaccineSchedule": 20,
+          "G2PRegisterImportBatch": 25,
+          "G2PRegisterHistoryImportBatch": 32,
+          "G2PIntakeFormImportBatch": 27,
+          "G2PRegisterAuditLog": 22,
+          "G2PRegisterHistoryAuditLog": 29,
+          "G2PIntakeFormAuditLog": 24
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "flock count normalization",
+          "missing flock count",
+          "zero flock count",
+          "negative animal weight",
+          "positive animal weight",
+          "registration before birth"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:3df199ba44f073131bfee07b6b5fd8b8f4f2db1c0c50c677f55bce07b4b1b349"
+    },
+    {
+      "check": "build-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:4883018d4ad84ca168729726d124b095295d85530bda0e9f82359aeb94353533"
+    },
+    {
+      "check": "installed-celery-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "runtime": "worker",
+        "model_columns": {
+          "G2PRegisterFarmer": 42,
+          "G2PRegisterHistoryFarmer": 49,
+          "G2PIntakeFormFarmer": 44,
+          "G2PRegisterLivestock": 49,
+          "G2PRegisterHistoryLivestock": 56,
+          "G2PIntakeFormLivestock": 51,
+          "G2PRegisterAnimal": 28,
+          "G2PRegisterHistoryAnimal": 35,
+          "G2PIntakeFormAnimal": 30,
+          "G2PRegisterHealthEvent": 26,
+          "G2PRegisterHistoryHealthEvent": 33,
+          "G2PIntakeFormHealthEvent": 28,
+          "G2PRegisterVaccination": 22,
+          "G2PRegisterHistoryVaccination": 29,
+          "G2PIntakeFormVaccination": 24,
+          "G2PRegisterVitalEvent": 34,
+          "G2PRegisterHistoryVitalEvent": 41,
+          "G2PIntakeFormVitalEvent": 36,
+          "G2PRegisterBreeding": 29,
+          "G2PRegisterHistoryBreeding": 36,
+          "G2PIntakeFormBreeding": 31,
+          "G2PRegisterRetagging": 21,
+          "G2PRegisterHistoryRetagging": 28,
+          "G2PIntakeFormRetagging": 23,
+          "G2PRegisterVaccineSchedule": 18,
+          "G2PRegisterHistoryVaccineSchedule": 25,
+          "G2PIntakeFormVaccineSchedule": 20,
+          "G2PRegisterImportBatch": 25,
+          "G2PRegisterHistoryImportBatch": 32,
+          "G2PIntakeFormImportBatch": 27,
+          "G2PRegisterAuditLog": 22,
+          "G2PRegisterHistoryAuditLog": 29,
+          "G2PIntakeFormAuditLog": 24
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "flock count normalization",
+          "missing flock count",
+          "zero flock count",
+          "negative animal weight",
+          "positive animal weight",
+          "registration before birth"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:6941159ff5528584171701bba0de6730d43acb6882b97888c4a981f49a109585"
+    },
+    {
+      "check": "seed-preflight",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "result": "PASS"
+    }
+  ]
+}

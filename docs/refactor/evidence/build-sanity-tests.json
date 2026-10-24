@@ -1,0 +1,9 @@
+{
+  "result": "PASS",
+  "image": {
+    "tag": "oan/livestock-sanity-tests:refactor-ed1e70c",
+    "local_content_id": "sha256:a1344150939256326ec1715c2af1091b340225e7d2d5f87ac4eb8f85bffa9305",
+    "registry_digest": "NOT PUBLISHED"
+  },
+  "runtime_acceptance": "NOT RUN"
+}

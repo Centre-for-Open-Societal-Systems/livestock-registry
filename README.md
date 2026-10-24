@@ -1,39 +1,21 @@
-# Farmer Registry
+# Livestock Registry refactor
 
-An installable **Farmer Registry** built as a thin extension of the OpenG2P
-[registry platform](https://github.com/OpenG2P/registry-platform). Under the
-inverted build model the platform publishes the runnable base images and the
-`openg2p-registry` Helm chart; this repo adds **only** the farmer domain on top.
+`develop-refactor` starts at OpenG2P Farmer 1.2 `ed1e70ccf18df5476fa404ed8018e12d55e418fa` and ports curated
+domain source from `35d21bbe07853324d9493279630fe35600d98c0f`. Legacy develop ancestry is not merged.
 
-## What this repo owns
+This is an incomplete source port and **cannot be promoted or installed**.
+The seed preflight stops before any database mutation. See
+[the blockers](docs/refactor/STATUS.json) and [source decisions](docs/refactor/SOURCE_MAP.json).
+Existing Jenkins deployment branches, credential references, ECR repositories,
+deployment scripts and preservation guards are retained. This branch builds and
+validates only; no existing environment was replaced.
 
-| Path | Purpose |
-|---|---|
-| `farmer-extension/` | The farmer domain package — models, schemas, services, seed metadata (registers, AWE policy, DCI templates) |
-| `docker/` | Thin Dockerfiles (`FROM openg2p/openg2p-registry-*` + `pip install farmer-extension`) selected at runtime by `REGISTRY_EXTENSION_MODULE` (Option C) |
-| `helm/openg2p-farmer-registry/` | A thin wrapper chart: pins `openg2p-registry` as a dependency and supplies the farmer values overlay (no templates) |
-| `test/sanity/` | The farmer **field-specific** sanity tests (Set 2); the harness + generic tests are inherited from the platform sanity image |
+Domain models/schemas/UUIDs and portable rules are preserved. Platform workers,
+core code and compiled UI assets are not patched. Legacy bulk import,
+Keycloak-location approval and optional Farmer lookup paths are retired.
+Native IMPORT_FILE must cover all supported channels with the same Farmer
+dependency rules before acceptance. Farmer remains authoritative and unchanged.
 
-The `openg2p-registry` base image tag (`RP_VERSION` in each Dockerfile) and the
-chart dependency version in `helm/openg2p-farmer-registry/Chart.yaml` are **hardcoded and
-pinned together**. The farmer images and the wrapper chart are versioned in
-lockstep by CI (one version per commit).
-
-To see which version it would pick, run `./scripts/bump-rp-version.sh -n` (dry-run,
-writes nothing); `-h` prints help. To apply, run `./scripts/bump-rp-version.sh`
-(latest published version) or `./scripts/bump-rp-version.sh <version>` — it updates
-the Dockerfiles and the chart dependency together, so they can never drift. A CI
-check (`test/test_rp_pin_lockstep.py`) fails the build if they ever do.
-
-## Deploy
-
-```bash
-helm repo add openg2p https://openg2p.github.io/openg2p-helm
-helm dependency build ./helm/openg2p-farmer-registry
-helm install farmer-registry ./helm/openg2p-farmer-registry \
-  --set global.registryHostname=farmer-registry.example.org
-```
-
-Set `registry.sanity.runE2e=true` to run the end-to-end sanity suite after install.
-
-See the deployment & extension docs at [docs.openg2p.org](https://docs.openg2p.org).
+Local projects: Commons, Farmer, Crop and Livestock. Run serially with Commons +
+Farmer + Crop, then Commons + Farmer + Livestock; at most two registries at once.
+Do not rerender or replace the running Farmer stack from this worktree.

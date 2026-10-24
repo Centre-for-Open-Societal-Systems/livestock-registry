@@ -11,13 +11,15 @@ from sanity.dci import build_search_envelope
 #   register's outgoing DCI template -> registry clamps the rendered record to
 #   the consented scopes.
 #
-# The record searched for is the sanity farmer injected by the data-seed Job, so
-# these assertions never depend on `dbSeed.loadSampleData` being on.
+# The record searched for is the sanity livestock record injected by the data-seed
+# Job, so these assertions never depend on the sample data set being applied.
 #
-# Farmer field-specific test (Set 2): the farmer DCI template
-# (openg2p_farmer_to_dci) nests the demographics under
-# <scope>.demographic_info, so the assertion below reaches one level deeper than
-# the reference registry's individual_to_dci template does.
+# Livestock field-specific test (Set 2): the livestock DCI template
+# (openg2p_livestock_to_dci) nests the farmer identity under
+# <scope>.farmer_info.demographic_info and carries the holding's own attributes
+# (oan_id, status, state) at the scope root. The animals and the event lines are
+# separate top-level scopes (animal_details, health_event_details, ...), which
+# the clamping test asserts are withheld.
 
 SEARCH_PATH = "/dci/registry/sync/search"
 
@@ -77,26 +79,28 @@ def test_dci_search_returns_the_consented_record(partner_client, cfg, priv, seed
     records = _records(resp)
     step(f"response carried {len(records)} record(s)")
     assert records, (
-        f"no records returned for search_text '{cfg.search_text}'. The sanity farmer "
-        f"{fixtures.FARMER_FUNCTIONAL_ID} should match. If the register is otherwise "
+        f"no records returned for search_text '{cfg.search_text}'. The sanity livestock "
+        f"record {fixtures.FARMER_FUNCTIONAL_ID} should match. If the register is otherwise "
         f"healthy, check that dbSeed.loadTemplates=true — without the DCI template in "
         f"MinIO every record fails to render and the error surfaces as an empty 200."
     )
 
-    # Consent asked for the farmer_personal_details scope, so it must be present
-    # AND carry the values the data-seed Job injected. The farmer DCI template
-    # nests name/birth_date under a `demographic_info` block inside the scope.
+    # Consent asked for the livestock_details scope, so it must be present AND
+    # carry the values the data-seed Job injected. The livestock DCI template
+    # nests the farmer identity under `farmer_info.demographic_info` inside the
+    # scope, and keeps the registration's own attributes at the scope root.
     scope = cfg.data_scopes[0]
     record = records[0]
     assert scope in record, f"consented scope '{scope}' missing from record: {sorted(record)}"
 
-    step(f"asserting consented scope '{scope}' is present and carries the seeded demographics")
-    demographic = (record.get(scope) or {}).get("demographic_info") or {}
+    step(f"asserting consented scope '{scope}' is present and carries the seeded livestock record")
+    livestock = record.get(scope) or {}
+    demographic = (livestock.get("farmer_info") or {}).get("demographic_info") or {}
     name = demographic.get("name") or {}
-    assert name.get("given_name") == fixtures.FARMER["first_name"]
-    assert name.get("surname") == fixtures.FARMER["last_name"]
-    assert demographic.get("birth_date") == fixtures.FARMER["birth_date"]
-    step("consented record returned the correct given_name / surname / birth_date ✓")
+    assert name.get("given_name") == fixtures.FARMER["farmer_name"]
+    assert livestock.get("oan_id") == fixtures.FARMER["oan_id"]
+    assert livestock.get("status") == fixtures.FARMER["status"]
+    step("consented record returned the correct farmer_name / oan_id / status ✓")
 
 
 @pytest.mark.e2e

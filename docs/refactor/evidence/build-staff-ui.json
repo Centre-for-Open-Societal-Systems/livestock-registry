@@ -1,0 +1,9 @@
+{
+  "result": "PASS",
+  "image": {
+    "tag": "oan/livestock-staff-ui:refactor-ed1e70c",
+    "local_content_id": "sha256:88c2ea2f8f3025a0e83f9d57f783a08d44afb818f6137bb0c2b8ce0e5e181d4c",
+    "registry_digest": "NOT PUBLISHED"
+  },
+  "runtime_acceptance": "NOT RUN"
+}
