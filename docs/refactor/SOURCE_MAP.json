@@ -1805,5 +1805,13 @@
     "migration": "migrations/20261024_farmer_profile_additions.sql (review artifact, not executed)",
     "runtime_acceptance": "NOT RUN"
   },
-  "new_dev_parity_and_cleanup": "NEW_DEV_PARITY_AND_CLEANUP.md"
+  "new_dev_parity_and_cleanup": "NEW_DEV_PARITY_AND_CLEANUP.md",
+  "follow_up_notification": {
+    "implementation": "integrations/farmer-reference/config.yaml; native SQL/template/enricher/registered CR service",
+    "verification": "NOTIFICATION_VERIFICATION.md",
+    "existing_crop_ids": "retained",
+    "livestock_receiver": "independent; not activated",
+    "native_worker_replacements": false,
+    "live_acceptance": "NOT RUN"
+  }
 }

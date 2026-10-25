@@ -48,7 +48,9 @@ tables = {}
 allowed = {"g2p_register_definitions","g2p_register_schemas","g2p_register_sections","g2p_register_ui_tabs",
     "g2p_register_ui_tab_sections","g2p_intake_form_definitions","g2p_intake_form_ui_tabs",
     "g2p_intake_form_ui_tab_sections","registry_languages","registry_themes","registry_theme_values",
-    "g2p_attributes","g2p_attribute_values","data_models","g2p_data_models"}
+    "g2p_attributes","g2p_attribute_values","data_models","g2p_data_models",
+    "incoming_model_key_paths","incoming_model_register_semantic_patterns","incoming_model_semantic_patterns",
+    "incoming_templates","g2p_registry_documents"}
 for table in BaseORMModel.metadata.sorted_tables:
     if table.name not in allowed:
         continue

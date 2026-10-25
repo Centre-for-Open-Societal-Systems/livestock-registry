@@ -33,6 +33,8 @@ def main(domain, *, build=False):
     database = network + "-db"
     simulation = None
     created_network = created_database = False
+    test_container_names = []
+    verification_complete = False
     traffic = {"listening":False, "requests":0, "statuses":{}, "methods":{}}
 
     def snapshot():
@@ -45,8 +47,12 @@ def main(domain, *, build=False):
     source_hashes = snapshot()
 
     def run(label, args, *, env=None, timeout=180, expected=0, persist=True):
-        result = subprocess.run(args, cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                                timeout=timeout, env=env)
+        try:
+            result = subprocess.run(args, cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                    timeout=timeout, env=env)
+        except subprocess.TimeoutExpired:
+            steps.append({"check":label,"result":"FAIL","error_type":"TimeoutExpired"})
+            raise
         if persist:
             for stream in ("stdout", "stderr"):
                 (evidence / f"{label}.{stream}.txt").write_text(getattr(result, stream), encoding="utf-8", newline="\n")
@@ -58,9 +64,16 @@ def main(domain, *, build=False):
             raise RuntimeError(label + ": " + (result.stderr or result.stdout)[-3500:])
         return result
 
-    def docker_test(label, pattern, *, db=False):
-        options = ["--network", network if db else "none", "--entrypoint", "python", *mount,
+    def docker_test(label, pattern, *, db=False, native_group=None):
+        container_name = network + "-" + label
+        existing = subprocess.run(["docker","container","inspect",container_name],capture_output=True)
+        if existing.returncode == 0:
+            raise RuntimeError("Owned test container name already exists; refusing to adopt it")
+        test_container_names.append(container_name)
+        options = ["--name",container_name,"--label","coss-refactor.disposable=onboarding","--network", network if db else "none", "--entrypoint", "python", *mount,
                    "-e", f"REGISTRY_EXTENSION_MODULE={module}", "-e", f"PYTHONPATH=/work/{domain}-extension/src"]
+        if native_group:
+            options += ["-e", "FARMER_NATIVE_GROUP=" + native_group]
         if db:
             options += ["-e", f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/refactor_tests"]
             if simulation:
@@ -74,6 +87,7 @@ def main(domain, *, build=False):
                              "-t", "oan/farmer-reference-tests:rc557", "."])
         docker_test("contract-tests", "test_farmer_reference_contract.py")
         docker_test("projection-tests", "test_farmer_reference_projection.py")
+        docker_test("notification-contract-tests", "test_farmer_reference_notification.py")
         docker_test("ordinary-ci-discovery", "test_farmer_reference_*.py")
         for mode in ("staff", "partner", "worker", "beat"):
             role = "staff-api" if mode == "staff" else "partner-api" if mode == "partner" else "celery"
@@ -120,7 +134,9 @@ def main(domain, *, build=False):
             time.sleep(0.1)
         if not traffic["listening"]:
             raise RuntimeError("Local Postman simulation did not listen; verify port 49182 is unused")
-        docker_test("native-cr-lifecycle", "test_farmer_reference_native.py", db=True)
+        docker_test("native-cr-lifecycle", "test_farmer_reference_native.py", db=True, native_group="core")
+        docker_test("native-workflow-http", "test_farmer_reference_native.py", db=True, native_group="workflow")
+        docker_test("native-notification-lifecycle", "test_farmer_reference_notification_native.py", db=True)
         environment = dict(os.environ, PYTHONPATH=str(repo / f"{domain}-extension/src"),
             REGISTRY_EXTENSION_MODULE=module, FARMER_SIMULATION_URL="http://127.0.0.1:49182/farmer")
         run("signed-lookup-http", ["uv", "run", "--no-project", "--python", "3.12", "--with", "httpx", "--with",
@@ -142,6 +158,7 @@ def main(domain, *, build=False):
                         "--entrypoint", "python", "-v", f"{probes.as_posix()}:/probe:ro",
                         tag, "/probe/onboarding_probe.py", "/installed-wheel", domain, mode])
             run("preservation-seed-gate", ["docker", "run", "--rm", "--network", "none", f"oan/{short}-db-seed:refactor-onboarding"], expected=1)
+        verification_complete = True
     finally:
         if simulation and simulation.poll() is None:
             if os.name == "nt":
@@ -150,6 +167,11 @@ def main(domain, *, build=False):
                 import signal
                 os.killpg(simulation.pid, signal.SIGTERM)
             simulation.wait(timeout=15)
+        # A timed-out Docker CLI does not stop its container. Remove only the
+        # exact owned names before the disposable DB/network, preserving the
+        # original failing check rather than masking it with a busy network.
+        for container_name in test_container_names:
+            subprocess.run(["docker","rm","--force",container_name],capture_output=True)
         if created_database:
             subprocess.run(["docker", "rm", "--force", database], capture_output=True, check=True)
         if created_network:
@@ -158,6 +180,7 @@ def main(domain, *, build=False):
         steps.append({"check":"source-unchanged-during-verification", "result":"PASS" if unchanged else "FAIL"})
         (repo / "docs/refactor/ONBOARDING_VERIFICATION.json").write_text(json.dumps({"registry":domain,
             "verified_at":datetime.now(timezone.utc).isoformat(), "source_sha256":source_hashes,
+            "verification_complete":verification_complete and unchanged and all(step["result"]=="PASS" for step in steps),
             "registry_stacks_started":0, "existing_database_modified":False, "source_farmer_modified":False,
             "live_kafka_awe_acceptance":"NOT RUN", "steps":steps}, indent=2) + "\n", encoding="utf-8", newline="\n")
         if not unchanged:

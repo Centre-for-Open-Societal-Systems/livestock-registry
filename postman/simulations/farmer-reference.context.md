@@ -42,3 +42,18 @@ is verified by the runner's current `native-cr-lifecycle` evidence.
 - 2026-10-24: Native `AweHelper` retains its initialization-time base URL;
   changing settings afterwards left the HTTP test connecting to localhost.
   Configure the documented AWE environment values before initializing the app.
+
+## Notification follow-up, 25 October
+
+The native receiving-service case now uses its actual configured file-based
+lookup client over HTTP to this dependency, then creates a native pending CR and
+durable outbox. It checks approved local values stay unchanged. Source UID
+correction is pinned to the same immutable source person and remains locally
+approved; unsigned notification values do not authorize it.
+
+Native tests run in separate core/workflow/notification groups within the
+original command deadlines. The normal HTTP fixture has a two-second allowance;
+only the deliberate hanging endpoint uses 100ms. Production timeout/retry
+settings are unchanged. The runner labels/names its disposable containers and
+cleans them before its private database/network, including on timeout. Failure
+and timeout evidence explicitly remains verification_complete=false.

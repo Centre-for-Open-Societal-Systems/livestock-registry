@@ -10,7 +10,7 @@ import os
 
 ROOT = Path(__file__).resolve().parents[2]
 
-def main(domain):
+def main(domain, pipeline=False):
     portable = (ROOT / f"{domain}-extension").is_dir()
     repo = ROOT if portable else ROOT / f"OAN/worktrees/{domain}-registry/develop-refactor"
     probes = ROOT / "ci/refactor" if portable else ROOT / "tools/registry_refactor"
@@ -57,6 +57,11 @@ def main(domain):
                     "sha256":hashlib.sha256(raw).hexdigest(),"sqlstate_errors":[code.decode() for code in errors],
                     "psql_exit_code":result.returncode})
             probe(str(attempt))
+        if pipeline:
+            result = run("docker","run","--rm","--network",network,"--entrypoint","python",
+                "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
+                "openg2p/openg2p-registry-celery:1.2.2-rc.557","/probe/notification_pipeline_probe.py","/work",domain)
+            print(result.stdout.splitlines()[-1],flush=True)
         output = repo / "docs/refactor/new-dev"
         first = json.loads((output / "target-pass-1.json").read_text(encoding="utf-8"))
         second = json.loads((output / "target-pass-2.json").read_text(encoding="utf-8"))
@@ -75,4 +80,6 @@ def main(domain):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("domain",choices=("cropsown","livestock"))
-    main(parser.parse_args().domain)
+    parser.add_argument("--pipeline",action="store_true")
+    args=parser.parse_args()
+    main(args.domain,args.pipeline)

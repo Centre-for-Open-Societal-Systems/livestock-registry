@@ -389,6 +389,13 @@
     },
     {
       "pass": 1,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/zz_farmer_reference.sql",
+      "sha256": "af3f80aa91750e253716475b4d83581ecb1e2fabac0e45735e70f07f9a88b1c2",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 1,
       "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
       "sha256": "f05d5e2467f0c8c4e9bafd4de636be3ef9a5e0b0443425c7a6f6cda903516bdb",
       "sqlstate_errors": [],
@@ -776,6 +783,13 @@
       "pass": 2,
       "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/patch_livestock_odk_ingestion.sql",
       "sha256": "e602b2a24c26a644ff87d2a114c3d50af109906f248c4dcdb0d34b18232306e5",
+      "sqlstate_errors": [],
+      "psql_exit_code": 0
+    },
+    {
+      "pass": 2,
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/zz_farmer_reference.sql",
+      "sha256": "af3f80aa91750e253716475b4d83581ecb1e2fabac0e45735e70f07f9a88b1c2",
       "sqlstate_errors": [],
       "psql_exit_code": 0
     },

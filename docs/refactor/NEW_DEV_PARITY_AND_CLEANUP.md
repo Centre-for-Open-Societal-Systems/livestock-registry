@@ -1,3 +1,5 @@
+Current follow-up: [native notification configuration and verification](NOTIFICATION_VERIFICATION.md) supersedes the initial missing-port finding below. Existing deployed semantic/template content and live Kafka/AWE still require acceptance.
+
 # New Dev parity, registered location widgets and source cleanup
 
 Authenticated native New Dev metadata was captured 2026-10-24T18:37:40.160506+00:00.

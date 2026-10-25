@@ -1,0 +1,71 @@
+{
+  "registry": "livestock",
+  "result": "PASS",
+  "native_seed_rows": {
+    "data_models": {
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+      "pattern_for_data_model": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "response_template_document_id": null,
+      "is_active": true
+    },
+    "incoming_model_key_paths": {
+      "key_path_id": "498f3576-5291-5533-8954-36f0071f07e0",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "key_path_for_message_id": "$.body.header.message_id",
+      "key_path_for_sender": "$.body.header.sender_id",
+      "key_path_for_signature": "$.body.header.signature",
+      "key_path_for_signature_payload": "$.body.message.payload",
+      "is_list": false,
+      "key_path_for_list_elements": ""
+    },
+    "incoming_model_register_semantic_patterns": {
+      "register_semantic_pattern_id": "a61a990a-ad7c-5199-9d94-32aed54e7e09",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+      "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "key_path_for_record_identifier": "$.body.message.payload.farmer_id"
+    },
+    "incoming_model_semantic_patterns": {
+      "semantic_pattern_id": "01b1564f-9c1f-50a5-8d3f-1eb4cb86f613",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+      "intake_form_id": null,
+      "section_id": "livestock_farmer_identity_section_01",
+      "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "pattern_for_intake_form": "$.body.message.payload.event_type=>^NEVER_ADD$",
+      "pattern_for_section": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+      "key_path_for_business_payload": "$.body.message.payload",
+      "raw_payload_enricher_class": "G2PFarmerReferenceNotificationEnricher"
+    },
+    "incoming_templates": {
+      "template_id": "9980e663-35ba-5f41-b350-f4303dc0c2a0",
+      "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+      "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+      "template_document_id": "a543a0c2-014f-5e87-9a0a-d06e797889d1",
+      "jsonld_expansion_required": false,
+      "created_at": "2026-10-25 00:00:00",
+      "updated_at": null
+    },
+    "g2p_registry_documents": {
+      "document_id": "a543a0c2-014f-5e87-9a0a-d06e797889d1",
+      "document_store_id": "farmer_reference_update.json.j2",
+      "bucket": "templates",
+      "source_filename": "farmer_reference_update.json.j2",
+      "created_by": "seeder",
+      "created_at": "2026-10-25 00:00:00"
+    }
+  },
+  "live_metadata_comparisons": [],
+  "topic_contract": {
+    "event_type": "farmer_reference.changed.v1",
+    "websub_topic": "oan.farmer-reference.changed.v1",
+    "kafka_topic": "oan_farmer_reference_changed_v1"
+  },
+  "runtime_subscription_or_connector_created": false,
+  "existing_rows_overwritten": false,
+  "semantic_detail_runtime_verified": false,
+  "stored_template_runtime_content_verified": false,
+  "native_worker_probe": "NATIVE_NOTIFICATION_PIPELINE.json",
+  "seed_repeated_without_errors": true
+}

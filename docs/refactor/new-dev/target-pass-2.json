@@ -5811,6 +5811,10 @@
       "sha256": "e602b2a24c26a644ff87d2a114c3d50af109906f248c4dcdb0d34b18232306e5"
     },
     {
+      "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/zz_farmer_reference.sql",
+      "sha256": "af3f80aa91750e253716475b4d83581ecb1e2fabac0e45735e70f07f9a88b1c2"
+    },
+    {
       "path": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
       "sha256": "f05d5e2467f0c8c4e9bafd4de636be3ef9a5e0b0443425c7a6f6cda903516bdb"
     }
@@ -5818,6 +5822,13 @@
   "seed_errors": [],
   "metadata": {
     "data_models": [
+      {
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "data_model_mnemonic": "FARMER_REFERENCE_CHANGED_V1",
+        "pattern_for_data_model": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "response_template_document_id": null,
+        "is_active": true
+      },
       {
         "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
         "data_model_mnemonic": "DCI",
@@ -10151,6 +10162,139 @@
         "tab_label": "Farmer",
         "tab_order": 10,
         "is_active": true
+      }
+    ],
+    "g2p_registry_documents": [
+      {
+        "document_id": "1f0953d4-f0fb-4336-a126-4d0519a74ffc",
+        "document_store_id": "dci_commons_response.json.j2",
+        "bucket": "templates",
+        "source_filename": "dci_commons_response.json.j2",
+        "created_by": "seeder",
+        "created_at": "2026-04-01 00:00:00"
+      },
+      {
+        "document_id": "3b7c1d20-5c0e-4c1b-9f2e-8a1c6d5e4f30",
+        "document_store_id": "dci_to_openg2p_livestock.json.j2",
+        "bucket": "templates",
+        "source_filename": "dci_to_openg2p_livestock.json.j2",
+        "created_by": "seeder",
+        "created_at": "2026-04-01 00:00:00"
+      },
+      {
+        "document_id": "4c8d2e31-6d1f-4d2c-a03f-9b2d7e6f5041",
+        "document_store_id": "openg2p_livestock_to_dci.json.j2",
+        "bucket": "templates",
+        "source_filename": "openg2p_livestock_to_dci.json.j2",
+        "created_by": "seeder",
+        "created_at": "2026-04-01 00:00:00"
+      },
+      {
+        "document_id": "a543a0c2-014f-5e87-9a0a-d06e797889d1",
+        "document_store_id": "farmer_reference_update.json.j2",
+        "bucket": "templates",
+        "source_filename": "farmer_reference_update.json.j2",
+        "created_by": "seeder",
+        "created_at": "2026-10-25 00:00:00"
+      }
+    ],
+    "incoming_model_key_paths": [
+      {
+        "key_path_id": "498f3576-5291-5533-8954-36f0071f07e0",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "key_path_for_message_id": "$.body.header.message_id",
+        "key_path_for_sender": "$.body.header.sender_id",
+        "key_path_for_signature": "$.body.header.signature",
+        "key_path_for_signature_payload": "$.body.message.payload",
+        "is_list": false,
+        "key_path_for_list_elements": ""
+      },
+      {
+        "key_path_id": "4a5d9a8e-ffef-466a-9d00-d8bd39b0337c",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "key_path_for_message_id": "$.body.header.message_id",
+        "key_path_for_sender": "$.body.header.sender_id",
+        "key_path_for_signature": "$.body.signature",
+        "key_path_for_signature_payload": "$.body['header','message']",
+        "is_list": false,
+        "key_path_for_list_elements": ""
+      },
+      {
+        "key_path_id": "7b8c9d0e-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
+        "data_model_id": "d2c7a1e4-5f60-4b8a-9c3d-1e2f3a4b5c6d",
+        "key_path_for_message_id": "$.body.header.message_id",
+        "key_path_for_sender": "$.body.header.sender_id",
+        "key_path_for_signature": "$.body.header.signature",
+        "key_path_for_signature_payload": "$.body['header','message']",
+        "is_list": false,
+        "key_path_for_list_elements": ""
+      }
+    ],
+    "incoming_model_register_semantic_patterns": [
+      {
+        "register_semantic_pattern_id": "a61a990a-ad7c-5199-9d94-32aed54e7e09",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+        "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "key_path_for_record_identifier": "$.body.message.payload.farmer_id"
+      }
+    ],
+    "incoming_model_semantic_patterns": [
+      {
+        "semantic_pattern_id": "01b1564f-9c1f-50a5-8d3f-1eb4cb86f613",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+        "intake_form_id": null,
+        "section_id": "livestock_farmer_identity_section_01",
+        "pattern_for_register": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "pattern_for_intake_form": "$.body.message.payload.event_type=>^NEVER_ADD$",
+        "pattern_for_section": "$.body.message.payload.event_type=>^farmer_reference[.]changed[.]v1$",
+        "key_path_for_business_payload": "$.body.message.payload",
+        "raw_payload_enricher_class": "G2PFarmerReferenceNotificationEnricher"
+      },
+      {
+        "semantic_pattern_id": "5d1c7f43-2a6b-4d18-9c30-7f4b2e8a91cd",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+        "intake_form_id": "e92e8be1-207f-518e-99c2-8bc21cc1f112",
+        "section_id": null,
+        "pattern_for_register": "$.body.message.search_response[0].data.reg_type=>^Livestock$",
+        "pattern_for_intake_form": "$.body.message.search_response[0].data.reg_record_type=>^Livestock$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.search_response[0].data.reg_records[0]",
+        "raw_payload_enricher_class": "G2PDciLivestockCreateEnricherService"
+      },
+      {
+        "semantic_pattern_id": "9e8d7c6b-5a4f-4e3d-9c2b-1a0f9e8d7c6b",
+        "data_model_id": "d2c7a1e4-5f60-4b8a-9c3d-1e2f3a4b5c6d",
+        "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+        "intake_form_id": "e92e8be1-207f-518e-99c2-8bc21cc1f112",
+        "section_id": null,
+        "pattern_for_register": "$.body.header.sender_id=>^Livestock$",
+        "pattern_for_intake_form": "$.body.header.sender_id=>^Livestock$",
+        "pattern_for_section": null,
+        "key_path_for_business_payload": "$.body.message.payload",
+        "raw_payload_enricher_class": "G2PDciLivestockCreateEnricherService"
+      }
+    ],
+    "incoming_templates": [
+      {
+        "template_id": "IN-TMPL-1",
+        "register_id": "997676d3-7008-59f9-b23e-613ad79bbb08",
+        "data_model_id": "c331ba96-ac35-4014-9d13-4ef327f6b79b",
+        "template_document_id": "3b7c1d20-5c0e-4c1b-9f2e-8a1c6d5e4f30",
+        "jsonld_expansion_required": false,
+        "created_at": "2026-05-07 04:31:27.828397",
+        "updated_at": null
+      },
+      {
+        "template_id": "9980e663-35ba-5f41-b350-f4303dc0c2a0",
+        "register_id": "f9c6a359-9563-5a43-b0fe-6c7e452037a3",
+        "data_model_id": "873c2342-cfde-5db4-9f9f-6e491a5001f7",
+        "template_document_id": "a543a0c2-014f-5e87-9a0a-d06e797889d1",
+        "jsonld_expansion_required": false,
+        "created_at": "2026-10-25 00:00:00",
+        "updated_at": null
       }
     ],
     "registry_languages": [

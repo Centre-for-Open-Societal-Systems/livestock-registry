@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "farmer_id",
+    "fayda_fan_id"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "event_type": {
+      "const": "farmer_reference.changed.v1"
+    },
+    "farmer_id": {
+      "type": "string",
+      "pattern": "^FR-[0-9]{12}$"
+    },
+    "fayda_fan_id": {
+      "type": "string",
+      "pattern": "^[0-9]{16}$"
+    }
+  }
+}

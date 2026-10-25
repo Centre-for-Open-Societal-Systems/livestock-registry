@@ -241,7 +241,17 @@ class ReferenceChangeRequestService(G2PRegisterChangeRequestService):
         if request.action == "ADD":
             if await session.get(domain_models().G2PRegisterFarmer, reference.local_farmer_id):
                 raise FarmerReferenceError("FARMER_REFERENCE_ADD_ALREADY_RESOLVED")
+            if definition.functional_id_generation_required:
+                raise FarmerReferenceError("FARMER_REFERENCE_EXTERNAL_IDENTIFIER_CONFIGURATION_REQUIRED")
             await self.insert_primary_master_section_into_register(change_request, session)
+            await session.flush()
+            farmer = await session.get(domain_models().G2PRegisterFarmer, reference.local_farmer_id)
+            # Native UPDATE classification resolves functional_record_id. For a
+            # newly approved source reference, derive it from the verified pair.
+            # Never rewrite an existing record's internal or functional identity.
+            if farmer.functional_record_id not in (None, "", request.profile["farmer_id"]):
+                raise FarmerReferenceError("FARMER_REFERENCE_LOCAL_IDENTITY_CONFLICT")
+            farmer.functional_record_id = request.profile["farmer_id"]
             await session.flush()
         else:
             await super().approve_register(change_request, section, session)
@@ -276,11 +286,25 @@ class ReferenceIngestionService(G2PChangeRequestWorkerService):
             FarmerReference.local_farmer_id == payload.internal_record_id))).scalar_one_or_none()
         if not reference or reference.state != "APPROVED":
             raise FarmerReferenceError("FARMER_REFERENCE_UNREFERENCED_NOTIFICATION")
+        from .notification import notification_change_identity
+        notification_pair = notification_change_identity(payload)
+        if notification_pair[0] != reference.farmer_id:
+            raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
+        section = await session.get(G2PRegisterSection, payload.section_id)
+        if (payload.register_id != definition.register_id or not section or
+                section.register_id != definition.register_id or section.section_register_id != definition.register_id or
+                "identity" not in section.section_id):
+            raise FarmerReferenceError("FARMER_REFERENCE_INVALID_NOTIFICATION_SECTION")
         client = configured_lookup()
         if client.config.source_id != reference.source_system:
             raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_ID_MISMATCH")
         # Notification demographic values are deliberately not read.
         current = await client.lookup_current(reference.farmer_id, reference.uid, reference.source_record_id)
+        # An approved UID correction may be notified using the new UID. Only
+        # the signed, consented lookup pinned to this same immutable source
+        # person can establish that correction; the event cannot authorize it.
+        if notification_pair[1] not in {reference.uid, current.profile["fayda_fan_id"]}:
+            raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
         request = await onboarding_service().queue_current_update(session, current)
         if request is None:
             request = (await session.execute(select(FarmerReferenceRequest).where(

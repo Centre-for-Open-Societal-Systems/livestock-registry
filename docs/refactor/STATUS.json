@@ -7,7 +7,7 @@
     {
       "id": "B02",
       "capability": "Kafka-created approval tasks",
-      "evidence": "Native receiving-service override, current signed source lookup, committed AWE outbox, service identity and server-generated Woreda context are implemented. Actual Kafka-created tasks/independent decisions/recovery remain NOT RUN."
+      "evidence": "Native notification model/key paths/two-pass UPDATE-only semantics/template catalog and identity-only transformation are now ported. Crop existing identifiers are retained; Livestock receives independent new metadata IDs. Matching local pair and source-partner checks precede signed current lookup, versioned CR reuse and the durable AWE outbox. New Dev semantic detail/template content and live Kafka-to-real-AWE tasks/independent decisions/recovery remain unverified; no connector/subscription/checkpoint was mutated. Current source passes 79 receiving/reference tests, native worker mapping and repeated-seed checks; see NOTIFICATION_VERIFICATION.md. This is not real Kafka/AWE-engine delivery acceptance."
     },
     {
       "id": "B03",
@@ -32,7 +32,7 @@
     {
       "id": "B07",
       "capability": "Preservation and live acceptance",
-      "evidence": "Real signed Farmer/Consent Manager lookup, Kafka/AWE tasks, native import/ODK/attachments, all domain rules/jobs, authenticated dashboards, fresh application installation and restored-copy upgrades remain NOT RUN."
+      "evidence": "Real signed Farmer/Consent Manager lookup, Kafka/AWE tasks, native import/ODK/attachments, all domain rules/jobs, authenticated dashboards, fresh application installation and restored-copy upgrades remain NOT RUN. Existing Farmer functional identifiers must be reconciled against native classifier requirements on restored copies. New ADD references derive the native identifier from the verified Farmer ID; existing identifiers are not swept or overwritten."
     },
     {
       "id": "B09",
@@ -128,5 +128,7 @@
     "environment_execution": "NOT RUN"
   },
   "metadata_verification": "new-dev/comparison.json",
-  "chart_profile": "../../ci/deploy/oan-chart.json"
+  "chart_profile": "../../ci/deploy/oan-chart.json",
+  "notification_verification": "NOTIFICATION_VERIFICATION.md",
+  "native_notification_pipeline": "NATIVE_NOTIFICATION_PIPELINE.json"
 }

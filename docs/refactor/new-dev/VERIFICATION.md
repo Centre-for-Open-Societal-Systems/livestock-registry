@@ -29,6 +29,6 @@ The Farmer identity pair is captured on the domain root. The retired sibling Far
 
 Crop's legacy registry-database lookup SQL is preserved as a Master Data administration prerequisite in the central Helm repository; it is not executed against a registry. Existing shared values are not changed.
 
-The live Crop FARMER_REFERENCE_CHANGED_V1 pipeline configuration requires an explicit port and remains a promotion blocker. Livestock MY_DATA_MODEL is upstream example content and is intentionally not added to the domain extension.
+The native FARMER_REFERENCE_CHANGED_V1 configuration/template port is verified separately in ../NOTIFICATION_VERIFICATION.md. Actual deployed semantic/template content and live Kafka/AWE remain promotion requirements. Livestock MY_DATA_MODEL is upstream example content and is intentionally not added to the domain extension.
 
 No records, approvals, identity grants, environment settings or runtime workloads were modified.

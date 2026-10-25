@@ -1,0 +1,17 @@
+data_model_id: 873c2342-cfde-5db4-9f9f-6e491a5001f7
+data_model_mnemonic: FARMER_REFERENCE_CHANGED_V1
+event_type: farmer_reference.changed.v1
+websub_topic: oan.farmer-reference.changed.v1
+register_id: f9c6a359-9563-5a43-b0fe-6c7e452037a3
+section_id: livestock_farmer_identity_section_01
+section_mnemonic: ls_farmer_identity
+template_id: 9980e663-35ba-5f41-b350-f4303dc0c2a0
+document_id: a543a0c2-014f-5e87-9a0a-d06e797889d1
+key_path_id: 498f3576-5291-5533-8954-36f0071f07e0
+register_semantic_pattern_id: a61a990a-ad7c-5199-9d94-32aed54e7e09
+semantic_pattern_id: 01b1564f-9c1f-50a5-8d3f-1eb4cb86f613
+hub_url: http://commons-services-websub.commons.svc.cluster.local
+enricher_class: G2PFarmerReferenceNotificationEnricher
+activation: NOT ACTIVATED; dedicated receiver/subscription/signed partner/checkpoint
+  ownership required
+kafka_topic: oan_farmer_reference_changed_v1

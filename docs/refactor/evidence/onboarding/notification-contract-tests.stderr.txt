@@ -1,0 +1,10 @@
+test_enricher_returns_only_pair_and_template_never_emits_demographics (test_farmer_reference_notification.NotificationTests.test_enricher_returns_only_pair_and_template_never_emits_demographics) ... ok
+test_invalid_and_demographic_notifications_are_rejected (test_farmer_reference_notification.NotificationTests.test_invalid_and_demographic_notifications_are_rejected) ... ok
+test_missing_required_identity_is_rejected (test_farmer_reference_notification.NotificationTests.test_missing_required_identity_is_rejected) ... ok
+test_uid16_with_leading_zero_is_preserved (test_farmer_reference_notification.NotificationTests.test_uid16_with_leading_zero_is_preserved) ... ok
+test_update_requires_one_matching_internal_identity (test_farmer_reference_notification.NotificationTests.test_update_requires_one_matching_internal_identity) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.102s
+
+OK

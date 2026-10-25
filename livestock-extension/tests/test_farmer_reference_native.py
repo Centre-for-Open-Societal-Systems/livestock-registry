@@ -139,6 +139,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(farmer.first_name, "Verified")
             self.assertEqual(farmer.farmer_name, "Verified Farmer")
             self.assertEqual(farmer.last_approved_by, "synthetic-reviewer")
+            self.assertEqual(farmer.functional_record_id, self.snapshot.profile["farmer_id"])
             history = (await session.execute(select(native.domain_models().G2PRegisterHistoryFarmer))).scalars().all()
             self.assertEqual(len(history), 1)
 
@@ -409,3 +410,11 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         stats = await self._workflow_stats()
         self.assertEqual(stats["requests"], 0)
         self.assertEqual(stats["identity_writes"], 0)
+
+
+def load_tests(loader, tests, pattern):
+    group=os.environ.get("FARMER_NATIVE_GROUP")
+    names=loader.getTestCaseNames(NativeReferenceTests)
+    if group=="core": names=[name for name in names if not name.startswith("test_native_http_")]
+    elif group=="workflow": names=[name for name in names if name.startswith("test_native_http_")]
+    return unittest.TestSuite(NativeReferenceTests(name) for name in names)

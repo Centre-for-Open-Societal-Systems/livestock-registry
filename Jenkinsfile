@@ -55,7 +55,16 @@ pipeline {
                 sh 'docker build --quiet -f ci/refactor/profile-tests.Dockerfile -t oan/livestock-reference-tests:rc557 .'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_oan_chart.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_deployment_guard.py -v'
+                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_onboarding_runner_failure.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src oan/livestock-reference-tests:rc557 -m unittest discover -s livestock-extension/tests -p "test_farmer_reference_*.py" -v'
+            }
+        }
+
+        stage('Validate native metadata and notification mapping') {
+            steps {
+                sh 'COSS_REFACTOR_TEST_IMAGE=oan/livestock-reference-tests:rc557 python3 ci/refactor/rehearse_metadata.py livestock --pipeline'
+                sh 'python3 ci/refactor/compare_new_dev.py livestock'
+                archiveArtifacts artifacts: 'docs/refactor/new-dev/seed-rehearsal.json,docs/refactor/new-dev/comparison.json,docs/refactor/NATIVE_NOTIFICATION_PIPELINE.json', allowEmptyArchive: false
             }
         }
 

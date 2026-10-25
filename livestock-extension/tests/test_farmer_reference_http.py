@@ -27,11 +27,15 @@ class HttpLookupTests(unittest.IsolatedAsyncioTestCase):
             source_id="synthetic-farmer", signing_key=private, signing_kid="synthetic-caller",
             source_public_key=source_public, source_kid="synthetic-source", consent_audience="synthetic-consent",
             consent_controller="synthetic-controller", consent_purpose="synthetic-purpose",
-            consent_scopes=("farmer_personal_details",), timeout_seconds=0.3)
+            consent_scopes=("farmer_personal_details",), timeout_seconds=2.0)
         cls.contract = lookup.RecordContract(profile_paths={"first_name":"first_name", "last_name":"last_name",
                                                            "woreda_id":"woreda_id", "email":"email"})
 
     async def run_lookup(self, mode, **config):
+        # The slow fixture is a timeout test; successful RSA verification must
+        # not share its artificial sub-second deadline under Docker/host load.
+        if mode == "timeout":
+            config.setdefault("timeout_seconds", 0.1)
         client = lookup.FarmerLookup(replace(self.config, url=BASE + "/" + mode, **config), self.contract)
         return await client.lookup("FR-000000000001", "0000 0000 0000 0001")
 

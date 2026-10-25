@@ -1,17 +1,18 @@
 {
   "registry": "livestock",
-  "verified_at": "2026-10-24T19:58:53.577935+00:00",
+  "verified_at": "2026-10-25T01:50:18.932328+00:00",
   "source_sha256": {
     "ci/refactor/check_port.py": "cf39b9d2ab8ba926583be5d7077e5a7f0302cf31449e4f4e9daa4aa0382056c4",
     "ci/refactor/compare_new_dev.py": "927b0441fcbf35d1beb0e6bdf0013d4fd00f167e7d8be9e451ccca1f3d923c80",
     "ci/refactor/deployment_guard.py": "219d0d61b7b7cd034f1ad2301b2824abb90214a628ec500959875f669ab51f34",
-    "ci/refactor/metadata_probe.py": "8dea6f637ad7aa6061c33d8195d6fed0c3b44c94131f4dbf88f373ea449d2111",
+    "ci/refactor/metadata_probe.py": "eb59514e0f7238667568580de1aeec6311b9fd5eac5a5dc5ce0c592efff2ee20",
     "ci/refactor/new_dev_metadata.py": "99ba819346c81c212fa1ec06c3345bfa7784f3c5ee225bbe779be5a9f911db73",
+    "ci/refactor/notification_pipeline_probe.py": "3dd479e8c9e6ac015d6a951c23ff4e636b18dae9d885541868e27753a09371af",
     "ci/refactor/onboarding_probe.py": "4e453fcbe11b24542c2db75582f1d86d9f90d53ea8935148b2608ce683f29238",
     "ci/refactor/platform_contract_probe.py": "4b1975e065c4810b2a63623c3847b811e4a3ac656a0833582b7577ceed852760",
-    "ci/refactor/rehearse_metadata.py": "529c0e476b526e3f411f75d25d79fcf6b22e638fa5d8fa86724494cdd2b803ab",
+    "ci/refactor/rehearse_metadata.py": "eba0985109156d85b3b5927c694114cf8e39e9fe58cf7e74c925b42c72b8719c",
     "ci/refactor/runtime_probe.py": "a7884f1cb2d25b942752304278f9e357e351845904ba18a2bb2d7e1a82c9b342",
-    "ci/refactor/verify_onboarding.py": "fa561e44911cce25a18f3f66e9db965e7a43d7124bde6872acd670d52e8e4332",
+    "ci/refactor/verify_onboarding.py": "f71bdfe1d0db252e78ae20b225d144aff8017585eaec275ed9ddf338c45131aa",
     "docker/celery/Dockerfile": "719615e002378d008cb59279cbd8b2b33e687f602d9b45734c41c3dd9a60ec6c",
     "docker/db-seed/Dockerfile": "ecb511e27de5e46dc6ab106e36f14bdb6090ad2db4523249b87953e4249991b7",
     "docker/partner-api/Dockerfile": "d3fcff434748e770bad6ac4e8999b538be3d46ec394b557f31cd0801a186ab1d",
@@ -28,7 +29,8 @@
     "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/geography.py": "07bb1e3b4f8913a52dd6733db94412f8aab3489ce7bcd9fb0f42fbd37415283b",
     "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/lookup.py": "637302ba5e6800b7df069737d669c5bede66e442e421129a7d60d979b667fc5f",
     "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/models.py": "e1cb03b03959db169370fe2a835a5a8fec00eee353756317c11a9135269553f6",
-    "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/native.py": "fe73c7124430bbecfa9c8378be7cc2357098fcf048bcb0fbf67473355363518c",
+    "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/native.py": "64c78017362ce2230133b7587fb0a207f38ce348f97c4d74445c3c6b8f89f955",
+    "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/notification.py": "3911798755994cbbfe6f5af213ae630b351d05622f8f22e4f7bb916d36ead8bf",
     "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/onboarding.py": "3858a6c2a0d9b6279a404a4f97a03403510cf2756eb945fdaa0e3ed9d04d4c30",
     "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/profile.py": "8e0ab773c3a6f45102f5469ed7b14ff2fdcfb655a6d31ae8240edb05cc282527",
     "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/projection.py": "9afd447feb56907f52e5f517e555168bb092cf9572abe0c259b2f0634cc8b1c4",
@@ -36,8 +38,8 @@
     "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/worker.py": "f33a2eaba32ea9874639c922bd19d91687a2d2257d1a4791aaf67f2db4d35ed8",
     "livestock-extension/src/openg2p_registry_livestock_extension/farmer_reference/workflow.py": "aa61739523377d6384357e91133d8a110d5b7b9f430af4495df950b8d9041386",
     "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/__init__.py": "48afc3de9956a631f1f6e0aaada0f8eff4bbd8b070ca38d558a4a21f6e3b6b18",
-    "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/__init__.py": "99b4ee079e8c829aa9090968459ce3da9b9b75bb7fd2ad83d88495f659ed762a",
-    "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/farmer_reference.py": "6a63c4cc3822a4b307099f02e9c02ebf10813a7a61d82a33c245c6cc8a2c8482",
+    "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/__init__.py": "c4414dabd2e7b09247ccbb0642bfe23bce893c949a1b3d26bbda8e88a8516166",
+    "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/farmer_reference.py": "4de66dcbfd27cd61e264f5ffcc73e5a844b080ff101b052e408cea423116c080",
     "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/g2p_animal_enricher_services.py": "6509a468787881a98cc57adf2825743d736a53dffeccc6392ff2ee9da61f6f05",
     "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/g2p_livestock_enricher_services.py": "2d0505b7aa08de1e4fce167a70f6ce4c470484dfa808d6eb652326d1f82886ae",
     "livestock-extension/src/openg2p_registry_livestock_extension/master_data/code_lists/10_g2p_attributes.sql": "9f255c0eb9ab3e05f8d087b3a4939bbd62e8efdafb7a8a852e70903254e0722c",
@@ -98,6 +100,7 @@
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql": "7a620880c61e9651329b08f213803f6962ae3488ff2cb1279cf0c23e3bedbc73",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql": "a4d5b189be8e9036395fee98dc14e7984f94eeeb7a442861fc01770551ec3ef4",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/patch_livestock_odk_ingestion.sql": "e602b2a24c26a644ff87d2a114c3d50af109906f248c4dcdb0d34b18232306e5",
+    "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/zz_farmer_reference.sql": "af3f80aa91750e253716475b4d83581ecb1e2fabac0e45735e70f07f9a88b1c2",
     "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql": "f05d5e2467f0c8c4e9bafd4de636be3ef9a5e0b0443425c7a6f6cda903516bdb",
     "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/controllers/__init__.py": "f422fb40b408cbba04b5591cbb507fb84db810ef3e1ac0c3c9efda1ea2bb051c",
@@ -163,18 +166,22 @@
     "livestock-extension/src/openg2p_registry_livestock_extension/tasks/vaccination_reminder_beat_producer.py": "9d88b21609028960ddf5dd3769209c4167de1ed1e1e37f0b6399517d2941e921",
     "livestock-extension/src/openg2p_registry_livestock_extension/templates/dci_commons_response.json.j2": "59ecfeda066f9266c39d2cc413e72a4b93d8edfacb5746ceefb70c0729eb7bd7",
     "livestock-extension/src/openg2p_registry_livestock_extension/templates/dci_to_openg2p_livestock.json.j2": "b490a1f384910a15c589aff47c93da2a4a34329e59819b2614c85adcb3f34385",
+    "livestock-extension/src/openg2p_registry_livestock_extension/templates/farmer_reference_update.json.j2": "aa5f2b790ca592dd5502bc92ae1a32e6a3b363358ec38c12e9a9e383adeae187",
     "livestock-extension/src/openg2p_registry_livestock_extension/templates/ls_odk_transform.j2": "3e87fd272c5280b63c84e9aba52460e005c02f9a8bff309e4ce039027b74a71e",
     "livestock-extension/src/openg2p_registry_livestock_extension/templates/openg2p_livestock_to_dci.json.j2": "cd2e632609bb1185eac14675c711486d39eca1d321bfc730c8c062a15ee27aed",
     "livestock-extension/src/openg2p_registry_livestock_extension/vaccine_schedule_defaults.py": "df72fc986cbd84e5ac4663c0509a985b6850665360abd312dee2f604fb4787c6",
     "livestock-extension/tests/test_farmer_reference_contract.py": "45b5c77170fae4707564628e4746f6dd294fd02b5be3847a937d2520b4830095",
-    "livestock-extension/tests/test_farmer_reference_http.py": "6498f5620a34938293f30c0d91f6fdbf872c70b707898efa63531e7df65f86ad",
-    "livestock-extension/tests/test_farmer_reference_native.py": "d02113abea8f243bccd5c584a7eb6610914fda53df74ebd4a1ab0f7f58c09bac",
+    "livestock-extension/tests/test_farmer_reference_http.py": "45c9c7f1833015132533dd3ef603d8fa6bd2827ab05515ec25b6d623f1ebc591",
+    "livestock-extension/tests/test_farmer_reference_native.py": "47ebae996c9c806f256a97d25aeef886334c578fd9d08e85888fa431aa7f00e5",
+    "livestock-extension/tests/test_farmer_reference_notification.py": "5ebd7f1051c9b6e05465ef4263cffad1d5eb9d95f3ce6f0256013e554a7bc236",
+    "livestock-extension/tests/test_farmer_reference_notification_native.py": "3da9e3a83fac40ce35bb02c3f7355a9b261023f94aa655aa93ba604eff96b02b",
     "livestock-extension/tests/test_farmer_reference_onboarding.py": "ff0204c077c329fd4fed14028f70c41e09c1f01f78290a49a8ce6d6aaa0160c3",
     "livestock-extension/tests/test_farmer_reference_projection.py": "3192c8418d1f48346ef76d5c05d9a1cf362ae6464ac399fb50cfb681c5830eb0",
     "postman/mocks/farmer-reference/config.yaml": "abf6e1c1186889614f5abfa03138276ebbd956b939bea36f0561ef252b0157c6",
     "postman/mocks/farmer-reference/default.js": "18025e6719da85d7516e76d44f2897361827d2cffc5bafbcf52a213d67f62c45",
     "postman/simulations/farmer-reference.sim.yaml": "28c57df0dbefc0b066846a0059dd46015267b9bd52fb0a6d8a7a90c609427747"
   },
+  "verification_complete": true,
   "registry_stacks_started": 0,
   "existing_database_modified": false,
   "source_farmer_modified": false,
@@ -200,6 +207,12 @@
     },
     {
       "check": "projection-tests",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "notification-contract-tests",
       "exit_code": 0,
       "expected_exit_code": 0,
       "result": "PASS"
@@ -259,6 +272,18 @@
       "result": "PASS"
     },
     {
+      "check": "native-workflow-http",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "native-notification-lifecycle",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
       "check": "signed-lookup-http",
       "exit_code": 0,
       "expected_exit_code": 0,
@@ -268,9 +293,9 @@
       "check": "simulation-traffic",
       "result": "PASS",
       "listening": true,
-      "requests": 74,
+      "requests": 77,
       "statuses": {
-        "200": 63,
+        "200": 67,
         "503": 7,
         "401": 1,
         "429": 1,
@@ -278,10 +303,86 @@
         "307": 1
       },
       "methods": {
-        "POST": 45,
-        "GET": 29
+        "POST": 48,
+        "GET": 30
       },
       "raw_traffic_saved": false
+    },
+    {
+      "check": "build-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "image_id": "sha256:f426fb9d0884cc98173164868bc07261f2e55e6cb6c336a8cb3e7d34dc5b9611"
+    },
+    {
+      "check": "installed-staff-registration",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "build-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "image_id": "sha256:aa8ddb12bf496dd14e608fccf64717ca27d3438f31bde23035eeda31259c4c84"
+    },
+    {
+      "check": "installed-partner-registration",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "build-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "image_id": "sha256:e24869889cd8ad66769563fc9d7de5329779bb780503f8bb0955762353af8a52"
+    },
+    {
+      "check": "installed-worker-registration",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "build-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "image_id": "sha256:0e64224951a58aa8afca7e5340b85a696406b2b9af706a1a57daccc339f0889e"
+    },
+    {
+      "check": "preservation-seed-gate",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "result": "PASS"
     },
     {
       "check": "source-unchanged-during-verification",

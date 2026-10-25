@@ -1,19 +1,22 @@
 {
   "registry": "livestock",
-  "verified_at": "2026-10-24T20:13:45.310692+00:00",
+  "verified_at": "2026-10-25T01:50:44.168417+00:00",
   "lifecycle_tests": {
     "contract-tests": 25,
     "projection-tests": 8,
+    "notification-contract-tests": 5,
     "postgres-concurrency": 14,
-    "native-cr-lifecycle": 12,
+    "native-cr-lifecycle": 9,
+    "native-workflow-http": 3,
+    "native-notification-lifecycle": 8,
     "signed-lookup-http": 7
   },
-  "lifecycle_test_total": 66,
+  "lifecycle_test_total": 79,
   "central_chart_tests": 10,
   "deployment_configuration_tests": 6,
   "platform_pin_test": 1,
   "location_geometry_and_retry_tests": 4,
-  "unit_and_geometry_total": 87,
+  "unit_and_geometry_total": 102,
   "new_dev_declared_fields": 316,
   "new_dev_sections": 14,
   "new_dev_forms": 1,
@@ -37,7 +40,7 @@
   "promotion_ready": false,
   "remaining_acceptance": "STATUS.json",
   "source_sha256": {
-    "Jenkinsfile": "01c908a72976f9c14b9d4c57a302db8f334bc14cdd5dfd5e42eeb3a1aab24e34",
+    "Jenkinsfile": "0104f64c8667833eb3b86086dfe3e7ef0a46113fe3bd68da22e31cd6898582cf",
     "ci/deploy/oan-chart.json": "e3faee7293b898a78b283fb7d8df8cc72ade0cf1d4688d16bb63400c6e929a77",
     "ci/deploy/oan_chart.py": "89a2b81e90f9702d5dd731f123c0382ff7315c71a851f98b21538410973fdaf0",
     "ui/staff-ui/overrides/src/app/api/master-data/geo-boundary/route.ts": "297fb24795bed115c5b173492bfac080da11dd1e7696ea59f1ee7008b0e238e3",
@@ -66,5 +69,22 @@
       "dashboard public values"
     ],
     "scope": "Identical consumer code in both registries; Crop build agent prefetch/stash retains the isolated VPN deployment-node contract"
+  },
+  "orchestration_failure_tests": 2,
+  "native_notification_configuration": "NOTIFICATION_CONFIG_VERIFICATION.json",
+  "native_pipeline": "NATIVE_NOTIFICATION_PIPELINE.json",
+  "current_runtime_source_hashes_match": true,
+  "verification_complete": true,
+  "production_image_ids": {
+    "staff-api": "sha256:f426fb9d0884cc98173164868bc07261f2e55e6cb6c336a8cb3e7d34dc5b9611",
+    "partner-api": "sha256:aa8ddb12bf496dd14e608fccf64717ca27d3438f31bde23035eeda31259c4c84",
+    "celery": "sha256:e24869889cd8ad66769563fc9d7de5329779bb780503f8bb0955762353af8a52",
+    "db-seed": "sha256:0e64224951a58aa8afca7e5340b85a696406b2b9af706a1a57daccc339f0889e"
+  },
+  "installed_beat_registration": {
+    "result": "PASS",
+    "network_accessed": false,
+    "image_id": "sha256:e24869889cd8ad66769563fc9d7de5329779bb780503f8bb0955762353af8a52",
+    "domain": "livestock"
   }
 }
