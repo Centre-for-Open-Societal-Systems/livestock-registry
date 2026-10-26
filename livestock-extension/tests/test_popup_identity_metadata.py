@@ -59,12 +59,26 @@ class PopupIdentityMetadataTests(unittest.IsolatedAsyncioTestCase):
                     (await session.execute(select(G2PRegisterSection))).scalars()}
 
     async def test_full_seed_twice_and_final_patch_twice_preserve_all_form_contracts(self):
-        from sqlalchemy import select
+        from sqlalchemy import select, update
         from openg2p_registry_core.models import G2PIntakeFormUITabSection, G2PRegisterUITabSection
         package = importlib.import_module("openg2p_registry_"+PRODUCT+"_extension")
         paths = sorted((Path(package.__file__).parent/"meta_data/register-metadata").glob("*.sql"))
         final = next(p for p in paths if p.name == "zzzzzzzz_popup_only_fin.sql")
         await self.replay([p for p in paths if p != final])
+        # An existing New Dev binding has the same stable row/tab IDs but
+        # points at the legacy Farmer section. Base ON CONFLICT DO NOTHING
+        # deliberately preserves it; the bounded identity patch must migrate
+        # this known binding without touching registered Farmer sections.
+        async with self.fixture.sessions.begin() as session:
+            await session.execute(update(G2PIntakeFormUITabSection).where(
+                G2PIntakeFormUITabSection.tab_section_id == "intake_tab_section_1"
+            ).values(section_id="livestock_farmer_identity_section_01"))
+        split = next(p for p in paths if p.name == "zzzzzzz_identity_section_split.sql")
+        await self.replay([split])
+        async with self.fixture.sessions() as session:
+            migrated = await session.get(G2PIntakeFormUITabSection, "intake_tab_section_1")
+            self.assertEqual(migrated.section_id, "livestock_intake_identity_section_01")
+            self.assertEqual(migrated.tab_id, "0ebdc221-187d-5df6-9dc3-c6f4c4ee160e")
         before = await self.snapshot()
         await self.replay([final, final])
         first = await self.snapshot()

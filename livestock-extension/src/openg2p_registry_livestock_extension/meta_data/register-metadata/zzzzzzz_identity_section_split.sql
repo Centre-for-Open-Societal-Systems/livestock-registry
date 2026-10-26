@@ -42,7 +42,10 @@ ON CONFLICT (section_id) DO UPDATE SET
 
 UPDATE g2p_intake_form_ui_tab_sections
 SET section_id = 'livestock_intake_identity_section_01'
-WHERE section_id = 'livestock_livestock_record_section_01';
+WHERE section_id = 'livestock_livestock_record_section_01'
+   OR (tab_section_id = 'intake_tab_section_1'
+       AND tab_id = '0ebdc221-187d-5df6-9dc3-c6f4c4ee160e'
+       AND section_id = 'livestock_farmer_identity_section_01');
 
 UPDATE g2p_intake_form_ui_tab_sections ts SET section_order = ordered.position
 FROM (
