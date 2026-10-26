@@ -1,0 +1,12 @@
+{
+  "crop_source_commit": "2304cc7bd67d16b4c9d8f78c388a4c91520e8e17",
+  "existing_crop_ids": "Retained; key paths/register/template binding independently read from New Dev. Semantic detail API error retained, source installer defines the second-pass contract.",
+  "livestock_ids": "New deterministic UUID5 IDs for its dedicated receiver config; existing Farmer register/section UUIDs retained",
+  "event": "Unchanged topic/event/model/identity envelope; demographics omitted, current-source lookup before UPDATE CR",
+  "template_change": "Identity-only transformation; existing catalog rows are not overwritten by seeds. Compare current template/document source through native configuration before upgrade.",
+  "activation": "No topic/subscription/connector/checkpoint or live registry mutation",
+  "native_references": [
+    "https://docs.openg2p.org/products/registry/registry/design/outgestion-pipeline",
+    "https://docs.openg2p.org/products/registry/registry/design/ingestion-pipeline"
+  ]
+}

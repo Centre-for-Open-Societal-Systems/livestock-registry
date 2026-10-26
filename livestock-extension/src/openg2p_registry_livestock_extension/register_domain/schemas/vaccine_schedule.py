@@ -24,7 +24,7 @@ class G2PRegisterSchemaVaccineSchedule(G2PRegisterBaseSchema, G2PSchemaVaccineSc
     """
 
 
-class G2PRegisterHistorySchemaVaccineSchedule(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaVaccineSchedule(G2PRegisterHistorySchema, G2PSchemaVaccineSchedule):
     """
     Schema for Vaccine Schedule history.
     Inherits fields from G2PRegisterHistorySchema.

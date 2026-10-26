@@ -16,7 +16,8 @@ INSERT INTO "public"."incoming_model_semantic_patterns" (
     '$.body.message.search_response[0].data.reg_record_type=>^Livestock$',
     '$.body.message.search_response[0].data.reg_records[0]',
     'G2PDciLivestockCreateEnricherService'
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- Livestock ODK model: the envelope the ODK hooks (odk_ingest_hooks.py,
 -- patched G2PIngestService.ingest_data) build around a connector submission:

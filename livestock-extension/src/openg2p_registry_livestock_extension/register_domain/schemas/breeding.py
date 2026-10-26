@@ -37,7 +37,7 @@ class G2PRegisterSchemaBreeding(G2PRegisterBaseSchema, G2PSchemaBreeding):
     """
 
 
-class G2PRegisterHistorySchemaBreeding(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaBreeding(G2PRegisterHistorySchema, G2PSchemaBreeding):
     """
     Schema for Breeding history.
     Inherits fields from G2PRegisterHistorySchema.

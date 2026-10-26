@@ -9,7 +9,7 @@
 -- and registry-platform 1.2 validates a stored value against the list's
 -- value_code set (registry_core_validate_attribute_values). Same string on
 -- both sides keeps the data as it is and the check meaningful.
-INSERT INTO "public"."g2p_attribute_values" ("value_id","attribute_id","value_code","value_display","parent_value_id","sort_order") VALUES 
+INSERT INTO "public"."g2p_attribute_values" ("value_id","attribute_id","value_code","value_display","parent_value_id","sort_order") VALUES
 -- Species
 ('LIVESTOCK_SPECIES_CATTLE','LIVESTOCK_SPECIES','LIVESTOCK_SPECIES_CATTLE','Cattle',NULL,1),
 ('LIVESTOCK_SPECIES_SHEEP','LIVESTOCK_SPECIES','LIVESTOCK_SPECIES_SHEEP','Sheep',NULL,2),

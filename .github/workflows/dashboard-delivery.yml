@@ -1,55 +1,16 @@
-name: Dashboard delivery
+name: Dashboard delivery contract
 on:
-  push:
   pull_request:
+  push:
+permissions:
+  contents: read
 jobs:
-  render:
+  delivery:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - run: pip install --quiet pytest PyYAML
-      - name: New Dev routing and Farmer enrichment deployment regressions
-        run: python -m pytest test/test_new_dev_routes.py test/test_farmer_enrichment_deployment.py -q
-      - uses: azure/setup-helm@v4.3.0
-        with:
-          version: v3.19.0
-      - name: Render the New Dev Farmer lookup configuration
-        run: |
-          helm dependency build helm/openg2p-livestock-registry
-          helm template livestock-registry helm/openg2p-livestock-registry -n livestock \
-            -f helm/openg2p-livestock-registry/values-new-dev.yaml > "$RUNNER_TEMP/livestock-new-dev.yaml"
-          python -c 'import json,sys,yaml; json.dump({"kind":"List","items":[d for d in yaml.safe_load_all(sys.stdin) if d]},sys.stdout)' \
-            < "$RUNNER_TEMP/livestock-new-dev.yaml" > "$RUNNER_TEMP/livestock-new-dev.json"
-          python ci/check-farmer-enrichment.py --deployment livestock-registry-staff-portal-api \
-            --namespace livestock < "$RUNNER_TEMP/livestock-new-dev.json"
-      - name: Dashboard digest and semantic version label regressions
-        run: python -m pytest test/test_dashboard_delivery.py -q
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Legacy staging dashboard access boundaries
-        run: node --test scripts/operations/staging-dashboard/access-proxy.test.mjs
-      - name: ConfigMap symlink starts the access listener
-        run: |
-          set -eu
-          work=$(mktemp -d)
-          ln -s "$PWD/scripts/operations/staging-dashboard/access-proxy.mjs" "$work/access.mjs"
-          LEGACY_IAM_URL=http://127.0.0.1:9 \
-          LEGACY_PUBLIC_URL=https://dashboard.example.test \
-          LEGACY_KEYCLOAK_ORIGIN=https://keycloak.example.test \
-          LEGACY_PROVIDER_ID=3 \
-          LEGACY_REGISTRY_CLIENT_ID=livestock-registry-staff-portal \
-          LEGACY_VIEW_ROLES='["Operations Administrator"]' \
-            node "$work/access.mjs" > "$work/server.log" 2>&1 &
-          pid=$!
-          trap 'kill "$pid" 2>/dev/null || true' EXIT
-          for attempt in $(seq 1 30); do
-            status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/charts || true)
-            if [ "$status" = 401 ]; then exit 0; fi
-            sleep .1
-          done
-          cat "$work/server.log"
-          exit 1
+          python-version: "3.12"
+      - run: pip install pytest PyYAML
+      - run: python -m pytest -q test/test_oan_chart.py test/test_deployment_guard.py

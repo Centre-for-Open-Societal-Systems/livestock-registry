@@ -16,7 +16,8 @@ INSERT INTO "public"."incoming_model_key_paths" (
     '$.body[''header'',''message'']',
     'FALSE',
     ''
-);
+)
+ON CONFLICT DO NOTHING;
 
 -- Livestock ODK model: the envelope the ODK hooks (odk_ingest_hooks.py,
 -- patched G2PIngestService.ingest_data) build around a connector submission:

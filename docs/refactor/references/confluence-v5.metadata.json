@@ -1,0 +1,18 @@
+{
+  "id": "203653123",
+  "title": "Farmer Data Integration - Delivery Status and Next Steps",
+  "snapshotToken": "v:5",
+  "version": {
+    "number": 5,
+    "createdAt": "2026-10-23T09:43:47.742Z",
+    "message": "Revised plan: Kafka creates local Farmer UPDATE CRs with target approval"
+  },
+  "source": "https://bluenileagri.atlassian.net/wiki/x/A4AjD",
+  "retrieval": "Atlassian connected content reader",
+  "bodyFormat": "markdown",
+  "lossyConversion": true,
+  "lostFeatures": [
+    "ac:image",
+    "ri:attachment"
+  ]
+}

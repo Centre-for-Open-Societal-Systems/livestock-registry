@@ -33,7 +33,7 @@ class G2PRegisterSchemaImportBatch(G2PRegisterBaseSchema, G2PSchemaImportBatch):
     """
 
 
-class G2PRegisterHistorySchemaImportBatch(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaImportBatch(G2PRegisterHistorySchema, G2PSchemaImportBatch):
     """
     Schema for Import Batch history.
     Inherits fields from G2PRegisterHistorySchema.

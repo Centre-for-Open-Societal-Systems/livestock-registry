@@ -29,7 +29,7 @@ class G2PRegisterSchemaVaccination(G2PRegisterBaseSchema, G2PSchemaVaccination):
     """
 
 
-class G2PRegisterHistorySchemaVaccination(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaVaccination(G2PRegisterHistorySchema, G2PSchemaVaccination):
     """
     Schema for Vaccination history.
     Inherits fields from G2PRegisterHistorySchema.

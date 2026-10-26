@@ -42,7 +42,7 @@ class G2PRegisterSchemaVitalEvent(G2PRegisterBaseSchema, G2PSchemaVitalEvent):
     """
 
 
-class G2PRegisterHistorySchemaVitalEvent(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaVitalEvent(G2PRegisterHistorySchema, G2PSchemaVitalEvent):
     """
     Schema for Vital Event history.
     Inherits fields from G2PRegisterHistorySchema.

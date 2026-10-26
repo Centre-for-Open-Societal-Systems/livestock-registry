@@ -1,0 +1,938 @@
+{
+  "source_commit": "4c9b5eda31b063b6e4f30cae851d4b00626b865c",
+  "tracked_files": [
+    {
+      "path": "helm/livestock-registry-dashboard/Chart.yaml",
+      "git_blob": "987e33e863e5a5e6974fd1d84d3087fe58ef67b3",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/_helpers.tpl",
+      "git_blob": "3856cee002848bdee67dc7b3cd7b8fef16451ce4",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/client-secret.yaml",
+      "git_blob": "73de9d51ef26272f8990c0e4fbc85424d04cb877",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/deployment.yaml",
+      "git_blob": "4772ec1133c81efe27019111fb3ef9d46433ce71",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/ecr-pull-secret.yaml",
+      "git_blob": "de9e43e875d250f25245a0dca98c25358e66157f",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/iam-setup-job.yaml",
+      "git_blob": "dd1ec6c54ed3dceea603f466f5926f65b82d14af",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/routing.yaml",
+      "git_blob": "26af077dc57429094ad355542383d9f63184503f",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/service.yaml",
+      "git_blob": "f7e9d55a04b0750bff5279c09b84fc0480860478",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/serviceaccount.yaml",
+      "git_blob": "9d204f04ac10d3ba50c1cfcb32070f0162317644",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/templates/smoke-job.yaml",
+      "git_blob": "2f6216858d05148aabadcf11e565bc9df57c886d",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/livestock-registry-dashboard/values.yaml",
+      "git_blob": "e3b84cda98d439bb93e2ff12863ea99ae4e46a00",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/.gitignore",
+      "git_blob": "97367998f1572844c5b32a554dc338ebc1452e51",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/.helmignore",
+      "git_blob": "0e8a0eb36f4ca2c939201c0d54b5d82a1ea34778",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/Chart.yaml",
+      "git_blob": "7adfb6e26e44a462d81694a235dc55cb1d971feb",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/README-dev.md",
+      "git_blob": "f202e5ab964ef582e46a32452ee4523e45913a51",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/app-readme.md",
+      "git_blob": "1732ba62e5fcea611d3b41a7b4ff5a5061f5b095",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/files/reporting-views-refresh.sh",
+      "git_blob": "e1fd5c40f6a6e2f9457ff49e1bda56a7a8783993",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/templates/_reporting.tpl",
+      "git_blob": "c9b894a2bdf0239fb5185e0f9cd0d743ddda7a38",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/templates/dashboard-api.yaml",
+      "git_blob": "5c5e37c43fb8f4eb43598f8b0f5e793bb82986cb",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/templates/refactor-promotion-gate.yaml",
+      "git_blob": "95864a6f5fcc5e468bfe502b70c9ce9047e0013e",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/templates/reporting-views-refresh.yaml",
+      "git_blob": "8a1a58c803ff109b85b72a7401dcb5f9824cc82d",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/templates/reporting-views.yaml",
+      "git_blob": "0b10097d990497cd710b3e70a5a4bd083dcbd136",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/values-live.yaml",
+      "git_blob": "24dc7de98f26b08ea3f19a32669e41c45cda9281",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/values-new-dev.yaml",
+      "git_blob": "693b6f557438fd5b271195de19cd2b0c0ddf904c",
+      "mode": "100644"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/values.yaml",
+      "git_blob": "c1b73bbf5147ea12b5a1d988f2e84feab0334035",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/.dockerignore",
+      "git_blob": "cf4816672ed386bde3c144113b29904f44133f95",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/.gitignore",
+      "git_blob": "f7857212f1c55fddb870b1950d3c1c9a05b6a71f",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/DEPLOYMENT.md",
+      "git_blob": "590131bbbc920d487f23cf9bcc5bac88d82c1303",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/Dockerfile",
+      "git_blob": "62d976157a420f33c3995653d2197f71aec56add",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/README.md",
+      "git_blob": "74e06484fc78921873bf481132e8d782cc640647",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy.env.example",
+      "git_blob": "462618a0868c93f8b58813e3699aa0f51d3aa9f7",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/Archive.zip",
+      "git_blob": "fa93e6c53fa119621b1b480e5924d1f70f4f796b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/Chart.lock",
+      "git_blob": "b2de3f2f5a0a64076059ce85e7e2fe92bd5693ac",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/Chart.yaml",
+      "git_blob": "3331de2aa4978909d0f8411b28c80d29c98e43c8",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/charts/postgres-init-0.0.0-develop.tgz",
+      "git_blob": "6e171e37ffd9dd0681da388cddb208873277162c",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/_helpers.tpl",
+      "git_blob": "430ffede87296c45afa70a4ccceef5607dfc71c0",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-deployment.yaml",
+      "git_blob": "cf348462ce026fac62c0f8152011c45401b05026",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-hpa.yaml",
+      "git_blob": "8421cb9bf63f1779a17a8ccee641db22792a4558",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-service.yaml",
+      "git_blob": "cd744e257436733b20cc6df66b5355d6c9277e52",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/beat-deployment.yaml",
+      "git_blob": "fae130e8ef0442e730ef52b1baf3ca1eda27dc9d",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/consumer-deployment.yaml",
+      "git_blob": "11be73571e93012a8c5e1847c4fab3debfc5a5f3",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/gateway.yaml",
+      "git_blob": "9814a7c002c2d94d4e3aec6db8f1d111135e0036",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/serviceaccount.yaml",
+      "git_blob": "fe329bf5588c59133a7848aa37ed47e9f91f31fd",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/ui-deployment.yaml",
+      "git_blob": "0efc562e4d4f81d94380bc3bd07e5d572ab0fe18",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/ui-service.yaml",
+      "git_blob": "84115126dd4abba567609b3ab3f27a46ae3b9b96",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/virtualservice.yaml",
+      "git_blob": "c63264bfb860afc31a297e98ec9b0198cdb17867",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/worker-deployment.yaml",
+      "git_blob": "04f785cac68e5ec337b2f23e19313814ad83eba7",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/values-kif-cluster.yaml",
+      "git_blob": "b678a5ab80a208703ba3e594ce4c0d41992f19a1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/values-nsr-v2-prod.yaml",
+      "git_blob": "f8521b391f9bc642c7ba7d3a33c6e360c421cadf",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/openg2p-connector/values.yaml",
+      "git_blob": "15fd14eb4eed8cd1eed33b01ef4387b55dbf6644",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/docker-entrypoint.sh",
+      "git_blob": "9c025933a2c3da042fc7eb150be6fe8663cb4ae1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/package-lock.json",
+      "git_blob": "adc1438c1b86c3bf38763e1afecd44c38ed68784",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/pyproject.toml",
+      "git_blob": "d93bed2c081615c231212ba6d5c9d73b90186377",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/__init__.py",
+      "git_blob": "3dc1f76bc69e3f559bee6253b24fc93acee9e1f9",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/__init__.py",
+      "git_blob": "9ce7592ca441753f6c85fb672eb377b5d399ee72",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/base.py",
+      "git_blob": "745ab8b2b2ff94301e5e236cc03fdf6149b5f90c",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/registry.py",
+      "git_blob": "1614619f7ad381ace38fcfc95cec8252206e4c5b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/__init__.py",
+      "git_blob": "1cd771d01d67e828baa5816405760e4457316170",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/none_auth.py",
+      "git_blob": "56abc0682e19e3d0e6548e27144325e8cc908edd",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/oauth2_client_credentials.py",
+      "git_blob": "c5397c251e0be0b06c63b23ff21c0565096a83b4",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/oauth2_password.py",
+      "git_blob": "4377d8e87e10560f482bb71bc3281b8a057fcdc9",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/odk_session.py",
+      "git_blob": "4742b9f12dca9b6e4d6653bafc31f874908da38d",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/static_bearer.py",
+      "git_blob": "b236401baf7f3bfadc83e0c7fe94921064e76934",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/clients/__init__.py",
+      "git_blob": "9458856e12e475a5e93bb944cb6f44e0eb1ea15b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/clients/partner_ingest_client.py",
+      "git_blob": "6f908120354a98f2139824a3c0c7d2542de97775",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/config.py",
+      "git_blob": "17e5cec8b6db8cf66157507068345e4d3a12356a",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/consumer_supervisor.py",
+      "git_blob": "ba2d5c3ea832884d6d88bb5508aa2132f414841c",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/controllers/__init__.py",
+      "git_blob": "db0a46f7e5f8458c64391341718e65c6b08ea7db",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/controllers/connectors.py",
+      "git_blob": "8c371d145ffe14d4886dfd14a4fc759ce60066e8",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/controllers/health.py",
+      "git_blob": "82468307061b68112b3133727b8daf272551decf",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/controllers/metadata.py",
+      "git_blob": "a0fda47014b86be959d8941218df9a063c85410b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/controllers/runs.py",
+      "git_blob": "854aa242b1a8b65b86f1b7ca17b7f3ac699e32df",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/controllers/webhook.py",
+      "git_blob": "8d025bb47e8785ceafa02623716972e4fec7b658",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/database.py",
+      "git_blob": "618f9a41d1bdf6266d8b47cc024d5e9f90e47e60",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/db_migrations.py",
+      "git_blob": "35627974cc44c0bf62a2c67ea627fc4e95acbec9",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/main.py",
+      "git_blob": "525bb3fae3241a89324b919064815e94b657ede9",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/mappers/__init__.py",
+      "git_blob": "4d16f42007af4c117a90376268ed00bd44ee138a",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/mappers/base.py",
+      "git_blob": "1ba227eeef2aa95904a1ad62c79dfec015350d9a",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/mappers/jmespath_mapper.py",
+      "git_blob": "47790afcf88523510d170c0d6e0e01ba1eaa13a3",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/mappers/passthrough.py",
+      "git_blob": "3c1805b9e3de0909e1078ec3b1cac30aa997b09e",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/metrics.py",
+      "git_blob": "e65c899f1132bb65290e104354e68019722328e3",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/models/__init__.py",
+      "git_blob": "defb19734eb1196a1403723a4a087c53da611fcf",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/models/base.py",
+      "git_blob": "fa2b68a5d245bbdde7fbea6b86c9650a584167d6",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/models/connector_definition.py",
+      "git_blob": "08e3a91e24dd1ed7c25f24f6fded60935db1cab3",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/models/dead_letter.py",
+      "git_blob": "5e025fcc34367c6f618df6cd2913dc777ad43e0d",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/models/idempotency_key.py",
+      "git_blob": "d9ae9606c34dddb8239290f41f3cb5b711ac485b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/models/ingestion_run.py",
+      "git_blob": "f75fbeeea848caab55d3c8c6cd5627332c184c64",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/observability.py",
+      "git_blob": "5975ef53e331b015e92cc4a26cc160902b4b8caa",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/schemas/__init__.py",
+      "git_blob": "4309ed7ea22500221e6f0ad6c7a508f43dc4dddc",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/schemas/connector.py",
+      "git_blob": "99da8e219626367729aa9164503f42ffd1c6737b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/schemas/run.py",
+      "git_blob": "281cb78fa7bffab270c1ffa530915a156f87cc87",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/schemas/webhook.py",
+      "git_blob": "ffe0b84435713f9b6788526404ad4337b05e9f39",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/services/__init__.py",
+      "git_blob": "8b6e8000655f37ebabd2cccacdb70b8fb291d0d5",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/services/connector_service.py",
+      "git_blob": "c8c72c3f390716047ada8979be54a2f7cabf149e",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/services/ingestion_service.py",
+      "git_blob": "079b26311b9f344e59fe7ec5b12239f6e1cb5743",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/services/websub_hub_sync.py",
+      "git_blob": "db164f1cb3683bdf60016f9e01c7e603c1cb26d8",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/__init__.py",
+      "git_blob": "ec0963d2f8e61a75eb9e2215d8034643febe0957",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/base.py",
+      "git_blob": "2a09014e3d55c5cd40b5c823d2263b14733aad91",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/checkpoints.py",
+      "git_blob": "87babb930d7aa648d02e7c45272eeffd3d50c2f1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/events/__init__.py",
+      "git_blob": "38cf87b1f9aab2bfeb7ed102e335a24a7eac1d1b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/events/base.py",
+      "git_blob": "4f83683dc4a4071f0247065afeb108d08918a5db",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/events/kafka_consumer.py",
+      "git_blob": "1c3377abb4de244758d35163d8618ecca92466d4",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/odk_central.py",
+      "git_blob": "faf9a81a9a640cc58e5d388e62b7a5e067d2ed74",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/registry.py",
+      "git_blob": "a5de9e923453979c160db368c0f1785e93b44b64",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/webhook.py",
+      "git_blob": "796b0a85669e17dadf0687fe9ee09a1dbf268482",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/transports/websub.py",
+      "git_blob": "1effca18eb701d6ae888f5ea7ed72580be87b217",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/webhooks/__init__.py",
+      "git_blob": "74b53b534c71352925df971ed6408fa09b5cc18d",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/__init__.py",
+      "git_blob": "c6c18f905745c8c4a9a2a9e30e3cbf4b2e199759",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/hmac_sha256.py",
+      "git_blob": "5de51490934a21db8a8f9d588bbe50c356a913a8",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/plain_shared_token.py",
+      "git_blob": "62bc67ebbab6b53dac4f3af3acfb53681c4f63a3",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/src/openg2p_connector_service/worker.py",
+      "git_blob": "4915a299324595852a1b57b2e486888328e58eec",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/__init__.py",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/conftest.py",
+      "git_blob": "d890baf3a2185d9b1d4c719721f525a32801bee1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_auth_strategies.py",
+      "git_blob": "e689a849e488580649b9cbbd34de5b5c0a170b08",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_checkpoints.py",
+      "git_blob": "efd20346e19822f98c3efa3d36402e95b434b677",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_connectors_crud.py",
+      "git_blob": "6c4229a4b1930f1596bdcdd9cc652b155759b21b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_event_consumers.py",
+      "git_blob": "2b71590df5b030ab7fb9ef26b78c1133ebb6f218",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_health.py",
+      "git_blob": "f2b7f877d0e1ca760c29c07f76fc18e0f5cf629c",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_mappers.py",
+      "git_blob": "9b44be4332ca71a5a2827f6291aaa0e2be4002b1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_meta_and_read.py",
+      "git_blob": "255e4abb2ef923b76e9dc6632c6f19eb7e3d2f7b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_odk_checkpoint_polling.py",
+      "git_blob": "e069dafdd26661f1ff2d0c73cc5135e465c47378",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_utils.py",
+      "git_blob": "8d703874e70e2c2e4e0a45aa4db4b211fddfd3f2",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_webhook.py",
+      "git_blob": "de3c65771a2858b811b863347526edfb6b00149a",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/tests/test_websub_hub_sync.py",
+      "git_blob": "9b213f098b9a6b13534240a71cb4b21a3c975719",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-service/uv.lock",
+      "git_blob": "262e8e4f8942e95a39b3ac47f9006f1ce89a9129",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/.gitignore",
+      "git_blob": "1fa6826b5fc8821ff5aa8e5db8f38d90b4f38978",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/Dockerfile",
+      "git_blob": "431cc2ce07370680b2addec1110d0a1ead0c3a27",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/README.md",
+      "git_blob": "c8e8fa1da584f1799df703fd109da2479d75e6cc",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/eslint.config.js",
+      "git_blob": "5e6b472f583e34a1cca751440d4f241495475723",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/index.html",
+      "git_blob": "00f087b9164482a973028e9c6339dc098b77d5cc",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/OpenG2P-Connector-User-Manual.docx",
+      "git_blob": "84d5ad787bc90bab75d21248bfa2190a4d7a14fa",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/USER-MANUAL.md",
+      "git_blob": "cd18647cf7c6781db29e4678404dc3abab999457",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/01-pipeline-list.png",
+      "git_blob": "9a5dabb1094b3f5830e6e885da08b01f15a1e2d1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/02-pipeline-overview.png",
+      "git_blob": "2e130e9ae5011deb4d0ebe3737d04b6bdc541a86",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/03-pipeline-runs.png",
+      "git_blob": "1d73875f8c048471ebeefc822a7c36c261c7ed5f",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/04-pipeline-dlq.png",
+      "git_blob": "7a66e560c7257e6ae648145fe80a3ed8468be46e",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/05-pipeline-new.png",
+      "git_blob": "358d9ecb71464b5e9f04b1680a45be71b0568598",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/06-pipeline-edit.png",
+      "git_blob": "0c2bd815774f4e7c08a6eed1b8c2e88b4667e37d",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/07-pipeline-edit-websub.png",
+      "git_blob": "61f4e7d613639b14ec7df48ba36be9c2d518422b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/08-global-runs.png",
+      "git_blob": "fe8e98bf221247c05d9997de38c1c90daa715867",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/annotated/09-global-dlq.png",
+      "git_blob": "b79d4d98249fe30158c8028b6c04f87da1edccc5",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/capture.py",
+      "git_blob": "f9b632356fab5a57b10846c23ff6bf23470c647b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/export.sh",
+      "git_blob": "a08ab288350689b6a8ac426c8d00313366ed7b9f",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/make-reference-docx.py",
+      "git_blob": "ac088730c1354e1dc90b478fba6fcc6f17118150",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/postprocess-docx.py",
+      "git_blob": "0c59df93dbcb3c672b408c93a3fc618eeed6e20b",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/reference.docx",
+      "git_blob": "d5ee599c6e3d3bcf42f6b712170ad5844a8accd9",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/01-pipeline-list.png",
+      "git_blob": "6ee19269b614096ccb19d113a09dd94fa04f3971",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/02-pipeline-overview.png",
+      "git_blob": "94e55cb3767513a94b7d16254f8b5994c948f58f",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/03-pipeline-runs.png",
+      "git_blob": "ae14088aa39c1703af6661d3167767ffadf61fc0",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/04-pipeline-dlq.png",
+      "git_blob": "2972a18387e30cdbe612cbe1b4d740e491778636",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/05-pipeline-new.png",
+      "git_blob": "b0c20e46c2e7651d124da15ce6eca9629bcd8c35",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/06-pipeline-edit.png",
+      "git_blob": "8cd987d4177a71899565d2a69d0add7d7fd994c1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/07-pipeline-edit-websub.png",
+      "git_blob": "fb7fde5cc03b5b2682efbf0dea9fd161ceea4420",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/08-global-runs.png",
+      "git_blob": "39d21eb4e287a920dd28d71af82fe92f0bfb8883",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/manual/screenshots/09-global-dlq.png",
+      "git_blob": "dd6c8f54bb7ee72555ae0b74d4c54f1b1b35ae45",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/nginx.conf",
+      "git_blob": "449c7991ed4cee484fda544a6626cda0fdeb2601",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/package-lock.json",
+      "git_blob": "2bc9f0a2283f54068018bbc1f597282b67e83b35",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/package.json",
+      "git_blob": "c97bf1ccb4f6de74fda7a131e182993bc938b7ae",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/public/favicon.svg",
+      "git_blob": "6893eb13237060adc0c968a690149a49faa2d7d3",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/public/icons.svg",
+      "git_blob": "e9522193d9f796a9748e9ad8c952a5df73c87db9",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/App.tsx",
+      "git_blob": "6b18720985a36258ac24b93cc19a597590fd42cf",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/api/client.ts",
+      "git_blob": "599d1f2e0a8ddb2408873e0ad9348bea4ab3115c",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/api/errors.ts",
+      "git_blob": "13c35bcc53f4ef0c25d09e7f8cce4e0a4d351960",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/api/types.ts",
+      "git_blob": "914e2104dc0aa4418556a2c29f11c5ce32df59bd",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/assets/hero.png",
+      "git_blob": "cc51a3d20ad4bc961b596a6adfd686685cd84bb0",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/components/ApiConnectionBar.tsx",
+      "git_blob": "7d85894fbe9711723c5f472dbe3725d3815a88bc",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/components/Card.tsx",
+      "git_blob": "901a010a97cbbabb67227070e62720c84f34ef40",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/components/Layout.tsx",
+      "git_blob": "5f84cd708a0f88b34457bc571db2058d9487d6c1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/components/StatusBadge.tsx",
+      "git_blob": "5550f3f8857803fc8c651c1017d4f1bdfa51d614",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/index.css",
+      "git_blob": "f1d8c73cdcf9eaacb01fec99963ad78d591305ae",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/main.tsx",
+      "git_blob": "12fa35b9813dddf7047f8fb1059b9cac5f601bd2",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/pages/DLQList.tsx",
+      "git_blob": "61134ac75ca0156369fbfab8db2fefac570fa8a9",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/pages/PipelineDetails.tsx",
+      "git_blob": "37e4a9a2d634c3ab21bab32b34856835b1806ffc",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/pages/PipelineForm.tsx",
+      "git_blob": "2a0fd3f77111bbd8592187a9ec1c639a3502ded6",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/pages/PipelineList.tsx",
+      "git_blob": "5c247723e1d62a049351fc6bca38004089a951e1",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/src/pages/RunsList.tsx",
+      "git_blob": "093d706a2a3f377a85f153226a92275c4bf93035",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/tsconfig.app.json",
+      "git_blob": "1d29c885f28d69fb17925e962f0f309dd7a5352c",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/tsconfig.json",
+      "git_blob": "1ffef600d959ec9e396d5a260bd3f5b927b2cef8",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/tsconfig.node.json",
+      "git_blob": "d3c52ea64c6cd6bad118474410f5322f48e257a6",
+      "mode": "100644"
+    },
+    {
+      "path": "openg2p-connector-ui/vite.config.ts",
+      "git_blob": "a068e53caaa06c9cb78088873cc321c3d144aa82",
+      "mode": "100644"
+    }
+  ],
+  "ignored_files_preserved": [
+    {
+      "path": "helm/openg2p-livestock-registry/Chart.lock",
+      "sha256": "db36f106ab1e64e6dbed719053d71c43ee82c3d36b2fb70859c07e31203594b8",
+      "local_backup": "Temp/registry-refactor-cleanup-20261025/livestock/helm/openg2p-livestock-registry/Chart.lock"
+    },
+    {
+      "path": "helm/openg2p-livestock-registry/charts/openg2p-registry-1.2.2-rc.557.tgz",
+      "sha256": "aed91adbc7c4379db9e3c9486eecf5a185fb30d2839b3db50c3feac69cba8f58",
+      "local_backup": "Temp/registry-refactor-cleanup-20261025/livestock/helm/openg2p-livestock-registry/charts/openg2p-registry-1.2.2-rc.557.tgz"
+    },
+    {
+      "path": "openg2p-connector-service/deploy/charts/.DS_Store",
+      "sha256": "3b8c75946e2fb6e2ccb11702d545caf9b33e053d8583758c3ab7712b0dbe189c",
+      "local_backup": "Temp/registry-refactor-cleanup-20261025/livestock/openg2p-connector-service/deploy/charts/.DS_Store"
+    },
+    {
+      "path": "openg2p-connector-ui/src/lib/api-target.ts",
+      "sha256": "63eb346dc06d9a41adaab470a367e335005488531ffc6634f47cde24a3ea62f0",
+      "local_backup": "Temp/registry-refactor-cleanup-20261025/livestock/openg2p-connector-ui/src/lib/api-target.ts"
+    },
+    {
+      "path": "openg2p-connector-ui/src/lib/edrmc-websub-template.ts",
+      "sha256": "91ee5babc89e8c057b13851d8d638d6288b375eb6478b16dd08654ead5760b5c",
+      "local_backup": "Temp/registry-refactor-cleanup-20261025/livestock/openg2p-connector-ui/src/lib/edrmc-websub-template.ts"
+    }
+  ],
+  "recovery": "git show <source_commit>:<path>; commit is retained on the published develop-refactor ancestry",
+  "external_connectors": "Not changed: existing releases, images, checkpoints and subscriptions remain independently operated",
+  "central_charts": "COSS oan-helm develop-refactor; exact commit/version/archive checksum in ci/deploy/oan-chart.json",
+  "connector_source_owner": "Canonical standalone source/artifact handoff remains unverified; no replacement repository or image is invented",
+  "existing_environment_modified": false,
+  "physical_local_remnants": "Ignored hash-verified files remain in isolated directories because automatic approval review rejected deletion. All tracked source and build inputs were retired through Git."
+}
