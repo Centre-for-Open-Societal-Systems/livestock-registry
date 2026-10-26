@@ -201,5 +201,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("domain", choices=("cropsown", "livestock"))
     parser.add_argument("--build", action="store_true")
+    parser.add_argument("--http-only", action="store_true", help="Run the 19 bounded synthetic HTTP executions using the existing profile image (Linux CI only)")
     args = parser.parse_args()
-    main(args.domain, build=args.build)
+    if args.http_only:
+        from verify_signed_http import main as signed_http
+        signed_http(args.domain)
+    else:
+        main(args.domain, build=args.build)
