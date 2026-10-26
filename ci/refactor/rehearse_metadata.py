@@ -15,6 +15,11 @@ def main(domain, pipeline=False):
     portable = (ROOT / f"{domain}-extension").is_dir()
     repo = ROOT if portable else ROOT / f"OAN/worktrees/{domain}-registry/develop-refactor"
     probes = ROOT / "ci/refactor" if portable else ROOT / "tools/registry_refactor"
+    output = repo / "ci-output/refactor/new-dev"
+    output.mkdir(parents=True, exist_ok=True)
+    # Every bind-mounted writer uses the host identity; never chown shared
+    # repository trees or alter the database container's native user.
+    writer_user = ["--user", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []
     network = "coss-refactor-metadata-" + domain
     database = network + "-db"
     created_network = created_database = False
@@ -38,7 +43,7 @@ def main(domain, pipeline=False):
         else:
             raise RuntimeError("Disposable database did not become ready")
         def probe(mode):
-            result = run("docker","run","--rm","--memory=768m","--network",network,"--entrypoint","python",
+            result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
                 "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
                 os.environ.get("COSS_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),"/probe/metadata_probe.py","/work",domain,mode)
             print(result.stdout.splitlines()[-1],flush=True)
@@ -63,7 +68,7 @@ def main(domain, pipeline=False):
         # replay in isolated schemas. A native test silently skipping is failure.
         popup_test = repo / f"{domain}-extension/tests/test_popup_identity_metadata.py"
         if popup_test.exists():
-            result = run("docker","run","--rm","--memory=768m","--network",network,"--entrypoint","python",
+            result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
                 "-v",f"{repo.as_posix()}:/work","-w","/work",
                 "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
                 "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
@@ -76,7 +81,7 @@ def main(domain, pipeline=False):
             if len(cases)<4 or any(case.find("skipped") is not None for case in cases):
                 raise RuntimeError("Native popup metadata tests did not execute all required PostgreSQL cases")
         if pipeline:
-            result = run("docker","run","--rm","--memory=768m","--network",network,"--entrypoint","python",
+            result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
                 "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
                 "openg2p/openg2p-registry-celery:1.2.2-rc.557","/probe/notification_pipeline_probe.py","/work",domain)
             print(result.stdout.splitlines()[-1],flush=True)
