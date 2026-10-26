@@ -28,7 +28,7 @@ def main(domain, pipeline=False):
     def run(*args):
         result = subprocess.run(args,capture_output=True,text=True,encoding="utf-8",errors="replace")
         if result.returncode:
-            raise RuntimeError(result.stderr[-1800:])
+            raise RuntimeError((result.stderr or result.stdout)[-3500:])
         return result
     try:
         network_id = run("docker","network","create","--label","coss-refactor.disposable=metadata",network).stdout.strip()
@@ -68,16 +68,27 @@ def main(domain, pipeline=False):
         # Run the complete extension suite serially in a fresh process against
         # this owned disposable DB. Some ledger fixtures reset their own public
         # test tables: never run this against an environment DB or in parallel.
-        result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
-            "-v",f"{repo.as_posix()}:/work","-w","/work",
-            "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
-            "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
-            "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/refactor_metadata",
-            os.environ.get("COSS_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
-            "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests",
-            "--junitxml=/work/ci-output/refactor/new-dev/full-extension.xml")
-        print(result.stdout.splitlines()[-1],flush=True)
-        cases = list(ET.parse(output/"full-extension.xml").getroot().iter("testcase"))
+        # Package initialization aliases ORM modules. Isolate each test module
+        # in a fresh process so standalone ledger tests and native app tests do
+        # not import the same SQLAlchemy declarations under two package names.
+        # Every module is still executed, serially, with the same owned DB.
+        combined = ET.Element("testsuites")
+        for test_module in sorted((repo/f"{domain}-extension/tests").glob("test_*.py")):
+            report = test_module.stem + ".xml"
+            result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
+                "-v",f"{repo.as_posix()}:/work","-w","/work",
+                "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
+                "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
+                "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/refactor_metadata",
+                os.environ.get("COSS_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
+                "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests/{test_module.name}",
+                f"--junitxml=/work/ci-output/refactor/new-dev/{report}")
+            print(test_module.name + ": " + result.stdout.splitlines()[-1],flush=True)
+            module_result = ET.parse(output/report).getroot()
+            for suite in module_result if module_result.tag == "testsuites" else [module_result]:
+                combined.append(suite)
+        ET.ElementTree(combined).write(output/"full-extension.xml",encoding="utf-8",xml_declaration=True)
+        cases = list(combined.iter("testcase"))
         failures = [case for case in cases if case.find("failure") is not None or case.find("error") is not None]
         if failures:
             raise RuntimeError("Full native extension suite reported failed/error testcases")
