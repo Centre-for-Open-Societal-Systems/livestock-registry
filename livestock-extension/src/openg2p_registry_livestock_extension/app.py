@@ -44,6 +44,8 @@ class Initializer(BaseInitializer):
             from .schema_migration import add_missing_mapped_columns
             await add_missing_mapped_columns(dbengine.get(),
                 [getattr(models,name) for name in MODEL_NAMES]+list(REFERENCE_MODELS))
+            from .schema_compat import migrate_existing_schema
+            await migrate_existing_schema(dbengine.get())
         # OAN Farmer's migration-loop boundary: don't reuse connections from
         # the core migration's already-closed event loop.
         dbengine.get().sync_engine.dispose(close=False)
