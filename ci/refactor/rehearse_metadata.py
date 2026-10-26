@@ -8,6 +8,7 @@ import re
 import time
 import os
 import xml.etree.ElementTree as ET
+from collections import Counter
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -64,22 +65,71 @@ def main(domain, pipeline=False):
                     "sha256":hashlib.sha256(raw).hexdigest(),"sqlstate_errors":[code.decode() for code in errors],
                     "psql_exit_code":result.returncode})
             probe(str(attempt))
-        # Exercise the actual PostgreSQL JSON extraction and complete metadata
-        # replay in isolated schemas. A native test silently skipping is failure.
-        popup_test = repo / f"{domain}-extension/tests/test_popup_identity_metadata.py"
-        if popup_test.exists():
-            result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
-                "-v",f"{repo.as_posix()}:/work","-w","/work",
-                "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
-                "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
-                "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/refactor_metadata",
-                os.environ.get("COSS_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
-                "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests/test_popup_identity_metadata.py",
-                "--junitxml=/work/ci-output/refactor/new-dev/popup-identity.xml")
-            print(result.stdout.splitlines()[-1],flush=True)
-            cases = list(ET.parse(repo/"ci-output/refactor/new-dev/popup-identity.xml").getroot().iter("testcase"))
-            if len(cases)<4 or any(case.find("skipped") is not None for case in cases):
-                raise RuntimeError("Native popup metadata tests did not execute all required PostgreSQL cases")
+        # Run the complete extension suite serially in a fresh process against
+        # this owned disposable DB. Some ledger fixtures reset their own public
+        # test tables: never run this against an environment DB or in parallel.
+        result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
+            "-v",f"{repo.as_posix()}:/work","-w","/work",
+            "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
+            "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
+            "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/refactor_metadata",
+            os.environ.get("COSS_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
+            "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests",
+            "--junitxml=/work/ci-output/refactor/new-dev/full-extension.xml")
+        print(result.stdout.splitlines()[-1],flush=True)
+        cases = list(ET.parse(output/"full-extension.xml").getroot().iter("testcase"))
+        failures = [case for case in cases if case.find("failure") is not None or case.find("error") is not None]
+        if failures:
+            raise RuntimeError("Full native extension suite reported failed/error testcases")
+        allowed_workflow_methods = {
+            "test_native_http_add_routes_only_functional_woreda_approver_without_identity_writes",
+            "test_native_http_update_routes_old_geography_and_retry_reuses_remote_request",
+            "test_native_http_directory_failure_blocks_with_visible_diagnostic_and_bounded_retries",
+        }
+        skipped = Counter()
+        executed = Counter()
+        popup = []
+        for case in cases:
+            classname = case.get("classname", "")
+            family = classname.rsplit(".", 1)[-1]
+            name = case.get("name", "")
+            skip = case.find("skipped")
+            if "test_popup_identity_metadata" in classname:
+                popup.append(case)
+            if skip is None:
+                executed[family] += 1
+                continue
+            reason = skip.get("message", "")
+            if (family == "HttpLookupTests" and "test_farmer_reference_http" in classname
+                    and reason == "Requires local Postman simulation; run ci/refactor/verify-onboarding"):
+                skipped["farmer_http"] += 1
+            elif (family in {"NativeReferenceTests", "NativeNotificationTests"}
+                    and "test_farmer_reference_" in classname
+                    and name in allowed_workflow_methods and reason == "Requires local Postman dependencies"):
+                skipped["native_workflow_http"] += 1
+            elif (family == "NativeNotificationTests" and "test_farmer_reference_notification_native" in classname
+                    and name == "test_notification_uses_actual_configured_signed_lookup_over_http"
+                    and reason == "Requires local Postman dependency"):
+                skipped["signed_notification_http"] += 1
+            else:
+                raise RuntimeError(f"Unexpected native-suite skip: {classname}.{name}: {reason}")
+        if skipped != Counter({"farmer_http":9,"native_workflow_http":9,"signed_notification_http":1}):
+            raise RuntimeError(f"HTTP simulation skip inventory changed: {dict(skipped)}")
+        if len(popup) != 4 or any(case.find("skipped") is not None for case in popup):
+            raise RuntimeError("All four popup metadata regressions must execute")
+        required_executed = {
+            "NativeReferenceTests":24, "NativeNotificationTests":20,
+            "OnboardingTests":15, "PendingLookupTests":4, "WorkerHeldTests":2,
+            "PopupIdentityMetadataTests":3, "AddOnlyMigrationTests":3,
+            "NativeSectionTests" if domain == "cropsown" else "IntakeIdentitySectionTests":1,
+        }
+        for family, expected in required_executed.items():
+            if executed[family] != expected:
+                raise RuntimeError(f"Native DB family {family}: expected {expected} executions, got {executed[family]}")
+        print(json.dumps({"registry":domain,"full_extension_testcases":len(cases),
+            "database_cases_executed":sum(required_executed.values()),
+            "allowed_http_simulation_skips":dict(skipped),
+            "real_workflow_http":"NOT RUN; requires separate isolated Postman dependency"}),flush=True)
         if pipeline:
             result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
                 "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
