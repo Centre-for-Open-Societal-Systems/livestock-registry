@@ -1,3 +1,5 @@
+Current delivery: [26 October candidate and verification boundaries](../refactor-candidate.md) supersede the dated configuration and raw-path claims below. Crop has explicit reviewed season/projection transitions; current chart pins are dev.14.
+
 Current follow-up: [native notification configuration and verification](NOTIFICATION_VERIFICATION.md) supersedes the initial missing-port finding below. Existing deployed semantic/template content and live Kafka/AWE still require acceptance.
 
 # New Dev parity, registered location widgets and source cleanup

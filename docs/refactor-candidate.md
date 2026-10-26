@@ -61,3 +61,7 @@ widgets, including previously duplicated registered sections. They reject missin
 or duplicate controls, a second editable FIN input and accidental FAN locking.
 Those checks and the current-source lookup/approval suites must run in the native
 image on this commit. See [the detailed blockers](refactor/STATUS.json).
+
+## Expanded hosted verification, 26 October
+
+[Run 40270037553](https://github.com/asmitonweb/livestock-registry/actions/runs/40270037553) at `4c7d9e65a9c5df51e965977161f226f18dbab1d1` passed 268 native extension cases with all 72 PostgreSQL executions, repeated metadata and source comparison. The 19 named HTTP cases skipped in that gate then all passed separately with zero skips, covering 13 distinct behaviors and 173 real synthetic-dependency HTTP events. All 54 popup browser assertions passed. This verifies the production clients against saved Postman stand-ins; actual central Farmer/consent and Kafka/AWE engine acceptance remain outstanding. No environment deployment or identity-grant write occurred.

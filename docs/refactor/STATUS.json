@@ -42,7 +42,7 @@
     {
       "id": "B10",
       "capability": "Central chart and Master Data location upgrade preservation",
-      "evidence": "Immutable oan-helm dev.10 and dashboard 0.1.2 pins are delivered. Commons/Crop/Livestock remain fail-closed. Native Master Data develop.118 snapshot/image provenance is recorded; existing data, country-pack/catalogue, standard geographic assignments and open AWE tasks need supported administration and restored-copy acceptance."
+      "evidence": "Immutable central oan-helm dev.14 at c08497721ec93eda0b19c2a504255b1ea8a00d8f and dashboard 0.1.2 pins are delivered. Promotion gates remain false. Native Master Data develop.118 and OAN catalogue source provenance are recorded; the new catalogue preview image is not published. Existing data, geographic assignments and open AWE tasks require restored-copy and live acceptance."
     },
     {
       "id": "B11",
@@ -130,5 +130,19 @@
   "metadata_verification": "new-dev/comparison.json",
   "chart_profile": "../../ci/deploy/oan-chart.json",
   "notification_verification": "NOTIFICATION_VERIFICATION.md",
-  "native_notification_pipeline": "NATIVE_NOTIFICATION_PIPELINE.json"
+  "native_notification_pipeline": "NATIVE_NOTIFICATION_PIPELINE.json",
+  "hosted_verification_20261026": {
+    "source_commit": "4c7d9e65a9c5df51e965977161f226f18dbab1d1",
+    "run_id": 40270037553,
+    "native_passed": 268,
+    "database_executions": 72,
+    "native_http_skipped": 19,
+    "separate_http_passed": 19,
+    "separate_http_skipped": 0,
+    "distinct_http_behaviors": 13,
+    "actual_http_request_events": 173,
+    "popup_browser_assertions": 54,
+    "live_acceptance": "NOT COMPLETE",
+    "deployed_by_this_check": false
+  }
 }

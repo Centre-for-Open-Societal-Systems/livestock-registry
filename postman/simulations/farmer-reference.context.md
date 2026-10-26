@@ -57,3 +57,23 @@ only the deliberate hanging endpoint uses 100ms. Production timeout/retry
 settings are unchanged. The runner labels/names its disposable containers and
 cleans them before its private database/network, including on timeout. Failure
 and timeout evidence explicitly remains verification_complete=false.
+
+## Bounded hosted HTTP gate, 26 October
+
+`COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python
+ci/refactor/verify_onboarding.py livestock --http-only` reuses the built native
+profile image on a disposable Linux CI runner. Postman CLI 1.73.0 is installed
+under RUNNER_TEMP (global system man-page links failed with EACCES). The server
+uses `--port auto --no-history`; the returned farmer-member localhost address
+is consumed directly. Test containers share runner loopback, with PostgreSQL
+published only on an ephemeral 127.0.0.1 port; no forwarding proxy is used.
+
+Hosted run 40270037553 passed all 19 selected executions (13 distinct behaviors, including
+inherited duplicate collections) in fresh 9/3/7 process/database groups with
+zero skips. The farmer member served every group: 32/46/95 actual request
+events, 173 total (86 GET, 87 POST). Expected negative fixtures returned
+401/429/503/502/307 alongside 150 HTTP 200 responses. Exact owned container
+IDs and per-run UUID labels were verified before removal; cleanup passed.
+Raw events and ephemeral keys were not saved, and run history was disabled.
+This proves production clients against the saved synthetic dependency; real
+Farmer signatures/consent, IAM authorization, Kafka and AWE remain unverified.
