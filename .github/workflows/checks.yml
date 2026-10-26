@@ -26,7 +26,8 @@ jobs:
           python ci/refactor/compare_new_dev.py livestock
       - name: Signed HTTP and native workflow dependency gate (19 executions, zero skips)
         run: |
-          npm install --global postman-cli@1.73.0
+          npm install --global --prefix "$RUNNER_TEMP/postman-cli" postman-cli@1.73.0
+          export PATH="$RUNNER_TEMP/postman-cli/bin:$PATH"
           COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/verify_onboarding.py livestock --http-only
       - uses: actions/upload-artifact@v4
         if: always()
