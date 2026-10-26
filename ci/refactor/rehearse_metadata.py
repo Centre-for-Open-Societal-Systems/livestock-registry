@@ -71,15 +71,22 @@ def main(domain, pipeline=False):
         # Package initialization aliases ORM modules. Isolate each test module
         # in a fresh process so standalone ledger tests and native app tests do
         # not import the same SQLAlchemy declarations under two package names.
-        # Every module is still executed, serially, with the same owned DB.
+        # Every module is still executed, serially, with the same owned PostgreSQL container.
         combined = ET.Element("testsuites")
-        for test_module in sorted((repo/f"{domain}-extension/tests").glob("test_*.py")):
+        for module_index, test_module in enumerate(sorted((repo/f"{domain}-extension/tests").glob("test_*.py"))):
             report = test_module.stem + ".xml"
+            # Ledger fixtures drop only their own tables/types. Keep them away
+            # from native seeded metadata and from other modules' public DDL.
+            # These databases live solely in the exact owned container and are
+            # removed with it; no environment/database connection is accepted.
+            module_database = f"extension_test_{module_index:03d}"
+            run("docker","exec",database,"psql","-X","-U","postgres","-d","postgres",
+                "-v","ON_ERROR_STOP=1","-c",f"CREATE DATABASE {module_database}")
             result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
                 "-v",f"{repo.as_posix()}:/work","-w","/work",
                 "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
                 "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
-                "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/refactor_metadata",
+                "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/{module_database}",
                 os.environ.get("COSS_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
                 "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests/{test_module.name}",
                 f"--junitxml=/work/ci-output/refactor/new-dev/{report}")
