@@ -66,15 +66,15 @@ def verify(repo: Path, domain: str) -> dict:
         errors.append("custom bulk import remains")
     awe = source / "awe_meta_data"
     if awe.exists():
-        supported = {"10_geo_approval_policy.sql", "20_geo_approval_stage.sql", "30_geo_approver_rule.sql"}
+        supported = {"10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql"}
         files = {path.name for path in awe.iterdir() if path.is_file()}
         if files != supported:
-            errors.append("Unreviewed or legacy geographic approval seed files remain")
+            errors.append("Unreviewed or legacy approval seed files remain")
         else:
-            stage = (awe / "20_geo_approval_stage.sql").read_text(encoding="utf-8")
-            rule = (awe / "30_geo_approver_rule.sql").read_text(encoding="utf-8")
-            if "'block'" not in stage or "'expression'" not in rule or "geo_woreda_approver_ids" not in rule:
-                errors.append("Geographic approval must block empty scope and use server-generated approver IDs")
+            stage = (awe / "20_approval_stage.sql").read_text(encoding="utf-8")
+            rule = (awe / "30_approver_rule.sql").read_text(encoding="utf-8")
+            if "'block'" not in stage or "'all'" not in stage or "'user'" not in rule or "alex.carter" not in rule or "nina.patel" not in rule or "geo_woreda_approver_ids" in rule:
+                errors.append("OpenG2P default approvals must use sequential all/block user stages")
     preflight = (repo / "ci/refactor/seed-preflight.sh").read_text(encoding="utf-8")
     if not preflight.rstrip().endswith("exit 1"):
         errors.append("incomplete port can seed an environment")

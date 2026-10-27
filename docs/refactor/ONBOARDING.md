@@ -1,5 +1,11 @@
 # Farmer reference onboarding and approved updates
 
+> **Approval update, 27 October 2026:** The user deferred geographic/custom approval
+> configuration. Current defaults follow OpenG2P Farmer: two sequential all/block
+> stages, alex.carter then nina.patel. Separate Farmer-reference dependencies
+> remain. Earlier geographic descriptions below are deferred design history.
+> See [default approval configuration](DEFAULT_APPROVALS.md).
+
 This is an extension implementation candidate, not a completed refactor or live
 acceptance certificate. Installation/promotion gates remain enabled. The user
 confirmed FIN12 **or** FAN16 as the receiving identity. Store FIN only in

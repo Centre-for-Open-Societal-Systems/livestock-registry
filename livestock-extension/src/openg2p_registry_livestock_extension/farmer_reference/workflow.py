@@ -56,16 +56,22 @@ async def deliver_workflow(session, entry, *, directory=None, bearer_provider=No
         if not farmer or reference.state != "APPROVED" or not farmer.last_approved_at:
             raise FarmerReferenceError("FARMER_REFERENCE_APPROVED_LOCAL_REQUIRED")
         approved_local = {"woreda_id": farmer.woreda_id}
-    candidates = await (directory or PolicyDirectory()).candidates(session, change_request.register_id)
-    context = approver_context(request.action, candidates, verified_source=request.profile, approved_local=approved_local)
     policy = await G2PAwePolicyConfigurationService.get_component().find_effective_policy_configuration(session,
         register_id=change_request.register_id, policy_type=REGISTRY_CHANGE_REQUEST_ARTIFACT,
         section_id=change_request.section_id)
-    from importlib import import_module
-    variant = import_module("openg2p_registry_extensions").__variant__
-    if (not policy or policy.policy_key != f"coss.{variant}.farmer-reference.v1" or
-            not set(context) <= set(policy.context_field_names or [])):
+    if not policy:
         raise FarmerReferenceError("FARMER_REFERENCE_AWE_POLICY_CONTEXT_REQUIRED")
+    # Default policies use native static reviewers and need no IAM/geographic
+    # directory. Deferred geographic routing is used only when explicitly
+    # requested by the effective policy, never as a prerequisite or fallback.
+    context = {}
+    wanted = {"farmer_reference_woreda_id", "farmer_reference_approver_ids"}
+    fields = set(policy.context_field_names or [])
+    if wanted & fields:
+        if not wanted <= fields:
+            raise FarmerReferenceError("FARMER_REFERENCE_AWE_POLICY_CONTEXT_REQUIRED")
+        candidates = await (directory or PolicyDirectory()).candidates(session, change_request.register_id)
+        context = approver_context(request.action, candidates, verified_source=request.profile, approved_local=approved_local)
     service = integration or G2PAweIntegrationService.get_component()
     if not service._awe_enabled():
         raise FarmerReferenceError("FARMER_REFERENCE_AWE_REQUIRED")
@@ -77,7 +83,7 @@ async def deliver_workflow(session, entry, *, directory=None, bearer_provider=No
     token = await (bearer_provider or service_bearer)()
     # Only this server-produced context reaches native _build_context. Client
     # payloads cannot inject assignees, a scope, or internal source versions.
-    await service.start_change_request_workflow(session, change_request, [context], bearer_token=token,
+    await service.start_change_request_workflow(session, change_request, [context] if context else [], bearer_token=token,
         requester=change_request.created_by or "system")
     if not change_request.awe_request_id:
         raise FarmerReferenceError("FARMER_REFERENCE_AWE_REQUEST_NOT_CREATED")

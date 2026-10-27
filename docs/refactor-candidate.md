@@ -1,5 +1,11 @@
 # Livestock refactor delivery candidate
 
+> **Approval update, 27 October 2026:** The user deferred geographic/custom approval
+> configuration. Current defaults follow OpenG2P Farmer: two sequential all/block
+> stages, alex.carter then nina.patel. Separate Farmer-reference dependencies
+> remain. Earlier geographic descriptions below are deferred design history.
+> See [default approval configuration](refactor/DEFAULT_APPROVALS.md).
+
 This review branch composes native extension source `08c4e53b61a1f492e918bca5a0b89e023bfc3a73` with the existing
 COSS delivery base `35d21bbe07853324d9493279630fe35600d98c0f` and the changes described here. It does not merge
 legacy core/worker implementations into the native refactor source branch.

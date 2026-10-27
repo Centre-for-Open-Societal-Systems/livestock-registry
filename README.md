@@ -1,5 +1,11 @@
 # Livestock Registry refactor
 
+> **Approval update, 27 October 2026:** The user deferred geographic/custom approval
+> configuration. Current defaults follow OpenG2P Farmer: two sequential all/block
+> stages, alex.carter then nina.patel. Separate Farmer-reference dependencies
+> remain. Earlier geographic descriptions below are deferred design history.
+> See [default approval configuration](docs/refactor/DEFAULT_APPROVALS.md).
+
 `develop-refactor` starts at OpenG2P Farmer 1.2 `ed1e70ccf18df5476fa404ed8018e12d55e418fa` and ports curated
 domain source from `35d21bbe07853324d9493279630fe35600d98c0f`. Legacy develop ancestry is not merged.
 

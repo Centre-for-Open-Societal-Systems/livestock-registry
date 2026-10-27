@@ -27,7 +27,7 @@
     {
       "id": "B06",
       "capability": "Metadata, widgets and geographic routing",
-      "evidence": "Authenticated New Dev comparison retains all 316 declared fields, 14 sections and 1 form IDs with type/history/intake/path checks. Native repeated seeds and both UI source builds pass; location is schema/widget driven using Farmer's registered extension and MDM develop.118. Full portal, translated widgets, geographic denial and existing policy/open-task preservation remain unaccepted."
+      "evidence": "Geographic routing configuration was deferred by the user on 27 October 2026. Default approval metadata now follows the native Farmer two-stage all/block policy, without custom geographic routing. Existing IAM/DP grants and open AWE tasks are retained. Live default-policy task delivery and configuration still require acceptance; geographic reviewer setup is later configuration, not a current mandatory feature."
     },
     {
       "id": "B07",
@@ -144,5 +144,26 @@
     "popup_browser_assertions": 54,
     "live_acceptance": "NOT COMPLETE",
     "deployed_by_this_check": false
+  },
+  "approval_configuration": {
+    "mode": "OpenG2P Farmer default AWE pattern",
+    "user_decision_date": "2026-10-27",
+    "stages": [
+      {
+        "order": 1,
+        "mode": "all",
+        "on_empty": "block",
+        "reviewer": "alex.carter"
+      },
+      {
+        "order": 2,
+        "mode": "all",
+        "on_empty": "block",
+        "reviewer": "nina.patel"
+      }
+    ],
+    "geographic_routing": "DEFERRED by user; not installed by default",
+    "existing_tasks_and_grants": "PRESERVE",
+    "live_applied": false
   }
 }

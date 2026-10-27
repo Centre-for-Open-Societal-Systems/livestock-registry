@@ -295,6 +295,44 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(farmer.woreda_id, "woreda-1")
             self.assertEqual(farmer.first_name, "Verified")
 
+    async def test_native_default_workflow_uses_policy_without_geographic_directory(self):
+        from openg2p_registry_core.models import G2PRegistryAwePolicyConfiguration
+        workflow = importlib.import_module("openg2p_registry_extensions.farmer_reference.workflow")
+        variant = sys.modules["openg2p_registry_extensions"].__variant__
+        class NoDirectory:
+            async def candidates(self, *args):
+                raise AssertionError("Native default approvals must not require geographic assignments")
+        contexts = []
+        class Integration:
+            def _awe_enabled(self):
+                return True
+            def _callback_params(self):
+                return "http://synthetic-registry.invalid/callback", "synthetic-callback"
+            async def start_change_request_workflow(self, session, cr, context, **kwargs):
+                contexts.append(context)
+                cr.awe_request_id = "synthetic-native-default"
+        async def bearer():
+            return "synthetic-test-token"
+        async with self.sessions.begin() as session:
+            session.add(G2PRegistryAwePolicyConfiguration(awe_policy_config_id=str(uuid4()),
+                policy_scope="SECTION", register_id=self.farmer_id, section_id=self.section_id,
+                policy_type="registry.change_request",
+                policy_key=f"registry.change_request.{variant}-farmer.default",
+                context_field_names=None))
+            await self.service.ensure_dependency(session, INTAKE_ID, self.snapshot)
+            entry = (await session.execute(select(ledger.FarmerWorkflowOutbox))).scalar_one()
+            await workflow.deliver_workflow(session, entry, directory=NoDirectory(),
+                bearer_provider=bearer, integration=Integration())
+            self.assertEqual(contexts, [[]])
+            self.assertEqual(entry.state, "DELIVERED")
+        # Delivery does not approve the dependency or manufacture a live Farmer.
+        async with self.sessions() as session:
+            request = await session.get(ledger.FarmerReferenceRequest, entry.request_id)
+            reference = await session.get(ledger.FarmerReference, request.reference_id)
+            self.assertEqual(request.state, "PENDING")
+            self.assertNotEqual(reference.state, "APPROVED")
+            self.assertIsNone(await session.get(native.domain_models().G2PRegisterFarmer, reference.local_farmer_id))
+
     async def _workflow_http_setup(self, mode="valid"):
         """Use real native HTTP helpers; only URLs/configuration point at Postman."""
         import httpx
