@@ -65,4 +65,15 @@ class FarmerPendingLookup(BaseORMModel):
     last_error_code: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
-REFERENCE_MODELS = (FarmerReference, FarmerReferenceRequest, FarmerSubmissionDependency, FarmerWorkflowOutbox, FarmerPendingLookup)
+
+class ApprovalBindingArchive(BaseORMModel):
+    """Retired metadata snapshots; existing approval/task history stays native."""
+    __tablename__ = "coss_approval_binding_archive"
+    binding_id: Mapped[str] = mapped_column(String, primary_key=True)
+    content_hash: Mapped[str] = mapped_column(String(32), primary_key=True)
+    original_binding: Mapped[dict] = mapped_column(JSON, nullable=False)
+    reason: Mapped[str] = mapped_column(String, nullable=False)
+    archived_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+REFERENCE_MODELS = (FarmerReference, FarmerReferenceRequest, FarmerSubmissionDependency, FarmerWorkflowOutbox, FarmerPendingLookup, ApprovalBindingArchive)

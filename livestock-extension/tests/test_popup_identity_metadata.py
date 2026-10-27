@@ -79,6 +79,41 @@ class PopupIdentityMetadataTests(unittest.IsolatedAsyncioTestCase):
             migrated = await session.get(G2PIntakeFormUITabSection, "intake_tab_section_1")
             self.assertEqual(migrated.section_id, "livestock_intake_identity_section_01")
             self.assertEqual(migrated.tab_id, "0ebdc221-187d-5df6-9dc3-c6f4c4ee160e")
+        # Reproduce the competing legacy alias binding found on restored New
+        # Dev. Native resolution must stay unique, while the full old row is
+        # retained in extension-owned audit history.
+        from uuid import uuid4
+        from sqlalchemy import func
+        from openg2p_registry_core.models import G2PRegistryAwePolicyConfiguration
+        from openg2p_registry_core.services.g2p_awe_policy_configuration_service import G2PAwePolicyConfigurationService
+        archive_model = importlib.import_module("openg2p_registry_extensions.farmer_reference.models").ApprovalBindingArchive
+        root_id = "6b06a95a-9a6c-5a33-a33d-c1625716c59c" if PRODUCT == "cropsown" else "997676d3-7008-59f9-b23e-613ad79bbb08"
+        old_id, unrelated_id = str(uuid4()), str(uuid4())
+        async with self.fixture.sessions.begin() as session:
+            session.add_all([
+                G2PRegistryAwePolicyConfiguration(awe_policy_config_id=old_id,
+                    policy_scope="REGISTER", register_id=root_id,
+                    policy_type="change_request", policy_key="legacy.custom.policy",
+                    context_field_names=["legacy_custom_approvers"]),
+                G2PRegistryAwePolicyConfiguration(awe_policy_config_id=unrelated_id,
+                    policy_scope="REGISTER", register_id=root_id,
+                    policy_type="synthetic.unrelated", policy_key="unrelated.keep",
+                    context_field_names=["unrelated_context"])])
+        await self.replay(paths)
+        async with self.fixture.sessions() as session:
+            self.assertIsNone(await session.get(G2PRegistryAwePolicyConfiguration, old_id))
+            old_snapshots = (await session.execute(select(archive_model).where(
+                archive_model.binding_id == old_id))).scalars().all()
+            self.assertTrue(any(row.original_binding["policy_key"] == "legacy.custom.policy"
+                and row.original_binding["context_field_names"] == ["legacy_custom_approvers"]
+                for row in old_snapshots))
+            unrelated = await session.get(G2PRegistryAwePolicyConfiguration, unrelated_id)
+            self.assertEqual(unrelated.policy_key, "unrelated.keep")
+            self.assertEqual(unrelated.context_field_names, ["unrelated_context"])
+            policy = await G2PAwePolicyConfigurationService.get_component().find_effective_policy_configuration(
+                session, register_id=root_id, policy_type="registry.change_request")
+            self.assertEqual(policy.policy_key, f"registry.change_request.{PRODUCT}.default")
+            archive_count = await session.scalar(select(func.count()).select_from(archive_model))
         before = await self.snapshot()
         await self.replay([final, final])
         first = await self.snapshot()
@@ -87,6 +122,8 @@ class PopupIdentityMetadataTests(unittest.IsolatedAsyncioTestCase):
         for _ in range(2):
             await self.replay(paths)
             current = await self.snapshot()
+            async with self.fixture.sessions() as session:
+                self.assertEqual(await session.scalar(select(func.count()).select_from(archive_model)), archive_count)
             self.assertEqual(current, first)
             for section in expected:
                 assert_identity(self, current[section])

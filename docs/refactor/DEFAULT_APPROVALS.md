@@ -24,3 +24,12 @@ The former geographic seed/administration examples are retained under
 Farmer itself already inherits the native two-stage defaults. No upstream
 OpenG2P source or chart dependency was changed. Chart/seed promotion gates are
 separate and remain closed; this source change does not claim a live reset.
+
+Restored databases also contain competing legacy bindings. The native resolver
+uses a single result per scope, so these must be reconciled during the reset.
+The registered extension migration creates `coss_approval_binding_archive`.
+Seeding snapshots original configurations before edits, resets future routing,
+and retains the canonical binding ID for duplicate scopes. Retired metadata IDs
+and complete row values remain in the archive for restoration through native
+administration. Existing AWE policy/task rows are unchanged. No geographic IAM
+or data-policy assignment is removed.
