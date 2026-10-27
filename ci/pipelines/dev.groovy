@@ -153,7 +153,7 @@ pipeline {
                             sh """
                                 echo "=== Building and pushing ${name} ==="
                                 docker build --build-arg RP_VERSION=${RP_VERSION} \
-                                    -f docker/${name}/Dockerfile -t ${image} --no-cache .
+                                    -f docker/${name}/Dockerfile -t ${image} --pull .
                                 docker push ${image}
                             """
                         }
