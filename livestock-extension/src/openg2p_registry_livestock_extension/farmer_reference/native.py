@@ -9,7 +9,7 @@ import os
 
 from sqlalchemy import select
 from openg2p_fastapi_common.context import get_async_session_maker
-from openg2p_registry_core.models import (G2PRegisterDefinition, G2PRegisterSection, G2PRegisterUITabSection,
+from openg2p_registry_core.models import (ChangeRequestSourceEnum, G2PRegisterDefinition, G2PRegisterSection, G2PRegisterUITabSection,
                                          G2PRegisterChangeRequest, G2PIntakeFormSubmission)
 from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
 from openg2p_registry_core.schemas import ChangeRequestRequestPayload, ChangePayload
@@ -17,6 +17,10 @@ from openg2p_registry_core.services.intake_form_data_service import G2PIntakeFor
 from openg2p_registry_core.services.g2p_register_change_request_service import G2PRegisterChangeRequestService
 from openg2p_registry_core.services.g2p_change_request_worker_service import G2PChangeRequestWorkerService
 from openg2p_registry_core.services.g2p_awe_webhook_service import G2PAweWebhookService
+
+# The platform's own name for change requests raised by its ingestion pipeline
+# (ChangeRequestSourceEnum.INGESTION_PIPELINE); the native ingest worker passes it.
+INGESTION_PIPELINE_SOURCE = ChangeRequestSourceEnum.INGESTION_PIPELINE.value
 
 from .configuration import configured_lookup
 from .models import FarmerReference, FarmerReferenceRequest, FarmerSubmissionDependency, FarmerPendingLookup
@@ -62,7 +66,7 @@ async def create_native_request(session, local_id, profile, action, *, created_b
     await service._validate_domain_attributes([dict(profile)], "Farmer", section.section_ui_schema)
     cr = await service.construct_change_request(request, section, "Farmer", "Farmer",
         source_partner_id=os.environ.get("COSS_FARMER_SOURCE_PARTNER_ID") or None, created_by=created_by,
-        change_request_source_override="INGESTION_PIPELINE", session=session)
+        change_request_source_override=INGESTION_PIPELINE_SOURCE, session=session)
     session.add(cr)
     session.add(cr._payload)
     await session.flush()
@@ -322,7 +326,7 @@ class ReferenceIngestionService(G2PChangeRequestWorkerService):
         if not definition or definition.register_mnemonic != "Farmer":
             return await super().create_change_request(payload, session, source_partner_id, created_by, change_request_source)
         expected_partner = os.environ.get("COSS_FARMER_SOURCE_PARTNER_ID", "").strip()
-        if not expected_partner or source_partner_id != expected_partner or change_request_source != "INGESTION_PIPELINE":
+        if not expected_partner or source_partner_id != expected_partner or change_request_source != INGESTION_PIPELINE_SOURCE:
             raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_PARTNER_REQUIRED")
         reference = (await session.execute(select(FarmerReference).where(
             FarmerReference.local_farmer_id == payload.internal_record_id))).scalar_one_or_none()

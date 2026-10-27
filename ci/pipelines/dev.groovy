@@ -2,12 +2,8 @@ def call() {
 
 pipeline {
     parameters {
-        choice(name: 'NEW_DEV_RESET_ACTION', choices: ['check', 'initialize', 'resume'],
-            description: 'New Dev only: check the completed first-install receipt; explicit initialize/resume is blocked until refactor acceptance.')
-        string(name: 'REGISTRY_RESET_MANIFEST', defaultValue: '',
-            description: 'Deployment-node path to immutable reviewed first-install JSON; no credentials.')
-        string(name: 'REGISTRY_RESET_ADMIN_SERVICE', defaultValue: '',
-            description: 'Mounted libpq service alias for explicit first-install reset; empty for ordinary receipt checks.')
+        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['deploy', 'publish-only', 'fresh-install'],
+            description: 'develop only. deploy (the default, also for polled builds) upgrades the existing New Dev release with this build. publish-only builds and pushes the images. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched).')
     }
     agent { label 'vpn-agent2' }
 
@@ -240,90 +236,34 @@ EOF
         }
 
         stage('Deploy to Development') {
-            // Use the existing development job, namespace and credentials.
-            // Chart bytes and version are immutable; the profile blocks promotion
-            // until domain and existing-data acceptance have been recorded.
-            when { branch 'develop' }
+            // Use the existing development job, namespace and credentials. The
+            // chart bytes and version are immutable (ci/deploy/oan-chart.json);
+            // ci/deploy/deploy-livestock-dev.sh renders, guards and upgrades.
+            when {
+                branch 'develop'
+                // A branch-index build has no parameters yet; it deploys, as every
+                // develop build did before the parameter existed.
+                expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') != 'publish-only' }
+            }
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
-                        sh 'if [ "${NEW_DEV_RESET_ACTION:-check}" != check ]; then bash ci/deploy/new-dev-reset.sh; fi'
-                        sh """
-                            set -eu
-                            python3 ci/deploy/oan_chart.py require-deployable registry dev
-                            NEW_DEV_RESET_ACTION=check bash ci/deploy/new-dev-reset.sh
-                            WORK=\$(mktemp -d)
-                            trap 'rm -rf "\$WORK"' EXIT
-                            CHART=\$(python3 ci/deploy/oan_chart.py fetch registry "\$WORK/chart")
-                            CENTRAL_VALUES=\$(python3 ci/deploy/oan_chart.py values registry "\$WORK/public-values.yaml")
-                            umask 077
-                            helm get values \${HELM_RELEASE} -n ${DEV_NAMESPACE} --all -o yaml > "\$WORK/current-values.yaml"
-                            test -s "\$WORK/current-values.yaml"
-
-                            IMAGE_SET_FLAGS="
-                                --set registry.staffApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-api
-                                --set registry.staffApi.image.tag=${env.IMAGE_TAG}
-                                --set registry.partnerApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/partner-api
-                                --set registry.partnerApi.image.tag=${env.IMAGE_TAG}
-                                --set registry.celeryWorker.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/celery
-                                --set registry.celeryWorker.image.tag=${env.IMAGE_TAG}
-                                --set registry.celeryBeat.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/celery
-                                --set registry.celeryBeat.image.tag=${env.IMAGE_TAG}
-                                --set registry.dbSeed.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/db-seed
-                                --set registry.dbSeed.image.tag=${env.IMAGE_TAG}
-                                --set registry.staffUi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/staff-ui
-                                --set registry.staffUi.image.tag=${env.IMAGE_TAG}
-                                --set registry.sanity.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
-                                --set registry.sanity.image.tag=${env.IMAGE_TAG}
-                                --set dashboardApi.enabled=true
-                                --set dashboardApi.image.repository=${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api
-                                --set dashboardApi.image.tag=${env.IMAGE_TAG}
-                                --set reporting.views.enabled=true
-                            "
-
-                            helm template \${HELM_RELEASE} "\$CHART" -n ${DEV_NAMESPACE} \
-                                -f "\$WORK/current-values.yaml" -f "\$CENTRAL_VALUES" \
-                                \$IMAGE_SET_FLAGS \
-                                > newdev-rendered-\${BUILD_NUMBER}.yaml
-
-                            if grep -q 'openg2p\\.org' newdev-rendered-\${BUILD_NUMBER}.yaml; then
-                                echo "FATAL: rendered manifests still reference the placeholder domain openg2p.org:"
-                                grep -n 'openg2p\\.org' newdev-rendered-\${BUILD_NUMBER}.yaml | head -20
-                                exit 1
-                            fi
-
-                            # Convert once and check each command's exit status. Block
-                            # routing/enrichment regressions before Helm changes the release.
-                            # Neither guard prints rendered Secrets or private key material.
-                            kubectl create --dry-run=client --validate=false -n ${DEV_NAMESPACE} \
-                                -f newdev-rendered-\${BUILD_NUMBER}.yaml -o json \
-                                > newdev-rendered-\${BUILD_NUMBER}.json
-                            python3 ci/check-new-dev-routes.py livestock \
-                                --release \${HELM_RELEASE} --namespace ${DEV_NAMESPACE} \
-                                < newdev-rendered-\${BUILD_NUMBER}.json
-                            python3 ci/refactor/deployment_guard.py \
-                                --release \${HELM_RELEASE} \
-                                --namespace ${DEV_NAMESPACE} --check-live-secret \
-                                < newdev-rendered-\${BUILD_NUMBER}.json
-
-                            helm upgrade --install \${HELM_RELEASE} "\$CHART" -n ${DEV_NAMESPACE} \
-                                -f "\$WORK/current-values.yaml" -f "\$CENTRAL_VALUES" \
-                                \$IMAGE_SET_FLAGS \
-                                --cleanup-on-fail --timeout 15m
-
-                            kubectl rollout status deployment/\${HELM_RELEASE}-dashboard-api -n ${DEV_NAMESPACE} --timeout=420s
-                            bash ci/dashboard/deploy-ui.sh livestock \
-                              ${DEV_NAMESPACE} ${env.ECR_REGISTRY}/${DASHBOARD_UI_ECR} ${env.DASHBOARD_UI_SHA}
-                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-api -n ${DEV_NAMESPACE} --timeout=180s
-                            kubectl rollout status deployment/\${HELM_RELEASE}-staff-portal-ui  -n ${DEV_NAMESPACE} --timeout=180s
-                            kubectl rollout status deployment/\${HELM_RELEASE}-partner-api      -n ${DEV_NAMESPACE} --timeout=180s
-                            kubectl get deployment \${HELM_RELEASE}-staff-portal-api \${HELM_RELEASE}-celery-worker \${HELM_RELEASE}-celery-beat-producer -n ${DEV_NAMESPACE} -o json \
-                                > newdev-live-staff-api-\${BUILD_NUMBER}.json
-                            python3 ci/refactor/deployment_guard.py \
-                                --release \${HELM_RELEASE} \
-                                --namespace ${DEV_NAMESPACE} --check-live-secret \
-                                < newdev-live-staff-api-\${BUILD_NUMBER}.json
-                        """
+                        script {
+                            def deployEnv = [
+                                "DEV_NAMESPACE=${DEV_NAMESPACE}", "ECR_REGISTRY=${env.ECR_REGISTRY}", "ECR_PATH=${ECR_PATH}",
+                                "IMAGE_TAG=${env.IMAGE_TAG}", "DASHBOARD_UI_ECR=${DASHBOARD_UI_ECR}", "DASHBOARD_UI_SHA=${env.DASHBOARD_UI_SHA}",
+                            ]
+                            withEnv(deployEnv) {
+                                if (params.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
+                                    // The database archive goes to the New Dev box over the existing backup key.
+                                    withCredentials([sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
+                                        sh 'bash ci/deploy/fresh-install-livestock-dev.sh'
+                                    }
+                                } else {
+                                    sh 'bash ci/deploy/deploy-livestock-dev.sh'
+                                }
+                            }
+                        }
                         archiveArtifacts artifacts: 'newdev-rendered-*.yaml', allowEmptyArchive: true
                     }
                 }

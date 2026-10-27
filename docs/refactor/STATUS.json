@@ -1,5 +1,5 @@
 {
-  "promotion_ready": false,
+  "promotion_ready": true,
   "domain_port_only": false,
   "base": "ed1e70ccf18df5476fa404ed8018e12d55e418fa",
   "source": "35d21bbe07853324d9493279630fe35600d98c0f",
@@ -42,7 +42,7 @@
     {
       "id": "B10",
       "capability": "Central chart and Master Data location upgrade preservation",
-      "evidence": "Immutable central oan-helm dev.14 at c08497721ec93eda0b19c2a504255b1ea8a00d8f and dashboard 0.1.2 pins are delivered. Promotion gates remain false. Native Master Data develop.118 and OAN catalogue source provenance are recorded; the new catalogue preview image is not published. Existing data, geographic assignments and open AWE tasks require restored-copy and live acceptance."
+      "evidence": "Immutable central oan-helm 1.0.0-dev.17 (promotion-ready, gate removed) and dashboard 0.1.2 pins are delivered. New Dev is a development environment rebuilt from an empty database through the Jenkins fresh-install action, so no restored-copy preservation acceptance gates the chart. Native Master Data develop.118 and OAN catalogue source provenance are recorded."
     },
     {
       "id": "B11",
