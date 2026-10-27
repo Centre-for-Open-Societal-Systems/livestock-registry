@@ -33,7 +33,11 @@ def test_default_bindings_do_not_request_geographic_candidates_or_install_overri
     assert "install_geo_approval" not in (package / "app.py").read_text()
     seeds = package / "awe_meta_data"
     assert sorted(p.name for p in seeds.iterdir() if p.is_file()) == [
-        "10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql"]
+        "10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql", "40_callback_secret.sql.tpl"]
+    # The platform's callback_secret template, carried unchanged (the seed image
+    # replaces awe_meta_data and would otherwise drop it).
+    template = (seeds / "40_callback_secret.sql.tpl").read_text()
+    assert "${AWE_CALLBACK_SECRET_ID}" in template and "${AWE_CALLBACK_HMAC_SECRET}" in template
     sql = "\n".join(p.read_text() for p in seeds.glob("*.sql"))
     assert "'expression'" not in sql
     assert "UPDATE public." not in sql and "DELETE FROM" not in sql

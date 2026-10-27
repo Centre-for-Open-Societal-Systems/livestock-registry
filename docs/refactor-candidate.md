@@ -29,13 +29,14 @@ failed/cancelled flows preserve approved proof, and optional unverified drafts d
 not become trusted references. Main forms display FIN read-only. The independent
 16-digit FAN field and signed Farmer-reference lookup contract remain separate.
 
-Existing Jenkins agents, credentials, ECR paths and preservation tooling remain.
-PR and feature-branch validation do not deploy. First New Dev reset requires the
-reviewed per-registry manifest, durable external receipt, producer pause, verified
-backup/restore, explicit initialization or recovery and accepted seed checks.
-Ordinary deployment requires the matching VERIFIED receipt. No operational reset
-manifest has been provisioned or executed by this candidate. Staging requires its
-own preservation rehearsal.
+Existing Jenkins agents, credentials, ECR paths and the dashboard tooling remain.
+PR and feature-branch validation do not deploy. New Dev is a development
+environment: the Jenkins `NEW_DEV_DELIVERY_ACTION` parameter deploys the build
+over the existing release (the default), publishes images only, or rebuilds the
+registry from an empty database (`fresh-install`: the registry and ID-generator
+databases are archived to the New Dev box over the existing backup key, the
+release is uninstalled, the databases dropped and the pinned chart installed
+again). Staging requires its own preservation rehearsal.
 
 Hosted native image, PostgreSQL replay and browser checks must pass on the exact
 candidate commit. Earlier source/build receipts are dated evidence, not proof of

@@ -35,8 +35,8 @@ class NativeNotificationTests(NativeReferenceTests):
             async with self.sessions.begin() as session:
                 service = native.G2PChangeRequestWorkerService.get_component()
                 payload = self._notification_payload(local_id)
-                first = await service.create_change_request(payload,session,source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
-                second = await service.create_change_request(payload,session,source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
+                first = await service.create_change_request(payload,session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
+                second = await service.create_change_request(payload,session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 self.assertEqual(first.change_request_id,second.change_request_id)
                 body = await session.get(G2PRegisterChangeRequestPayload,first.change_request_id)
                 self.assertEqual(body.change_payload[0]["first_name"],"Current source")
@@ -59,7 +59,7 @@ class NativeNotificationTests(NativeReferenceTests):
                 with self.assertRaisesRegex(Error,"IDENTITY_MISMATCH"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
                         self._notification_payload(local_id,farmer_id="FR-000000000002"),session,
-                        source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
+                        source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 lookup_factory.assert_not_called()
                 self.assertEqual(len((await session.execute(select(ledger.FarmerReferenceRequest))).scalars().all()),1)
 
@@ -70,7 +70,7 @@ class NativeNotificationTests(NativeReferenceTests):
                 with self.assertRaisesRegex(Error,"UNREFERENCED_NOTIFICATION"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
                         self._notification_payload("unknown-local"),session,
-                        source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
+                        source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 lookup_factory.assert_not_called()
                 self.assertEqual(len((await session.execute(select(ledger.FarmerReference))).scalars().all()),0)
 
@@ -81,7 +81,7 @@ class NativeNotificationTests(NativeReferenceTests):
             async with self.sessions.begin() as session:
                 with self.assertRaisesRegex(Error,"SOURCE_PARTNER_REQUIRED"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
-                        self._notification_payload(local_id),session,source_partner_id="wrong-partner",change_request_source="INGESTION_PIPELINE")
+                        self._notification_payload(local_id),session,source_partner_id="wrong-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 lookup_factory.assert_not_called()
 
     async def test_notification_lookup_outage_keeps_local_data_and_has_no_pending_update(self):
@@ -94,7 +94,7 @@ class NativeNotificationTests(NativeReferenceTests):
             async with self.sessions.begin() as session:
                 with self.assertRaisesRegex(Error,"LOOKUP_UNAVAILABLE"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
-                        self._notification_payload(local_id),session,source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
+                        self._notification_payload(local_id),session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 self.assertEqual((await session.get(native.domain_models().G2PRegisterFarmer,local_id)).first_name,"Verified")
                 self.assertEqual(len((await session.execute(select(ledger.FarmerReferenceRequest))).scalars().all()),1)
 
@@ -134,7 +134,7 @@ class NativeNotificationTests(NativeReferenceTests):
             with patch.dict(os.environ,{"COSS_FARMER_"+name:value for name,value in settings.items()}):
                 async with self.sessions.begin() as session:
                     cr=await native.G2PChangeRequestWorkerService.get_component().create_change_request(
-                        self._notification_payload(local_id),session,source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
+                        self._notification_payload(local_id),session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                     body=await session.get(G2PRegisterChangeRequestPayload,cr.change_request_id)
                     self.assertEqual(body.change_payload[0]["first_name"],"Synthetic")
                     self.assertNotIn("household_income",body.change_payload[0])
@@ -155,7 +155,7 @@ class NativeNotificationTests(NativeReferenceTests):
                 with self.assertRaisesRegex(Error,"IDENTITY_MISMATCH"):
                     await native.G2PChangeRequestWorkerService.get_component().create_change_request(
                         self._notification_payload(local_id,fayda_fan_id="0000000000000002"),session,
-                        source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
+                        source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 self.assertEqual(client.lookup_current.await_count,1)
                 self.assertEqual(len((await session.execute(select(ledger.FarmerReferenceRequest))).scalars().all()),1)
 
@@ -170,7 +170,7 @@ class NativeNotificationTests(NativeReferenceTests):
             async with self.sessions.begin() as session:
                 cr=await native.G2PChangeRequestWorkerService.get_component().create_change_request(
                     self._notification_payload(local_id,fayda_fan_id="0000000000000002"),session,
-                    source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
+                    source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 farmer=await session.get(native.domain_models().G2PRegisterFarmer,local_id)
                 self.assertEqual(farmer.fayda_fan_id,"0000000000000001")
                 cr.awe_request_id="synthetic-rotation-approval"
@@ -193,7 +193,7 @@ class NativeNotificationTests(NativeReferenceTests):
         client=SimpleNamespace(config=SimpleNamespace(source_id=self.snapshot.source_system),lookup_current=AsyncMock(return_value=current))
         with patch.dict(os.environ,{"COSS_FARMER_SOURCE_PARTNER_ID":"synthetic-source-partner"}),patch.object(native,"configured_lookup",return_value=client):
             async with self.sessions.begin() as session:
-                cr=await native.G2PChangeRequestWorkerService.get_component().create_change_request(self._notification_payload(local_id),session,source_partner_id="synthetic-source-partner",change_request_source="INGESTION_PIPELINE")
+                cr=await native.G2PChangeRequestWorkerService.get_component().create_change_request(self._notification_payload(local_id),session,source_partner_id="synthetic-source-partner",change_request_source=native.INGESTION_PIPELINE_SOURCE)
                 farmer=await session.get(native.domain_models().G2PRegisterFarmer,local_id)
                 self.assertEqual(farmer.first_name,"Verified")
                 self.assertEqual(farmer.fayda_fin,"001234567890")

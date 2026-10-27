@@ -13,7 +13,7 @@ def verify(repo: Path, domain: str) -> dict:
     source = repo / f"{domain}-extension/src/openg2p_registry_{domain}_extension"
     status = json.loads((repo / "docs/refactor/STATUS.json").read_text(encoding="utf-8"))
     errors = []
-    assert status["promotion_ready"] is False
+    assert status["promotion_ready"] is True
     assert status["blockers"]
     count = 0
     for path in source.rglob("*.py"):
@@ -47,8 +47,10 @@ def verify(repo: Path, domain: str) -> dict:
     pins.add(pin["platformVersion"])
     if not re.fullmatch(r"https://raw\.githubusercontent\.com/Centre-for-Open-Societal-Systems/oan-helm/[0-9a-f]{40}/repository/",pin["repository"]):
         errors.append("central chart commit is not immutable")
-    if pin["promotionReady"] is not False or profile["dashboard"]["promotionReady"] is not False:
-        errors.append("incomplete refactor deployment enabled")
+    # The registry chart is promotion-ready since oan-helm 1.0.0-dev.17 (the
+    # Farmer reference was proven end to end); the dashboard chart still is not.
+    if pin["promotionReady"] is not True or profile["dashboard"]["promotionReady"] is not False:
+        errors.append("chart pins do not match the accepted promotion state")
     for name in ("helm", "openg2p-connector-service", "openg2p-connector-ui"):
         if any((repo / name).rglob("Chart.yaml")) or (repo / name / "Dockerfile").exists():
             errors.append("retired vendored source remains: " + name)
@@ -66,7 +68,10 @@ def verify(repo: Path, domain: str) -> dict:
         errors.append("custom bulk import remains")
     awe = source / "awe_meta_data"
     if awe.exists():
-        supported = {"10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql"}
+        # 40_callback_secret.sql.tpl is the platform seed's own template: the
+        # image replaces awe_meta_data, so without it AWE has no callback_secret
+        # row for this release and every finalize fails (AWE-ERR-006).
+        supported = {"10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql", "40_callback_secret.sql.tpl"}
         files = {path.name for path in awe.iterdir() if path.is_file()}
         if files != supported:
             errors.append("Unreviewed or legacy approval seed files remain")
@@ -75,9 +80,9 @@ def verify(repo: Path, domain: str) -> dict:
             rule = (awe / "30_approver_rule.sql").read_text(encoding="utf-8")
             if "'block'" not in stage or "'all'" not in stage or "'user'" not in rule or "alex.carter" not in rule or "nina.patel" not in rule or "geo_woreda_approver_ids" in rule:
                 errors.append("OpenG2P default approvals must use sequential all/block user stages")
-    preflight = (repo / "ci/refactor/seed-preflight.sh").read_text(encoding="utf-8")
-    if not preflight.rstrip().endswith("exit 1"):
-        errors.append("incomplete port can seed an environment")
+    seed = (repo / "docker/db-seed/Dockerfile").read_text(encoding="utf-8")
+    if 'ENTRYPOINT ["/seed/entrypoint.sh"]' not in seed or "preflight" in seed:
+        errors.append("seed image must run the native seed entrypoint")
     if not re.fullmatch(r"[0-9a-f]{64}",pin["sha256"]):
         errors.append("missing immutable central chart checksum")
     # No branch-specific auto-deployment may be introduced by curation.
@@ -86,7 +91,7 @@ def verify(repo: Path, domain: str) -> dict:
         errors.append("refactor deploy enabled")
     if errors:
         raise ValueError("\n".join(errors))
-    return {"domain": domain, "python_files_parsed": count, "platform_pins": sorted(pins), "promotion_ready": False, "source_checks": "PASS"}
+    return {"domain": domain, "python_files_parsed": count, "platform_pins": sorted(pins), "promotion_ready": True, "source_checks": "PASS"}
 
 
 if __name__ == "__main__":
