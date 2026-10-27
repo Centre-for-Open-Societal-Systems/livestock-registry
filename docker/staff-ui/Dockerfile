@@ -18,6 +18,9 @@ COPY ui/staff-ui/scripts ./scripts
 COPY ui/staff-ui/overrides ./overrides
 
 ENV NEXT_TELEMETRY_DISABLED=1
+# The Next build shares the Jenkins agent with other image builds; give Node a
+# heap bound above its default so it does not die with "Reached heap limit".
+ENV NODE_OPTIONS=--max-old-space-size=3072
 RUN npm install
 RUN npm run build \
  && mkdir -p /out \
