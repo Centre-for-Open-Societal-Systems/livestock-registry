@@ -159,7 +159,7 @@ def main(domain, pipeline=False):
         proof = {"registry":domain,"native_psql_semantics":True,"steps":steps,
                  "repeat_metadata_identical":first["metadata"] == second["metadata"],
                  "existing_environment_modified":False,"disposable_database_removed":True}
-        (output / "seed-rehearsal.json").write_text(json.dumps(proof,indent=2)+"\n",encoding="utf-8",newline="\n")
+        (output / "seed-rehearsal.json").write_bytes((json.dumps(proof,indent=2)+"\n").encode("utf-8"))
         print(json.dumps({"registry":domain,"repeat_metadata_identical":proof["repeat_metadata_identical"],
             "files_with_errors":len([step for step in steps if step["sqlstate_errors"]])}),flush=True)
         if not proof["repeat_metadata_identical"] or any(step["sqlstate_errors"] or step["psql_exit_code"] for step in steps):
