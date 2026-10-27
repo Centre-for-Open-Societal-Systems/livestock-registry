@@ -124,7 +124,7 @@ def main(domain):
     report["all_domain_history_intake_fields_present"] = all(not fields for row in report["runtime_model_presence"] for fields in row["missing_domain_by_model"].values())
     report["all_register_field_types_match"] = all(not row["type_mismatches"] for row in report["runtime_model_presence"])
     report["field_count"] = sum(row["live_field_count"] for row in report["runtime_model_presence"])
-    (folder / "comparison.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8",newline="\n")
+    (folder / "comparison.json").write_bytes((json.dumps(report,indent=2)+"\n").encode("utf-8"))
     checks=("all_live_register_fields_present","all_section_capabilities_preserved","all_form_ids_preserved",
             "all_domain_history_intake_fields_present","all_register_field_types_match","repeat_metadata_identical")
     if report["sql_errors"] or not all(report[key] for key in checks):
@@ -144,7 +144,7 @@ def main(domain):
         "Crop's legacy registry-database lookup SQL is preserved as a Master Data administration prerequisite in the central Helm repository; it is not executed against a registry. Existing shared values are not changed.","",
         "The live Crop FARMER_REFERENCE_CHANGED_V1 pipeline configuration requires an explicit port and remains a promotion blocker. Livestock MY_DATA_MODEL is upstream example content and is intentionally not added to the domain extension.","",
         "No records, approvals, identity grants, environment settings or runtime workloads were modified."]
-    (folder / "VERIFICATION.md").write_text("\n".join(lines)+"\n",encoding="utf-8",newline="\n")
+    (folder / "VERIFICATION.md").write_bytes(("\n".join(lines)+"\n").encode("utf-8"))
     print(json.dumps({"registry":domain,"fields":report["field_count"],"all_live_register_fields_present":report["all_live_register_fields_present"],
         "sections":len(report["sections"]),"all_section_field_paths_preserved":report["all_section_field_paths_preserved"],"all_section_capabilities_preserved":report["all_section_capabilities_preserved"],
         "forms":len(report["forms"]),"all_form_ids_preserved":report["all_form_ids_preserved"],"seed_errors":len(report["sql_errors"])}))
