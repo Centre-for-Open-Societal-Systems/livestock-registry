@@ -2,8 +2,8 @@ def call() {
 
 pipeline {
     parameters {
-        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['deploy', 'publish-only', 'fresh-install'],
-            description: 'develop only. deploy (the default, also for polled builds) upgrades the existing New Dev release with this build. publish-only builds and pushes the images. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched).')
+        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install'],
+            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched).')
     }
     agent { label 'vpn-agent2' }
 
@@ -241,9 +241,9 @@ EOF
             // ci/deploy/deploy-livestock-dev.sh renders, guards and upgrades.
             when {
                 branch 'develop'
-                // A branch-index build has no parameters yet; it deploys, as every
-                // develop build did before the parameter existed.
-                expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') != 'publish-only' }
+                // A branch-index or polled build has no explicit action: it publishes
+                // only; deploy and fresh-install are requested on purpose.
+                expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') != 'publish-only' }
             }
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
