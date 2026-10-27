@@ -49,6 +49,11 @@ async def deliver_workflow(session, entry, *, directory=None, bearer_provider=No
     change_request = await session.get(G2PRegisterChangeRequest, entry.native_cr_id)
     if not change_request or change_request.approval_status != "PENDING":
         raise FarmerReferenceError("FARMER_REFERENCE_NATIVE_REQUEST_NOT_PENDING")
+    if change_request.awe_request_id:
+        # A configuration reset affects future requests only. An outbox retry
+        # must retain its existing AWE request, policy, reviewers and tasks.
+        entry.state, entry.last_error_code = "DELIVERED", None
+        return
     from .native import domain_models
     approved_local = None
     if request.action == "UPDATE":

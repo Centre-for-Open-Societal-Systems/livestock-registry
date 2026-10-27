@@ -325,6 +325,17 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
                 bearer_provider=bearer, integration=Integration())
             self.assertEqual(contexts, [[]])
             self.assertEqual(entry.state, "DELIVERED")
+            # A binding may be reconfigured while an already routed task is
+            # pending. Retrying its outbox must not resolve new reviewers.
+            from sqlalchemy import update
+            await session.execute(update(G2PRegistryAwePolicyConfiguration).where(
+                G2PRegistryAwePolicyConfiguration.register_id == self.farmer_id
+            ).values(context_field_names=["farmer_reference_woreda_id"]))
+            entry.state = "PENDING"
+            await workflow.deliver_workflow(session, entry, directory=NoDirectory(),
+                bearer_provider=bearer, integration=Integration())
+            self.assertEqual(contexts, [[]])
+            self.assertEqual(entry.state, "DELIVERED")
         # Delivery does not approve the dependency or manufacture a live Farmer.
         async with self.sessions() as session:
             request = await session.get(ledger.FarmerReferenceRequest, entry.request_id)
