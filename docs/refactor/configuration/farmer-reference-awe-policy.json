@@ -1,0 +1,42 @@
+{
+  "policy_key": "registry.change_request.livestock-farmer.default",
+  "name": "Farmer reference change request - OpenG2P defaults",
+  "description": "Upstream Farmer default stages; geographic configuration deferred",
+  "artifact_type": "registry.change_request",
+  "forbid_self_approval": false,
+  "forbid_repeat_approvers": false,
+  "stages": [
+    {
+      "name": "Stage 1 Officers",
+      "stage_order": 1,
+      "mode": "all",
+      "on_empty": "block",
+      "rules": [
+        {
+          "rule_type": "user",
+          "rule_value": {
+            "user_id": "alex.carter"
+          },
+          "kind": "approver",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "Stage 2 Officers",
+      "stage_order": 2,
+      "mode": "all",
+      "on_empty": "block",
+      "rules": [
+        {
+          "rule_type": "user",
+          "rule_value": {
+            "user_id": "nina.patel"
+          },
+          "kind": "approver",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

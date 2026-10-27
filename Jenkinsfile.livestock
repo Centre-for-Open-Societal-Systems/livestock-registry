@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     parameters {
-     
+
         booleanParam(name: 'DEPLOY_TO_LIVE', defaultValue: false,
             description: 'Also run the Deploy stage against the live namespace. Leave OFF until the first chart-switch cutover has been done deliberately.')
     }
@@ -34,7 +34,7 @@ pipeline {
         }
 
         stage('Build & Push Images') {
-          
+
             steps {
                 script {
                     env.IMAGE_TAG = env.GIT_COMMIT.take(12)
@@ -56,7 +56,7 @@ pipeline {
         }
 
         stage('Stash chart') {
-            
+
             steps {
                 stash name: 'livestock-chart', includes: "${HELM_CHART_DIR}/**"
             }
@@ -69,7 +69,7 @@ pipeline {
                     expression { return params.DEPLOY_TO_LIVE }
                 }
             }
-           
+
             agent { label 'vpn-agent2' }
             steps {
                 unstash 'livestock-chart'
@@ -106,7 +106,7 @@ registry:
 EOF
 
                         # Dry-run render + diff BEFORE the real upgrade/install.
-                        
+
                         helm get values ${HELM_RELEASE} -n ${HELM_NAMESPACE} -a -o yaml > /tmp/live-values-current-\${BUILD_NUMBER}.yaml || true
                         helm template ${HELM_RELEASE} ${HELM_CHART_DIR} -n ${HELM_NAMESPACE} -f /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml > /tmp/live-new-\${BUILD_NUMBER}.yaml
                         echo "Rendered \$(wc -l < /tmp/live-new-\${BUILD_NUMBER}.yaml) lines from this repo's own chart -- review against /tmp/live-values-current-\${BUILD_NUMBER}.yaml before trusting an automatic first run."

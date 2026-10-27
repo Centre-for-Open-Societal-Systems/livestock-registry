@@ -1,0 +1,1817 @@
+{
+  "upstream_base": "ed1e70ccf18df5476fa404ed8018e12d55e418fa",
+  "domain_source": "35d21bbe07853324d9493279630fe35600d98c0f",
+  "domain": "livestock",
+  "files": [
+    {
+      "source": "Jenkinsfile",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "Jenkinsfile.livestock",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "ci/check-farmer-enrichment.py",
+      "decision": "replaced-native-extension-guard",
+      "reason": "ci/refactor/deployment_guard.py checks COSS_FARMER_* files/Secret contract, without runtime patch log requirements"
+    },
+    {
+      "source": "ci/check-new-dev-routes.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "ci/dashboard/deploy-ui.sh",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "ci/dashboard/validate-deploy-files.sh",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "ci/dashboard/verify-api.sh",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "ci/dashboard/verify-source.sh",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "ci/k8s/livestock-deploy-rbac.yaml",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/Chart.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/_helpers.tpl",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/client-secret.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/deployment.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/ecr-pull-secret.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/iam-setup-job.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/routing.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/service.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/serviceaccount.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/templates/smoke-job.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/livestock-registry-dashboard/values.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/.gitignore",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/.helmignore",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/Chart.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/README-dev.md",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/app-readme.md",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/files/reporting-views-refresh.sh",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/templates/_reporting.tpl",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/templates/dashboard-api.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/templates/reporting-views-refresh.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/templates/reporting-views.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/values-live.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/values-new-dev.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "helm/openg2p-livestock-registry/values.yaml",
+      "decision": "centralized",
+      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+    },
+    {
+      "source": "livestock-extension/LICENSE",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/README.md",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/pyproject.toml",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/app.py",
+      "decision": "retired",
+      "reason": "Replaced with upstream-style extension initialization"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/10_approval_policy.sql",
+      "decision": "retired",
+      "reason": "Legacy admin/HTTP rules must not seed; separate Farmer Woreda policy remains blocked"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/20_approval_stage.sql",
+      "decision": "retired",
+      "reason": "Legacy admin/HTTP rules must not seed; separate Farmer Woreda policy remains blocked"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/30_approver_rule.sql",
+      "decision": "retired",
+      "reason": "Legacy admin/HTTP rules must not seed; separate Farmer Woreda policy remains blocked"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/40_callback_secret.sql.tpl",
+      "decision": "retired",
+      "reason": "Legacy admin/HTTP rules must not seed; separate Farmer Woreda policy remains blocked"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/patch_livestock_approval_modes.sql",
+      "decision": "retired",
+      "reason": "Legacy admin/HTTP rules must not seed; separate Farmer Woreda policy remains blocked"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/patch_livestock_single_woreda_approval.sql",
+      "decision": "retired",
+      "reason": "Legacy admin/HTTP rules must not seed; separate Farmer Woreda policy remains blocked"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/config.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/g2p_animal_enricher_services.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/ingestion_pipeline/enricher_services/g2p_livestock_enricher_services.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/master_data/code_lists/10_g2p_attributes.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/master_data/code_lists/20_g2p_attribute_values.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/master_data_lists.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/awe-integration/g2p_registry_awe_policy_configurations.sql",
+      "decision": "retired",
+      "reason": "Replace legacy geographic routing; do not mutate existing assignments automatically"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/data-models/data_models.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_definitions.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tab_sections.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_intake_form_ui_tabs.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_definitions.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_schemas.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_sections.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tab_sections.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_register_ui_tabs.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/g2p_registry_documents.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_colour_column.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_ear_tag_optional.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_quantity_column.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_search_result_fields.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_attribute_value_species_configs_table.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_dedup_config.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_dialog_titles_from_description.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_details_registration_gender_status.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_name_backfill.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_name_optional.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_fayda_fan_prefix.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_female_only_ear_tag_filters.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_livestock_species_no_ear_tag_defaults.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_age_from_date.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_dob_gender.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_dynamic_species_config.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_health_status_badges.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_quantity.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_species_identifier.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_animal_details_sync_ui_schema.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_breeding_details_sync_ui_schema.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_event_dialogs_identifier_label.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_event_tables_age_column.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_farmer_location_sync_ui_schema.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_health_event_details_sync_ui_schema.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_livestock_location_sync_ui_schema.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_retagging_details_section.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_vaccination_details_sync_ui_schema.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_vital_event_details_sync_ui_schema.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_total_animals_backfill.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_ear_tags.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_gender.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zz_patch_no_past_only_date_constraint.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_input_mechanisms.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_configuration.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/g2p_registry_vc_configurations.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_languages.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-configurations/registry_themes_values.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_key_paths.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_model_semantic_patterns.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/incoming_templates.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/patch_livestock_odk_ingestion.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/odk_ingest_hooks.py",
+      "decision": "retired",
+      "reason": "Runtime method reassignment is forbidden; port mappings through native ingestion"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/controllers/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/controllers/g2p_animal_bulk_import_controller.py",
+      "decision": "retired",
+      "reason": "Use native IMPORT_FILE document/enqueue flow"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/controllers/g2p_approver_resolver_controller.py",
+      "decision": "retired",
+      "reason": "No query-string-secret or Keycloak location resolver"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/controllers/g2p_form_config_controller.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/factory/__init__.py",
+      "decision": "retired",
+      "reason": "Use the platform's selected-extension factories"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/factory/g2p_id_generator_factory.py",
+      "decision": "retired",
+      "reason": "Use the platform's selected-extension factories"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/factory/g2p_register_domain_factory.py",
+      "decision": "retired",
+      "reason": "Use the platform's selected-extension factories"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/id_generator/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/id_generator/g2p_id_generator_service.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/admin_area.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/animal.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/audit_log.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/breeding.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/enums.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/farmer.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/health_event.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/import_batch.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/livestock.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/retagging.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/species_config.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/vaccination.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/vaccine_schedule.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/models/vital_event.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/admin_area.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/animal.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/audit_log.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/breeding.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/farmer.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/health_event.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/import_batch.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/livestock.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/retagging.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/vaccination.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/vaccine_schedule.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/schemas/vital_event.py",
+      "decision": "ported",
+      "reason": "Preserve domain fields in live/intake/history schemas; fix missing history mixins and Animal colour"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/admin_area_sync.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/animal_bulk_import_service.py",
+      "decision": "retired",
+      "reason": "No custom bulk or direct database import"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/approval_pending_reminder_service.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/approver_resolver_service.py",
+      "decision": "retired",
+      "reason": "Use IAM functional eligibility intersected with geographic data policies"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/audit_retention_service.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/audit_snapshot.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/calving_reminder_service.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/domain_validation_utils.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/farmer_registry_enrichment.py",
+      "decision": "retired",
+      "reason": "Do not carry optional identity lookup or typed-data fallback"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_animal.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_audit_log.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_breeding.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_farmer.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_health_event.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_import_batch.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_livestock.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_retagging.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_vaccination.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_vaccine_schedule.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/g2p_register_domain_service_vital_event.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/geo_approver_resolver_service.py",
+      "decision": "retired",
+      "reason": "Use IAM functional eligibility intersected with geographic data policies"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/outbreak_alert_service.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/reminder_alert_utils.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/vaccination_reminder_service.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/register_domain/services/vaccination_status_service.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/schema_sync.py",
+      "decision": "retired",
+      "reason": "Existing-database changes require an explicit restored-copy migration rehearsal"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/tasks/__init__.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/tasks/approval_pending_reminder_beat_producer.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/tasks/audit_log_retention_beat_producer.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/tasks/calving_reminder_beat_producer.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/tasks/outbreak_alert_beat_producer.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/tasks/vaccination_reminder_beat_producer.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/templates/dci_commons_response.json.j2",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/templates/dci_to_openg2p_livestock.json.j2",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/templates/ls_odk_transform.j2",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/templates/openg2p_livestock_to_dci.json.j2",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/vaccine_schedule_defaults.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "openg2p-connector-service/.dockerignore",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/.gitignore",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/DEPLOYMENT.md",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/Dockerfile",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/README.md",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy.env.example",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/.DS_Store",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/Archive.zip",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/Chart.lock",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/Chart.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/charts/postgres-init-0.0.0-develop.tgz",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/_helpers.tpl",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-deployment.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-hpa.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/api-service.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/beat-deployment.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/consumer-deployment.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/gateway.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/serviceaccount.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/ui-deployment.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/ui-service.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/virtualservice.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/templates/worker-deployment.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/values-kif-cluster.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/values-nsr-v2-prod.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/deploy/charts/openg2p-connector/values.yaml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/docker-entrypoint.sh",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/package-lock.json",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/pyproject.toml",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/base.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/registry.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/none_auth.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/oauth2_client_credentials.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/oauth2_password.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/odk_session.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/auth/strategies/static_bearer.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/clients/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/clients/partner_ingest_client.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/config.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/consumer_supervisor.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/connectors.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/health.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/metadata.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/runs.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/controllers/webhook.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/database.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/db_migrations.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/main.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/mappers/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/mappers/base.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/mappers/jmespath_mapper.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/mappers/passthrough.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/metrics.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/models/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/models/base.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/models/connector_definition.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/models/dead_letter.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/models/idempotency_key.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/models/ingestion_run.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/observability.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/schemas/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/schemas/connector.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/schemas/run.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/schemas/webhook.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/services/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/services/connector_service.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/services/ingestion_service.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/services/websub_hub_sync.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/base.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/checkpoints.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/events/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/events/base.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/events/kafka_consumer.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/odk_central.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/registry.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/webhook.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/transports/websub.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/webhooks/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/hmac_sha256.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/webhooks/verifiers/plain_shared_token.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/src/openg2p_connector_service/worker.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/__init__.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/conftest.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_auth_strategies.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_checkpoints.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_connectors_crud.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_event_consumers.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_health.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_mappers.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_meta_and_read.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_odk_checkpoint_polling.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_utils.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_webhook.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/tests/test_websub_hub_sync.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-service/uv.lock",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/.gitignore",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/Dockerfile",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/README.md",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/eslint.config.js",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/index.html",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/OpenG2P-Connector-User-Manual.docx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/USER-MANUAL.md",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/01-pipeline-list.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/02-pipeline-overview.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/03-pipeline-runs.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/04-pipeline-dlq.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/05-pipeline-new.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/06-pipeline-edit.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/07-pipeline-edit-websub.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/08-global-runs.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/annotated/09-global-dlq.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/capture.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/export.sh",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/make-reference-docx.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/postprocess-docx.py",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/reference.docx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/01-pipeline-list.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/02-pipeline-overview.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/03-pipeline-runs.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/04-pipeline-dlq.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/05-pipeline-new.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/06-pipeline-edit.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/07-pipeline-edit-websub.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/08-global-runs.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/manual/screenshots/09-global-dlq.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/nginx.conf",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/package-lock.json",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/package.json",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/public/favicon.svg",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/public/icons.svg",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/App.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/api/client.ts",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/api/errors.ts",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/api/types.ts",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/assets/hero.png",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/components/ApiConnectionBar.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/components/Card.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/components/Layout.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/components/StatusBadge.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/index.css",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/lib/api-target.ts",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/lib/edrmc-websub-template.ts",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/main.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/pages/DLQList.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/pages/PipelineDetails.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/pages/PipelineForm.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/pages/PipelineList.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/src/pages/RunsList.tsx",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/tsconfig.app.json",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/tsconfig.json",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/tsconfig.node.json",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "openg2p-connector-ui/vite.config.ts",
+      "decision": "retired-vendored-source",
+      "reason": "Independent runtime untouched; exact recovery in RETIRED_SOURCE_MANIFEST.json"
+    },
+    {
+      "source": "scripts/bump-rp-version.sh",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "scripts/check-chart-version.sh",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "scripts/keycloak_livestock_test_users.py",
+      "decision": "retired",
+      "reason": "Retire direct database loading or custom Keycloak geographic provisioning; existing assignments are not changed"
+    },
+    {
+      "source": "scripts/operations/staging-dashboard/README.md",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "scripts/operations/staging-dashboard/access-proxy.mjs",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "scripts/operations/staging-dashboard/access-proxy.test.mjs",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "scripts/operations/staging-dashboard/deploy.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "scripts/pull-images.sh",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "scripts/uninstall-registry.sh",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "test/sanity/README.md",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "test/sanity/sanity/data_seed.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "test/sanity/sanity/fixtures.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "test/sanity/tests/test_e2e_change_request.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "test/sanity/tests/test_e2e_dci.py",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
+      "source": "translation/domain.json",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    }
+  ],
+  "upstream_examples_retired": [
+    "farmer-extension/",
+    "docker/db-seed/",
+    "helm/openg2p-farmer-registry/",
+    "test/sanity/",
+    "translation/",
+    "performance-testing/",
+    ".github/workflows/"
+  ],
+  "follow_up_v5": {
+    "confluence_snapshot": "v:5",
+    "changes": "Profile allowlist and schema trios; strict native identity validation; pure source ordering/geographic eligibility; stable approved-reference projections through native hooks",
+    "evidence": "PROFILE_V5_VERIFICATION.json",
+    "migration": "migrations/20261024_farmer_profile_additions.sql (review artifact, not executed)",
+    "runtime_acceptance": "NOT RUN"
+  },
+  "new_dev_parity_and_cleanup": "NEW_DEV_PARITY_AND_CLEANUP.md",
+  "follow_up_notification": {
+    "implementation": "integrations/farmer-reference/config.yaml; native SQL/template/enricher/registered CR service",
+    "verification": "NOTIFICATION_VERIFICATION.md",
+    "existing_crop_ids": "retained",
+    "livestock_receiver": "independent; not activated",
+    "native_worker_replacements": false,
+    "live_acceptance": "NOT RUN"
+  }
+}

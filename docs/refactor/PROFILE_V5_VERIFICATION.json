@@ -1,0 +1,351 @@
+{
+  "registry": "livestock",
+  "governing_confluence_version": 5,
+  "credential_file_read": false,
+  "registry_stacks_started": 0,
+  "database_migrations_run": false,
+  "runtime_acceptance": "NOT RUN",
+  "steps": [
+    {
+      "check": "shared-rule-parity",
+      "result": "PASS",
+      "hashes": {
+        "__init__.py": "a15e6ba67ef74eaf8a022a9d09c2e0e467cf2f42fde5bb734d82787ede36d0aa",
+        "profile.py": "8e0ab773c3a6f45102f5469ed7b14ff2fdcfb655a6d31ae8240edb05cc282527",
+        "geography.py": "b4c0e3d8ea55c75394bed1740325550c1b893551c0ec432a93c493e9812e6072",
+        "projection.py": "9afd447feb56907f52e5f517e555168bb092cf9572abe0c259b2f0634cc8b1c4"
+      }
+    },
+    {
+      "check": "source-check",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "python_files_parsed": 75,
+        "platform_pins": [
+          "1.2.2-rc.557"
+        ],
+        "promotion_ready": false,
+        "source_checks": "PASS"
+      }
+    },
+    {
+      "check": "build-test-runtime",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "contract-tests",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "projection-tests",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "source-staff-api-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "runtime": "staff",
+        "model_columns": {
+          "G2PRegisterFarmer": 53,
+          "G2PRegisterHistoryFarmer": 60,
+          "G2PIntakeFormFarmer": 55,
+          "G2PRegisterLivestock": 49,
+          "G2PRegisterHistoryLivestock": 56,
+          "G2PIntakeFormLivestock": 51,
+          "G2PRegisterAnimal": 28,
+          "G2PRegisterHistoryAnimal": 35,
+          "G2PIntakeFormAnimal": 30,
+          "G2PRegisterHealthEvent": 26,
+          "G2PRegisterHistoryHealthEvent": 33,
+          "G2PIntakeFormHealthEvent": 28,
+          "G2PRegisterVaccination": 22,
+          "G2PRegisterHistoryVaccination": 29,
+          "G2PIntakeFormVaccination": 24,
+          "G2PRegisterVitalEvent": 34,
+          "G2PRegisterHistoryVitalEvent": 41,
+          "G2PIntakeFormVitalEvent": 36,
+          "G2PRegisterBreeding": 29,
+          "G2PRegisterHistoryBreeding": 36,
+          "G2PIntakeFormBreeding": 31,
+          "G2PRegisterRetagging": 21,
+          "G2PRegisterHistoryRetagging": 28,
+          "G2PIntakeFormRetagging": 23,
+          "G2PRegisterVaccineSchedule": 18,
+          "G2PRegisterHistoryVaccineSchedule": 25,
+          "G2PIntakeFormVaccineSchedule": 20,
+          "G2PRegisterImportBatch": 25,
+          "G2PRegisterHistoryImportBatch": 32,
+          "G2PIntakeFormImportBatch": 27,
+          "G2PRegisterAuditLog": 22,
+          "G2PRegisterHistoryAuditLog": 29,
+          "G2PIntakeFormAuditLog": 24
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "identity/contact/location fields survive every schema trio",
+          "native Farmer service accepts partial drafts",
+          "native Farmer service normalizes identity without numeric coercion",
+          "native Farmer service rejects Unicode digits",
+          "approved identity mirror works with concrete domain ORM and naming services",
+          "flock count normalization",
+          "missing flock count",
+          "zero flock count",
+          "negative animal weight",
+          "positive animal weight",
+          "registration before birth"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "source-celery-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "runtime": "worker",
+        "model_columns": {
+          "G2PRegisterFarmer": 53,
+          "G2PRegisterHistoryFarmer": 60,
+          "G2PIntakeFormFarmer": 55,
+          "G2PRegisterLivestock": 49,
+          "G2PRegisterHistoryLivestock": 56,
+          "G2PIntakeFormLivestock": 51,
+          "G2PRegisterAnimal": 28,
+          "G2PRegisterHistoryAnimal": 35,
+          "G2PIntakeFormAnimal": 30,
+          "G2PRegisterHealthEvent": 26,
+          "G2PRegisterHistoryHealthEvent": 33,
+          "G2PIntakeFormHealthEvent": 28,
+          "G2PRegisterVaccination": 22,
+          "G2PRegisterHistoryVaccination": 29,
+          "G2PIntakeFormVaccination": 24,
+          "G2PRegisterVitalEvent": 34,
+          "G2PRegisterHistoryVitalEvent": 41,
+          "G2PIntakeFormVitalEvent": 36,
+          "G2PRegisterBreeding": 29,
+          "G2PRegisterHistoryBreeding": 36,
+          "G2PIntakeFormBreeding": 31,
+          "G2PRegisterRetagging": 21,
+          "G2PRegisterHistoryRetagging": 28,
+          "G2PIntakeFormRetagging": 23,
+          "G2PRegisterVaccineSchedule": 18,
+          "G2PRegisterHistoryVaccineSchedule": 25,
+          "G2PIntakeFormVaccineSchedule": 20,
+          "G2PRegisterImportBatch": 25,
+          "G2PRegisterHistoryImportBatch": 32,
+          "G2PIntakeFormImportBatch": 27,
+          "G2PRegisterAuditLog": 22,
+          "G2PRegisterHistoryAuditLog": 29,
+          "G2PIntakeFormAuditLog": 24
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "identity/contact/location fields survive every schema trio",
+          "native Farmer service accepts partial drafts",
+          "native Farmer service normalizes identity without numeric coercion",
+          "native Farmer service rejects Unicode digits",
+          "approved identity mirror works with concrete domain ORM and naming services",
+          "flock count normalization",
+          "missing flock count",
+          "zero flock count",
+          "negative animal weight",
+          "positive animal weight",
+          "registration before birth"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-staff-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:8b8df2f4d83d5d848ffd8daf09d8ceca363dc625d95f81e0958db0bbcf817c66"
+    },
+    {
+      "check": "installed-staff-api-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "runtime": "staff",
+        "model_columns": {
+          "G2PRegisterFarmer": 53,
+          "G2PRegisterHistoryFarmer": 60,
+          "G2PIntakeFormFarmer": 55,
+          "G2PRegisterLivestock": 49,
+          "G2PRegisterHistoryLivestock": 56,
+          "G2PIntakeFormLivestock": 51,
+          "G2PRegisterAnimal": 28,
+          "G2PRegisterHistoryAnimal": 35,
+          "G2PIntakeFormAnimal": 30,
+          "G2PRegisterHealthEvent": 26,
+          "G2PRegisterHistoryHealthEvent": 33,
+          "G2PIntakeFormHealthEvent": 28,
+          "G2PRegisterVaccination": 22,
+          "G2PRegisterHistoryVaccination": 29,
+          "G2PIntakeFormVaccination": 24,
+          "G2PRegisterVitalEvent": 34,
+          "G2PRegisterHistoryVitalEvent": 41,
+          "G2PIntakeFormVitalEvent": 36,
+          "G2PRegisterBreeding": 29,
+          "G2PRegisterHistoryBreeding": 36,
+          "G2PIntakeFormBreeding": 31,
+          "G2PRegisterRetagging": 21,
+          "G2PRegisterHistoryRetagging": 28,
+          "G2PIntakeFormRetagging": 23,
+          "G2PRegisterVaccineSchedule": 18,
+          "G2PRegisterHistoryVaccineSchedule": 25,
+          "G2PIntakeFormVaccineSchedule": 20,
+          "G2PRegisterImportBatch": 25,
+          "G2PRegisterHistoryImportBatch": 32,
+          "G2PIntakeFormImportBatch": 27,
+          "G2PRegisterAuditLog": 22,
+          "G2PRegisterHistoryAuditLog": 29,
+          "G2PIntakeFormAuditLog": 24
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "identity/contact/location fields survive every schema trio",
+          "native Farmer service accepts partial drafts",
+          "native Farmer service normalizes identity without numeric coercion",
+          "native Farmer service rejects Unicode digits",
+          "approved identity mirror works with concrete domain ORM and naming services",
+          "flock count normalization",
+          "missing flock count",
+          "zero flock count",
+          "negative animal weight",
+          "positive animal weight",
+          "registration before birth"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-partner-api",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:32845549a6f6667a4a1182f8c6739d9f9843b1639838aac196d74ccecbbf3c1f"
+    },
+    {
+      "check": "build-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-celery",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:a850edc7c96a93a12eb877cf8b3d55d72e7d078180c049c53a77eaa5b3b2f7e3"
+    },
+    {
+      "check": "installed-celery-probe",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": {
+        "domain": "livestock",
+        "runtime": "worker",
+        "model_columns": {
+          "G2PRegisterFarmer": 53,
+          "G2PRegisterHistoryFarmer": 60,
+          "G2PIntakeFormFarmer": 55,
+          "G2PRegisterLivestock": 49,
+          "G2PRegisterHistoryLivestock": 56,
+          "G2PIntakeFormLivestock": 51,
+          "G2PRegisterAnimal": 28,
+          "G2PRegisterHistoryAnimal": 35,
+          "G2PIntakeFormAnimal": 30,
+          "G2PRegisterHealthEvent": 26,
+          "G2PRegisterHistoryHealthEvent": 33,
+          "G2PIntakeFormHealthEvent": 28,
+          "G2PRegisterVaccination": 22,
+          "G2PRegisterHistoryVaccination": 29,
+          "G2PIntakeFormVaccination": 24,
+          "G2PRegisterVitalEvent": 34,
+          "G2PRegisterHistoryVitalEvent": 41,
+          "G2PIntakeFormVitalEvent": 36,
+          "G2PRegisterBreeding": 29,
+          "G2PRegisterHistoryBreeding": 36,
+          "G2PIntakeFormBreeding": 31,
+          "G2PRegisterRetagging": 21,
+          "G2PRegisterHistoryRetagging": 28,
+          "G2PIntakeFormRetagging": 23,
+          "G2PRegisterVaccineSchedule": 18,
+          "G2PRegisterHistoryVaccineSchedule": 25,
+          "G2PIntakeFormVaccineSchedule": 20,
+          "G2PRegisterImportBatch": 25,
+          "G2PRegisterHistoryImportBatch": 32,
+          "G2PIntakeFormImportBatch": 27,
+          "G2PRegisterAuditLog": 22,
+          "G2PRegisterHistoryAuditLog": 29,
+          "G2PIntakeFormAuditLog": 24
+        },
+        "native_factory_resolution": "PASS",
+        "portable_domain_checks": [
+          "identity/contact/location fields survive every schema trio",
+          "native Farmer service accepts partial drafts",
+          "native Farmer service normalizes identity without numeric coercion",
+          "native Farmer service rejects Unicode digits",
+          "approved identity mirror works with concrete domain ORM and naming services",
+          "flock count normalization",
+          "missing flock count",
+          "zero flock count",
+          "negative animal weight",
+          "positive animal weight",
+          "registration before birth"
+        ],
+        "database_accessed": false
+      }
+    },
+    {
+      "check": "build-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS"
+    },
+    {
+      "check": "image-db-seed",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "result": "PASS",
+      "evidence": "sha256:ec5736ac4a998a7c5f16d077d2714ecbb994cb66e7945e582be52c3637fe84e4"
+    },
+    {
+      "check": "seed-preflight",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "result": "PASS"
+    }
+  ]
+}

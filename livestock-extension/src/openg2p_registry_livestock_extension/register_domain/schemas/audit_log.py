@@ -30,7 +30,7 @@ class G2PRegisterSchemaAuditLog(G2PRegisterBaseSchema, G2PSchemaAuditLog):
     """
 
 
-class G2PRegisterHistorySchemaAuditLog(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaAuditLog(G2PRegisterHistorySchema, G2PSchemaAuditLog):
     """
     Schema for Audit Log history.
     Inherits fields from G2PRegisterHistorySchema.

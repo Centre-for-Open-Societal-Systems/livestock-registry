@@ -1,3 +1,1 @@
-from .g2p_animal_bulk_import_controller import G2PAnimalBulkImportController
-from .g2p_approver_resolver_controller import G2PApproverResolverController
 from .g2p_form_config_controller import G2PLivestockFormConfigController

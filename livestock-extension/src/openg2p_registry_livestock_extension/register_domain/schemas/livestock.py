@@ -13,6 +13,13 @@ from ..models.enums import LivestockStateEnum, SourceSystemEnum, SyncStatusEnum
 
 
 class G2PSchemaLivestock(G2PSchemaAdminArea):
+    fayda_fin: Optional[str] = None
+    farmer_reference_status: Optional[str] = None
+    identity_verification_id: Optional[str] = None
+    last_authentication_status: Optional[str] = None
+    last_authenticated_on: Optional[str] = None
+    authentication_expiry_date: Optional[str] = None
+
 
     farmer_uuid: Optional[str] = None
     farmer_id: Optional[str] = None
@@ -42,7 +49,7 @@ class G2PRegisterSchemaLivestock(G2PRegisterBaseSchema, G2PGeoSchema, G2PSchemaL
     """
 
 
-class G2PRegisterHistorySchemaLivestock(G2PRegisterHistorySchema, G2PGeoHistorySchema):
+class G2PRegisterHistorySchemaLivestock(G2PRegisterHistorySchema, G2PGeoHistorySchema, G2PSchemaLivestock):
     """
     Schema for Livestock history.
     Inherits fields from G2PRegisterHistorySchema, G2PGeoHistorySchema.

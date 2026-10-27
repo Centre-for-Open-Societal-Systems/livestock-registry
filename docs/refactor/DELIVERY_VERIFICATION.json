@@ -1,0 +1,90 @@
+{
+  "registry": "livestock",
+  "verified_at": "2026-10-25T01:50:44.168417+00:00",
+  "lifecycle_tests": {
+    "contract-tests": 25,
+    "projection-tests": 8,
+    "notification-contract-tests": 5,
+    "postgres-concurrency": 14,
+    "native-cr-lifecycle": 9,
+    "native-workflow-http": 3,
+    "native-notification-lifecycle": 8,
+    "signed-lookup-http": 7
+  },
+  "lifecycle_test_total": 79,
+  "central_chart_tests": 10,
+  "deployment_configuration_tests": 6,
+  "platform_pin_test": 1,
+  "location_geometry_and_retry_tests": 4,
+  "unit_and_geometry_total": 102,
+  "new_dev_declared_fields": 316,
+  "new_dev_sections": 14,
+  "new_dev_forms": 1,
+  "native_seed_passes": 2,
+  "native_seed_sql_errors": 0,
+  "repeat_metadata_identical": true,
+  "all_section_field_paths_preserved": true,
+  "all_domain_history_intake_fields_present": true,
+  "all_field_types_match": true,
+  "widget_contract": "WIDGET_CONTRACT.json",
+  "ui_build": "LOCATION_VERIFICATION.json",
+  "central_chart_commit": "ff16b7b7522d3e1e2c5cd0bf1b917ea69d195da9",
+  "central_registry_version": "1.0.0-dev.10",
+  "central_dashboard_version": "0.1.2",
+  "raw_github_archive_and_values_checksums_verified": true,
+  "jenkins_groovy_compilation": "PASS; Groovy 4.0.24/JDK17 parse-only, Pipeline not executed",
+  "shell_syntax": "PASS; bash -n, no deploy script executed for syntax checks",
+  "deployment_gates": "PASS; network-disabled disposable tests reject six Crop shell entry points and one Livestock dashboard entry point; inline Livestock stages call the same early environment gate",
+  "registry_stacks_started": 0,
+  "existing_environment_modified": false,
+  "promotion_ready": false,
+  "remaining_acceptance": "STATUS.json",
+  "source_sha256": {
+    "Jenkinsfile": "0104f64c8667833eb3b86086dfe3e7ef0a46113fe3bd68da22e31cd6898582cf",
+    "ci/deploy/oan-chart.json": "e3faee7293b898a78b283fb7d8df8cc72ade0cf1d4688d16bb63400c6e929a77",
+    "ci/deploy/oan_chart.py": "89a2b81e90f9702d5dd731f123c0382ff7315c71a851f98b21538410973fdaf0",
+    "ui/staff-ui/overrides/src/app/api/master-data/geo-boundary/route.ts": "297fb24795bed115c5b173492bfac080da11dd1e7696ea59f1ee7008b0e238e3",
+    "ui/staff-ui/overrides/src/oan/widgets/boundaries.ts": "176b9cd8d87218601b6d294f0dbe4cefb89a1365505de4b14701705fc29b322c",
+    "ui/staff-ui/overrides/src/oan/widgets/register.ts": "a97566f788c19206c17efffa3444985213840de4bb5ae7d94b16b495a7122eb6",
+    "ui/staff-ui/overrides/src/oan/widgets/GeoPointWidget.tsx": "6a61509604c04802e3de01f84f5867b4fdd2e42305fa8f78bf68aad43267ab44",
+    "ui/staff-ui/overrides/src/shared/widgets/RegistryWidgetProvider.tsx": "24a366ce311bd512dec4c3a7423a956836b120336ebe673cd6f3960e730e0940"
+  },
+  "central_hosted_ci": {
+    "result": "success",
+    "url": "https://github.com/Centre-for-Open-Societal-Systems/oan-helm/actions/runs/40128364896",
+    "head_sha": "ff16b7b7522d3e1e2c5cd0bf1b917ea69d195da9",
+    "unit_tests": 20,
+    "core_chart_packages": 6,
+    "independent_dashboard_charts": 3,
+    "environment_deployed": false
+  },
+  "registry_jenkins_execution": "Runtime status not verified; Groovy parse, shell syntax, native test containers, offline archive transport and promotion rejection were verified locally.",
+  "offline_chart_transport": {
+    "result": "PASS",
+    "client_tests": 2,
+    "actual_network_disabled_crop_checks": [
+      "registry archive",
+      "registry public values",
+      "dashboard archive",
+      "dashboard public values"
+    ],
+    "scope": "Identical consumer code in both registries; Crop build agent prefetch/stash retains the isolated VPN deployment-node contract"
+  },
+  "orchestration_failure_tests": 2,
+  "native_notification_configuration": "NOTIFICATION_CONFIG_VERIFICATION.json",
+  "native_pipeline": "NATIVE_NOTIFICATION_PIPELINE.json",
+  "current_runtime_source_hashes_match": true,
+  "verification_complete": true,
+  "production_image_ids": {
+    "staff-api": "sha256:f426fb9d0884cc98173164868bc07261f2e55e6cb6c336a8cb3e7d34dc5b9611",
+    "partner-api": "sha256:aa8ddb12bf496dd14e608fccf64717ca27d3438f31bde23035eeda31259c4c84",
+    "celery": "sha256:e24869889cd8ad66769563fc9d7de5329779bb780503f8bb0955762353af8a52",
+    "db-seed": "sha256:0e64224951a58aa8afca7e5340b85a696406b2b9af706a1a57daccc339f0889e"
+  },
+  "installed_beat_registration": {
+    "result": "PASS",
+    "network_accessed": false,
+    "image_id": "sha256:e24869889cd8ad66769563fc9d7de5329779bb780503f8bb0955762353af8a52",
+    "domain": "livestock"
+  }
+}
