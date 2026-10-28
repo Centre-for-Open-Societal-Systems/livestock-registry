@@ -8,6 +8,7 @@ import io
 import json
 from pathlib import Path
 import re
+import sys
 import tarfile
 import urllib.request
 
@@ -19,7 +20,14 @@ def yaml_document(data):
     try:
         import yaml
     except ModuleNotFoundError:
-        raise ValueError('Install ci/deploy/requirements.txt before chart verification') from None
+        # The deploy node runs the stock Python without site packages or a
+        # container registry; ci/deploy/vendor carries the pure-Python PyYAML
+        # (MIT, ci/deploy/vendor/yaml/LICENSE) of ci/deploy/requirements.txt.
+        sys.path.append(str(Path(__file__).with_name("vendor")))
+        try:
+            import yaml
+        except ModuleNotFoundError:
+            raise ValueError('Install ci/deploy/requirements.txt before chart verification') from None
     try:
         return yaml.safe_load(data)
     except yaml.YAMLError:
