@@ -35,11 +35,27 @@ HELM_RELEASE="${HELM_RELEASE:-livestock-registry}"
 ECR_PATH="${ECR_PATH:-openg2p/livestock-registry}"
 BUILD_NUMBER="${BUILD_NUMBER:-local}"
 
-python3 ci/deploy/oan_chart.py require-deployable registry dev
+# The deploy node's host Python has no PyYAML (build 121: "Install
+# ci/deploy/requirements.txt before chart verification"). Verify the chart in the
+# same image the build agent uses (ci/pipelines/dev.groovy), offline, with the
+# repo and the work directory mounted at their host paths so printed paths stay
+# valid. Helm and kubectl stay on the host, which keeps the cluster access.
+CHART_TOOL_IMAGE="${CHART_TOOL_IMAGE:-openg2p/openg2p-registry-staff-api:1.2.2-rc.557}"
+chart_tool() {
+  if python3 -c 'import yaml' 2>/dev/null; then
+    python3 ci/deploy/oan_chart.py "$@"
+    return
+  fi
+  local mounts=(-v "$PWD:/work")
+  [ -z "${WORK:-}" ] || mounts+=(-v "$WORK:$WORK")
+  docker run --rm --network none --user "$(id -u):$(id -g)" --entrypoint python \
+    "${mounts[@]}" -w /work "$CHART_TOOL_IMAGE" ci/deploy/oan_chart.py "$@"
+}
+chart_tool require-deployable registry dev
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-CHART=$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")
-CENTRAL_VALUES=$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")
+CHART=$(chart_tool fetch registry "$WORK/chart")
+CENTRAL_VALUES=$(chart_tool values registry "$WORK/public-values.yaml")
 umask 077
 # The live release's values. Only a missing release (a first install) may go
 # ahead without them.
