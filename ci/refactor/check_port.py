@@ -27,7 +27,10 @@ def verify(repo: Path, domain: str) -> dict:
                         owner = ast.unparse(target.value)
                         if owner.startswith("G2P") and ("Service" in owner or "Worker" in owner):
                             errors.append(f"{path}:{node.lineno}: runtime method replacement")
-        if "sys.meta_path" in body or "setup_intake_hooks" in body or "from .worker_hooks" in body:
+        # The package __init__ may install the platform-alias finder (one module
+        # object per submodule under both import names); nothing else may hook imports.
+        alias_finder = path == source / "__init__.py" and "_PlatformAliasFinder" in body
+        if ("sys.meta_path" in body and not alias_finder) or "setup_intake_hooks" in body or "from .worker_hooks" in body:
             errors.append(f"{path}: legacy import/worker patch")
         if "db_engine_master_data" in body or "SELECT display_name FROM g2p_geo_level_values" in body:
             errors.append(f"{path}: direct Master Data database read")
