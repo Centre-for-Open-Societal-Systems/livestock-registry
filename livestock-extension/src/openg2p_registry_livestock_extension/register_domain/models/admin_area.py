@@ -28,12 +28,13 @@ class G2PAdminArea:
     woreda: Mapped[str] = mapped_column(String, nullable=True)
     kebele: Mapped[str] = mapped_column(String, nullable=True)
 
-    # The Master Data geo value ids behind the names (region-ET04, zone-ET0407,
-    # ...). The portal's location dropdowns cascade on these ids, which is how
-    # a shared, id-keyed Master Data links a zone to its region; the names
-    # above are filled from them on save (sync_admin_area) and stay what
-    # approver routing, alerts, reminders and reports read. A record whose
-    # place Master Data does not know keeps its names with no id.
+    # The Master Data geo unit ids behind the names (P-codes: ET04, ET0404,
+    # ET040404, ET040404888003). The Location sections' geo-hierarchy widget
+    # writes the register's geo_lowest_level_value_id / geo_code_hierarchy_json;
+    # these are filled from that document on save (admin_area_sync), the names
+    # above from Master Data, and the names stay what approver routing, alerts,
+    # reminders and reports read. A record whose place Master Data does not know
+    # keeps its names with no id.
     region_id: Mapped[str] = mapped_column(String, nullable=True)
     zone_id: Mapped[str] = mapped_column(String, nullable=True)
     woreda_id: Mapped[str] = mapped_column(String, nullable=True)

@@ -18,7 +18,7 @@ approval → register.
 | File | What |
 |---|---|
 | `livestock_registry.xlsx` | The XLSForm (form id `livestock_registry`), published on the dev Central. v3 removed the animal Sex choice `other` (copied from the farmer gender list; the registry has MALE, FEMALE and MIXED only, as Gen1 had male/female). v4 adds "not in the future" to both resolution dates. |
-| `media/region_odk.csv`, `zone_odk.csv`, `woreda_odk.csv`, `kebele_odk.csv` | Location choice lists the form loads (`select_one_from_file`), attached to the form in Central. Codes are the Master Data ids without the level prefix (zone `ET0101` = `zone-ET0101`; kebele `10101101001` = `kebele-ET010101101001`). |
+| `media/region_odk.csv`, `zone_odk.csv`, `woreda_odk.csv`, `kebele_odk.csv` | Location choice lists the form loads (`select_one_from_file`), attached to the form in Central. Codes are the Master Data geo unit ids (P-codes: zone `ET0101`, kebele `ET010101101001`); regenerate them from Master Data after a geography change. |
 | `sample_submissions.json` | Five real-shaped submissions as Central's OData API returns them (repeat groups inlined), for `test_transform.py`. |
 | `breed_choices.csv` | The form's breed choices (species, name), a copy of the `breed` list on the choices sheet. Update it with the form. |
 | `test_transform.py` | Renders the transform template against the samples and targeted cases, and checks that every breed choice in `breed_choices.csv` maps to a breed of its own species; run with `python odk/test_transform.py` (needs `jinja2`). |
