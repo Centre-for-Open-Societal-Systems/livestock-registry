@@ -1,12 +1,21 @@
 # OpenG2P default approval configuration
 
-The user deferred geographic approval configuration on 27 October 2026.
-The native AWE integration is used, without registering the geographic service.
-The policy pattern is the upstream Farmer 1.2 example: Stage 1 Officers uses
-`alex.carter`, Stage 2 Officers uses `nina.patel`, both `mode=all`, `on_empty=block`.
-Self/repeat approval restrictions match upstream defaults (`false`). These are
-example default reviewer IDs; this change does not create users or IAM grants.
-Configure reviewers later through standard AWE administration.
+The native AWE integration is used, without registering the geographic service
+(geographic approval was deferred on 27 October 2026). The policy pattern is the
+upstream Farmer 1.2 example under this registry's own `.default` keys: two
+sequential stages, `on_empty=block`. Since 28 October 2026 each stage completes
+on one decision (`mode=any-n`, `mode_value=1`) from either the named officer or
+`admin`: Stage 1 Officers lists `alex.carter` and `admin`, Stage 2 Officers
+lists `nina.patel` and `admin`. Self/repeat approval restrictions stay `false`,
+so `admin` may decide both stages. The Farmer registry seeds the same shape, so
+every registry approves the same way. These are example reviewer IDs; this
+change creates no users or IAM grants.
+
+Databases seeded before 28 October hold the six `.default` stages with
+`mode=all`. `50_either_officer_or_admin.sql` moves exactly those stages, by id,
+to `any-n`/1 in place; the insert-only rule file adds the `admin` rules. Policy
+keys, stage ids, rule ids and the register bindings do not change, so open
+tasks keep their policy and the Farmer-reference receiver keeps one binding.
 
 Domain intake and Farmer-reference change requests remain separate. Identity
 verification, durable onboarding, target approval, stale-update checks and
