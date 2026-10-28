@@ -193,10 +193,12 @@ pipeline {
 
         stage('Stash deploy') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' } } }
-            // The deploy node gets the scripts of exactly this commit, not a
-            // checkout of its own.
+            // The deploy node gets the scripts of exactly this commit and the
+            // verified central chart archive, not a checkout of its own: it
+            // deploys offline, without GitHub access.
             steps {
-                stash name: 'deploy', includes: 'ci/**,scripts/**'
+                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/deploy/oan_chart.py prefetch registry'
+                stash name: 'deploy', includes: 'ci/**,scripts/**,.central-charts/**'
             }
         }
 
@@ -266,7 +268,7 @@ EOF
             agent { label 'vpn-agent2' }
             options { timeout(time: 60, unit: 'MINUTES') }
             steps {
-                sh 'rm -rf ci scripts'
+                sh 'rm -rf ci scripts .central-charts'
                 unstash 'deploy'
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
@@ -306,7 +308,7 @@ EOF
             }
             agent { label 'vpn-agent2' }
             steps {
-                sh 'rm -rf ci scripts'
+                sh 'rm -rf ci scripts .central-charts'
                 unstash 'deploy'
                 withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
                     sh """
