@@ -87,9 +87,64 @@ python3 ci/check-new-dev-routes.py livestock --release "$HELM_RELEASE" --namespa
 python3 ci/refactor/deployment_guard.py --release "$HELM_RELEASE" --namespace "$DEV_NAMESPACE" --check-live-secret \
   < "newdev-rendered-${BUILD_NUMBER}.json"
 
-helm upgrade --install "$HELM_RELEASE" "$CHART" -n "$DEV_NAMESPACE" \
-  -f "$WORK/current-values.yaml" -f "$CENTRAL_VALUES" "${IMAGE_SET_FLAGS[@]}" \
-  --cleanup-on-fail --timeout 15m
+# Hook pods are deleted as soon as their Job fails, so helm's own error
+# ("post-upgrade hooks failed: ... BackoffLimitExceeded") says nothing about why.
+# While helm waits, save the logs of this release's Job pods and list its Jobs
+# every minute; print the saved logs if the upgrade fails.
+mkdir -p "$WORK/logs"
+save_hook_logs() {
+  local p n
+  for p in $(kubectl get pods -n "$DEV_NAMESPACE" -l job-name -o name 2>/dev/null | grep -E "^pod/${HELM_RELEASE}-" || true); do
+    n="${p#pod/}"
+    kubectl logs "$n" -n "$DEV_NAMESPACE" --all-containers --prefix --tail=200 > "$WORK/logs/$n.tmp" 2>/dev/null \
+      && mv "$WORK/logs/$n.tmp" "$WORK/logs/$n.log" || rm -f "$WORK/logs/$n.tmp"
+    kubectl logs "$n" -n "$DEV_NAMESPACE" --all-containers --prefix --tail=200 --previous > "$WORK/logs/$n.prev" 2>/dev/null \
+      && mv "$WORK/logs/$n.prev" "$WORK/logs/$n.previous.log" || rm -f "$WORK/logs/$n.prev"
+  done
+}
+(
+  set +e
+  tick=0
+  while :; do
+    save_hook_logs
+    sleep 10
+    tick=$((tick + 10))
+    if [ "$tick" -ge 60 ]; then
+      tick=0
+      echo "--- $(date -u +%H:%M:%S) UTC: $HELM_RELEASE jobs ---"
+      kubectl get jobs -n "$DEV_NAMESPACE" --no-headers 2>/dev/null | grep -E "^$HELM_RELEASE-" || true
+    fi
+  done
+) &
+WATCHER_PID=$!
+trap 'kill "$WATCHER_PID" 2>/dev/null || true; rm -rf "$WORK"' EXIT
+
+if ! helm upgrade --install "$HELM_RELEASE" "$CHART" -n "$DEV_NAMESPACE" \
+    -f "$WORK/current-values.yaml" -f "$CENTRAL_VALUES" "${IMAGE_SET_FLAGS[@]}" \
+    --cleanup-on-fail --timeout 15m; then
+  kill "$WATCHER_PID" 2>/dev/null || true
+  save_hook_logs
+  for f in "$WORK"/logs/*.log; do
+    [ -f "$f" ] || continue
+    echo "=== hook pod log: $(basename "$f" .log) ===" >&2
+    cat "$f" >&2
+  done
+  echo "=== $HELM_RELEASE-staff-portal-api pod log ===" >&2
+  kubectl logs "deploy/$HELM_RELEASE-staff-portal-api" -n "$DEV_NAMESPACE" --all-containers --prefix --tail=60 >&2 || true
+  echo "=== release history ===" >&2
+  helm history -n "$DEV_NAMESPACE" "$HELM_RELEASE" --max 5 >&2 || true
+  echo "=== recent warning events ===" >&2
+  kubectl get events -n "$DEV_NAMESPACE" --field-selector type=Warning --sort-by=.lastTimestamp 2>/dev/null | tail -20 >&2 || true
+  exit 1
+fi
+kill "$WATCHER_PID" 2>/dev/null || true
+# The sanity Job's output is useful even when it passes.
+save_hook_logs
+for f in "$WORK/logs/$HELM_RELEASE-sanity"*.log; do
+  [ -f "$f" ] || continue
+  echo "=== hook pod log: $(basename "$f" .log) ===" 
+  cat "$f"
+done
 
 kubectl rollout status "deployment/$HELM_RELEASE-dashboard-api" -n "$DEV_NAMESPACE" --timeout=420s
 if [ -n "${DASHBOARD_UI_SHA:-}" ]; then
