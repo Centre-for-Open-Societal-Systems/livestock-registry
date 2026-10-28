@@ -5,7 +5,11 @@ pipeline {
         choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install'],
             description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched).')
     }
-    agent { label 'vpn-agent2' }
+    // Validation and image builds run on any build agent; only the deploy
+    // stages below run on vpn-agent2, the one node that reaches the clusters.
+    // Building the staff UI there starved the node (its Next build took the
+    // agent offline repeatedly) and blocked every registry's deploy behind it.
+    agent any
 
     options {
         // One run at a time: merging several PRs back to back queued
@@ -187,6 +191,15 @@ pipeline {
             }
         }
 
+        stage('Stash deploy') {
+            when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' } } }
+            // The deploy node gets the scripts of exactly this commit, not a
+            // checkout of its own.
+            steps {
+                stash name: 'deploy', includes: 'ci/**,scripts/**'
+            }
+        }
+
         stage('Prepare Deploy Values') {
             // Split out 2026-09-16 so both deploy targets (dev cluster and
             // staging cluster's `live` namespace) share the exact same
@@ -197,7 +210,11 @@ pipeline {
             // Gated on the SAME branch as "Deploy to Live" below (not
             // 'develop' anymore) — this stage exists solely to feed that
             // one. See the branch-gating header note above.
-            when { branch 'staging' } // ASSUMPTION — confirm the real staging branch name
+            when {
+                beforeAgent true
+                branch 'staging' // ASSUMPTION — confirm the real staging branch name
+            }
+            agent { label 'vpn-agent2' }
             steps {
                 sh """
                     cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
@@ -240,12 +257,17 @@ EOF
             // chart bytes and version are immutable (ci/deploy/oan-chart.json);
             // ci/deploy/deploy-livestock-dev.sh renders, guards and upgrades.
             when {
+                beforeAgent true
                 branch 'develop'
                 // A branch-index or polled build has no explicit action: it publishes
                 // only; deploy and fresh-install are requested on purpose.
                 expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') != 'publish-only' }
             }
+            agent { label 'vpn-agent2' }
+            options { timeout(time: 60, unit: 'MINUTES') }
             steps {
+                sh 'rm -rf ci scripts'
+                unstash 'deploy'
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
                         script {
@@ -278,8 +300,14 @@ EOF
             // name — see the header note at the top of this file). Note
             // this doesn't fix the build #41 db-seed BackoffLimitExceeded
             // failure; it just stops it from being triggered by develop.
-            when { branch 'staging' } // ASSUMPTION — confirm the real staging branch name
+            when {
+                beforeAgent true
+                branch 'staging' // ASSUMPTION — confirm the real staging branch name
+            }
+            agent { label 'vpn-agent2' }
             steps {
+                sh 'rm -rf ci scripts'
+                unstash 'deploy'
                 withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
                     sh """
                         set -eu
