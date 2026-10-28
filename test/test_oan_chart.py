@@ -57,6 +57,16 @@ class CentralChartTests(unittest.TestCase):
     def test_deployment_is_blocked_before_any_environment_operation(self):
         self.package()
         with self.assertRaisesRegex(ValueError,"Deployment blocked"):chart.require_deployable(self.pin,"dev")
+    def test_is_deployable_reports_without_raising(self):
+        self.package()
+        self.assertFalse(chart.is_deployable(self.pin,"dev"))
+        self.pin["promotionReady"]=True
+        self.assertTrue(chart.is_deployable(self.pin,"dev"))
+        self.assertFalse(chart.is_deployable(self.pin,"staging"))
+    def test_is_deployable_still_rejects_invalid_pin(self):
+        self.package()
+        self.pin["repository"]=self.pin["repository"].replace("a"*40,"main")
+        with self.assertRaisesRegex(ValueError,"immutable"):chart.is_deployable(self.pin,"dev")
     def test_dev_approval_does_not_authorize_staging(self):
         self.package(); self.pin["promotionReady"]=True
         with self.assertRaisesRegex(ValueError,"Deployment blocked"):chart.require_deployable(self.pin,"staging")
