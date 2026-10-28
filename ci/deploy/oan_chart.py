@@ -105,9 +105,13 @@ def fetch(pin, destination):
             partial.unlink()
     return target.resolve()
 
-def require_deployable(pin, environment):
+def is_deployable(pin, environment):
     validate_pin(pin)
-    if pin.get("environment") != environment or pin.get("promotionReady") is not True:
+    return pin.get("environment") == environment and pin.get("promotionReady") is True
+
+
+def require_deployable(pin, environment):
+    if not is_deployable(pin, environment):
         raise ValueError("Deployment blocked: refactor acceptance and environment preservation evidence are required; existing environments are unchanged")
 
 
@@ -137,7 +141,7 @@ def fetch_values(pin, destination):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action",choices=("url","verify","fetch","values","prefetch","require-deployable","platform","version"))
+    parser.add_argument("action",choices=("url","verify","fetch","values","prefetch","require-deployable","is-deployable","platform","version"))
     parser.add_argument("role",choices=("registry","dashboard"))
     parser.add_argument("argument",nargs="?")
     args = parser.parse_args()
@@ -151,6 +155,7 @@ def main():
         fetch_values(pin,CENTRAL_CACHE / pin['values']['sha256'] / Path(pin['values']['path']).name)
         print('PASS: central archive and public values verified for offline deploy transport')
     elif args.action=="require-deployable": require_deployable(pin,args.argument or "dev")
+    elif args.action=="is-deployable": print("true" if is_deployable(pin,args.argument or "dev") else "false")
     elif args.action=="platform": print(pin["platformVersion"])
     elif args.action=="version": print(pin["version"])
 

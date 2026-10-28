@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [ "$(python3 ci/deploy/oan_chart.py is-deployable dashboard dev)" != "true" ]; then
+  echo "SKIP: dashboard UI held back on dev (ci/deploy/oan-chart.json dashboard.promotionReady=false); registry deploy unaffected"
+  exit 0
+fi
 python3 ci/deploy/oan_chart.py require-deployable dashboard dev
 registry=$1
 namespace=$2
