@@ -49,7 +49,7 @@ def reconcile_sections(rows, metadata, transitions):
         for path in row['removed_field_paths']:
             rules = [rule for rule in transitions if rule.get('from_section')==row['section_id'] and rule.get('path')==path]
             valid = False
-            if len(rules)==1:
+            if len(rules)==1 and rules[0]['mechanism'] in ('section_move','approved_farmer_projection'):
                 rule = rules[0]
                 target = sections.get(rule['to_section'])
                 valid = target is not None and target['section_register_id']==row['section_register_id'] and path in paths(target['section_ui_schema'])
@@ -63,6 +63,23 @@ def reconcile_sections(rows, metadata, transitions):
                     valid = valid and any(widget.get('widget-data-path')==path and widget.get('widget')=='display' and widget.get('widget-readonly') is True for widget in widgets(target['section_ui_schema']))
                 else:
                     valid = False
+                outcomes.append({**rule,'verified':bool(valid)})
+            elif len(rules)==1 and rules[0]['mechanism']=='geo_hierarchy_derived':
+                # A per-level Master Data id column (region_id ... kebele_id) no longer has
+                # its own dropdown: the target section's geo-hierarchy widget writes the
+                # register's hierarchy document, and the column is filled from it on save
+                # (register_domain/services/geo_hierarchy.py). Valid only when that widget
+                # is bound to the same register's geo_code_hierarchy_json.
+                rule = rules[0]
+                target = sections.get(rule['to_section'])
+                register_id, _, column = path.rpartition('.')
+                hierarchy_path = f"{register_id}.geo_code_hierarchy_json"
+                valid = (target is not None and target['section_register_id']==row['section_register_id']
+                         and column in {'region_id','zone_id','woreda_id','kebele_id'}
+                         and any(widget.get('widget')=='geo-hierarchy'
+                                 and isinstance(widget.get('widget-data-path'),dict)
+                                 and widget['widget-data-path'].get('hierarchy')==hierarchy_path
+                                 for widget in widgets(target['section_ui_schema'])))
                 outcomes.append({**rule,'verified':bool(valid)})
             if not valid: unresolved.append(path)
         row['unexplained_removed_field_paths'] = unresolved

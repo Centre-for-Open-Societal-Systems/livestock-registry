@@ -46,3 +46,22 @@ def test_source_projection_must_remain_registered_read_only_display(failure):
     if failure=='original-still-register-section': metadata['g2p_register_ui_tab_sections'].append({'tab_id':'register-tab','section_id':'identity'})
     comparison.reconcile_sections(rows,metadata,rules)
     assert bool(rows[0]['unexplained_removed_field_paths']) == bool(failure)
+
+
+@pytest.mark.parametrize('failure',[None,'no-hierarchy-widget','other-register-hierarchy','not-a-level-id','register-changed','unreviewed'])
+def test_level_id_may_be_derived_from_the_geo_hierarchy_widget(failure):
+    path = 'register.woreda_id'
+    rows = [{'section_id':'location','section_register_id':'register','removed_field_paths':[path]}]
+    widget = {'widget':'geo-hierarchy','widget-data-path':{'value':'register.geo_lowest_level_value_id','hierarchy':'register.geo_code_hierarchy_json'}}
+    metadata = {'g2p_register_sections':[{'section_id':'location','section_register_id':'register','section_ui_schema':{'widgets':[widget]}}],
+        'g2p_intake_form_ui_tab_sections':[],'g2p_register_ui_tab_sections':[]}
+    rules = [{'from_section':'location','to_section':'location','path':path,'mechanism':'geo_hierarchy_derived'}]
+    if failure=='no-hierarchy-widget': widget['widget']='select'
+    if failure=='other-register-hierarchy': widget['widget-data-path']['hierarchy']='another-register.geo_code_hierarchy_json'
+    if failure=='not-a-level-id':
+        rows[0]['removed_field_paths']=['register.woreda']
+        rules[0]['path']='register.woreda'
+    if failure=='register-changed': metadata['g2p_register_sections'][0]['section_register_id']='another-register'
+    if failure=='unreviewed': rules=[]
+    comparison.reconcile_sections(rows,metadata,rules)
+    assert bool(rows[0]['unexplained_removed_field_paths']) == bool(failure)
