@@ -25,13 +25,13 @@ SELECT register_id, 'livestock_farmer_lookup', section_register_id, FALSE,
              "widget-label": "Farmer ID", "widget-readonly": false, "widget-required": true,
              "widget-data-path": "997676d3-7008-59f9-b23e-613ad79bbb08.farmer_id",
              "widget-data-placeholder": "FR- followed by 12 digits",
-             "widget-data-validation": {"pattern": "^\s*FR-[0-9]{12}\s*$", "patternMessage": "coss_input_farmer_id"}}]},
+             "widget-data-validation": {"pattern": "^\\s*FR-[0-9]{12}\\s*$", "patternMessage": "coss_input_farmer_id"}}]},
           {"panel-id": "livestock_farmer_lookup_fayda_id", "panel-orientation": "vertical", "widgets": [
             {"widget": "text", "widget-id": "fayda_id", "widget-type": "input",
              "widget-label": "Fayda ID (FAN or FIN)", "widget-readonly": false, "widget-required": true,
              "widget-data-path": "997676d3-7008-59f9-b23e-613ad79bbb08.fayda_id",
              "widget-data-placeholder": "16-digit FAN or 12-digit FIN",
-             "widget-data-validation": {"pattern": "^\s*(?:[0-9]{12}|[0-9](?:\s*[0-9]){15})\s*$", "patternMessage": "coss_input_fayda_id"}}]}]}]}'::jsonb
+             "widget-data-validation": {"pattern": "^\\s*(?:[0-9]{12}|[0-9](?:\\s*[0-9]){15})\\s*$", "patternMessage": "coss_input_fayda_id"}}]}]}]}'::jsonb
 FROM g2p_register_sections WHERE section_id = 'livestock_livestock_record_section_01'
 ON CONFLICT (section_id) DO UPDATE SET
   section_mnemonic = EXCLUDED.section_mnemonic,
