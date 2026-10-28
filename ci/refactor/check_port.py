@@ -81,8 +81,13 @@ def verify(repo: Path, domain: str) -> dict:
         else:
             stage = (awe / "20_approval_stage.sql").read_text(encoding="utf-8")
             rule = (awe / "30_approver_rule.sql").read_text(encoding="utf-8")
-            if "'block'" not in stage or "'all'" not in stage or "'user'" not in rule or "alex.carter" not in rule or "nina.patel" not in rule or "geo_woreda_approver_ids" in rule:
-                errors.append("OpenG2P default approvals must use sequential all/block user stages")
+            # Since 28 Oct 2026 each stage completes on one decision (any-n, 1)
+            # from the named officer or admin; the stages stay sequential user
+            # stages with on_empty=block.
+            if ("'block'" not in stage or "'any-n',1," not in stage or "'all'" in stage or "'user'" not in rule
+                    or "alex.carter" not in rule or "nina.patel" not in rule or '"admin"' not in rule
+                    or "geo_woreda_approver_ids" in rule):
+                errors.append("OpenG2P default approvals must use sequential any-n/1 block user stages (named officer or admin)")
     seed = (repo / "docker/db-seed/Dockerfile").read_text(encoding="utf-8")
     if 'ENTRYPOINT ["/seed/entrypoint.sh"]' not in seed or "preflight" in seed:
         errors.append("seed image must run the native seed entrypoint")
