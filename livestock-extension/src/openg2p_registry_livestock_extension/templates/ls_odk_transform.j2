@@ -47,12 +47,20 @@
 
 {# Form v5 and later pick the locations from the Master Data Entity Lists
    (tools/odk-geo-sync) and submit each place's Master Data id as <level>_code.
-   The ids go to region_id ... kebele_id and the names are left to the
-   registry, which fills them from the ids on save (admin_area_sync). Older
-   forms keep the CSV values above. #}
+   The ids are Master Data geo unit ids (P-codes, ET040404); they go to
+   region_id ... kebele_id and geo_lowest_level_value_id, and the names are left
+   to the registry, which fills them from the ids on save (admin_area_sync).
+   Older forms keep the CSV values above. #}
 {% set mds_loc = (loc.get('location_source') == 'mds') %}
 {% set mds_ids = {'region': loc.get('region_code') or none, 'zone': loc.get('zone_code') or none,
                   'woreda': loc.get('woreda_code') or none, 'kebele': loc.get('kebele_code') or none} %}
+{#- The chain in the shape the staff portal's geo-hierarchy widget writes, so the
+    Location section shows the submitted place. -#}
+{% set ns_geo = namespace(items=[]) %}
+{% for lid, lvl in [('l1', 'region'), ('l2', 'zone'), ('l3', 'woreda'), ('l4', 'kebele')] %}
+  {% if mds_ids[lvl] %}{% set ns_geo.items = ns_geo.items + [{'level_id': lid, 'level': lvl, 'level_mnemonic': lvl, 'level_value_id': mds_ids[lvl]}] %}{% endif %}
+{% endfor %}
+{% set mds_hierarchy = {'hierarchy': ns_geo.items, 'lowest_level_value_id': ns_geo.items[-1]['level_value_id']} if ns_geo.items else none %}
 {% if mds_loc %}
 {% set fl_region_val = none %}{% set fl_zone_val = none %}{% set fl_woreda_val = none %}{% set fl_kebele_val = none %}
 {% set loc_region_val = none %}{% set loc_zone_val = none %}{% set loc_woreda_val = none %}{% set loc_kebele_val = none %}
@@ -167,7 +175,9 @@
       "region_id": {{ mds_ids.region | tojson }},
       "zone_id": {{ mds_ids.zone | tojson }},
       "woreda_id": {{ mds_ids.woreda | tojson }},
-      "kebele_id": {{ mds_ids.kebele | tojson }}{% endif %}
+      "kebele_id": {{ mds_ids.kebele | tojson }},
+      "geo_lowest_level_value_id": {{ (mds_ids.kebele or mds_ids.woreda or mds_ids.zone or mds_ids.region) | tojson }},
+      "geo_code_hierarchy_json": {{ mds_hierarchy | tojson }}{% endif %}
     }
   ],
 {# A missing species stays empty (the registry then refuses the record) and an

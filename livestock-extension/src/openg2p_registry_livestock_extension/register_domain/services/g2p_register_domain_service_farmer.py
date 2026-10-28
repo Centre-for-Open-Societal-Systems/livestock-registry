@@ -172,6 +172,14 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
         return " ".join(record_name).strip()
 
 
+    async def post_intake_upsert(self, rows: list, session) -> None:
+        """Right after a Farmer section (Identity, Farmer Location) is saved:
+        the Location section's geo-hierarchy widget wrote the register's
+        geo_code_hierarchy_json; copy it into region_id ... kebele_id and
+        refresh the names (admin_area_sync)."""
+        for row in rows:
+            await sync_admin_area(row)
+
     async def pre_approve(self, change_request, session):
         from ...farmer_reference.native import guard_farmer_approval
         await guard_farmer_approval(change_request, session)
@@ -179,6 +187,20 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
     async def post_approve(self, change_request, session) -> None:
         from ...farmer_reference.native import record_native_decision
         await record_native_decision(session, change_request.change_request_id, True)
+        if change_request.section_register_id == FARMER_REGISTER_ID:
+            # A Farmer Location edit writes the hierarchy; refresh ids and names.
+            import importlib
+            from sqlalchemy import select
+            models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+            farmer = (
+                await session.execute(
+                    select(models.G2PRegisterFarmer).where(
+                        models.G2PRegisterFarmer.internal_record_id == change_request.internal_record_id
+                    )
+                )
+            ).scalar_one_or_none()
+            if farmer is not None:
+                await sync_admin_area(farmer)
         # Stored Livestock mirrors require their own domain approval. Farmer approval
         # changes only this Farmer and releases already approved waiting intakes.
 
