@@ -36,15 +36,21 @@ ECR_PATH="${ECR_PATH:-openg2p/livestock-registry}"
 BUILD_NUMBER="${BUILD_NUMBER:-local}"
 
 # The deploy node's host Python has no PyYAML (build 121: "Install
-# ci/deploy/requirements.txt before chart verification"). Verify the chart in the
-# same image the build agent uses (ci/pipelines/dev.groovy), offline, with the
-# repo and the work directory mounted at their host paths so printed paths stay
-# valid. Helm and kubectl stay on the host, which keeps the cluster access.
-CHART_TOOL_IMAGE="${CHART_TOOL_IMAGE:-openg2p/openg2p-registry-staff-api:1.2.2-rc.557}"
+# ci/deploy/requirements.txt before chart verification"). Verify the chart in a
+# small image built on the node from ci/deploy/chart-tool (python:3.12-slim plus
+# ci/deploy/requirements.txt, as Farmer's ci/validation does) instead of pulling
+# the registry image over the VPN link, offline, with the repo and the work
+# directory mounted at their host paths so printed paths stay valid. Helm and
+# kubectl stay on the host, which keeps the cluster access.
+CHART_TOOL_IMAGE="${CHART_TOOL_IMAGE:-}"
 chart_tool() {
   if python3 -c 'import yaml' 2>/dev/null; then
     python3 ci/deploy/oan_chart.py "$@"
     return
+  fi
+  if [ -z "$CHART_TOOL_IMAGE" ]; then
+    CHART_TOOL_IMAGE="coss-ci/chart-tool:$(sha256sum ci/deploy/requirements.txt ci/deploy/chart-tool/Dockerfile | sha256sum | cut -c1-12)"
+    docker image inspect "$CHART_TOOL_IMAGE" >/dev/null 2>&1 || docker build -q -t "$CHART_TOOL_IMAGE" -f ci/deploy/chart-tool/Dockerfile ci/deploy >/dev/null
   fi
   local mounts=(-v "$PWD:/work")
   [ -z "${WORK:-}" ] || mounts+=(-v "$WORK:$WORK")
