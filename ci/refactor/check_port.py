@@ -71,7 +71,10 @@ def verify(repo: Path, domain: str) -> dict:
         # 40_callback_secret.sql.tpl is the platform seed's own template: the
         # image replaces awe_meta_data, so without it AWE has no callback_secret
         # row for this release and every finalize fails (AWE-ERR-006).
-        supported = {"10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql", "40_callback_secret.sql.tpl"}
+        # 50_either_officer_or_admin.sql moves stages seeded before 28 Oct 2026
+        # to any-n/1 in place (reviewed: test/test_default_approvals.py).
+        supported = {"10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql", "40_callback_secret.sql.tpl",
+                     "50_either_officer_or_admin.sql"}
         files = {path.name for path in awe.iterdir() if path.is_file()}
         if files != supported:
             errors.append("Unreviewed or legacy approval seed files remain")
