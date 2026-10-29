@@ -148,7 +148,7 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_save_refuses_an_empty_required_section(self):
         message = await self.refused(self.save("location", [{"internal_record_id": "root", "landmark": "Church"}]))
-        self.assertEqual(message, "Livestock Location: fill in Kebele")
+        self.assertEqual(message, "Livestock location: fill in Kebele.")
         self.assertEqual(self.service.rows, {})
 
     async def test_save_passes_a_complete_section(self):
@@ -163,25 +163,25 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
     async def test_clearing_a_required_field_is_refused(self):
         await self.save("location", [{"internal_record_id": "root", "kebele": "Kebele 01"}])
         message = await self.refused(self.save("location", [{"internal_record_id": "root", "kebele": ""}]))
-        self.assertEqual(message, "Livestock Location: fill in Kebele")
+        self.assertEqual(message, "Livestock location: fill in Kebele.")
         self.assertEqual(self.service.rows[("s1", ROOT)]["root"]["kebele"], "Kebele 01")
 
     async def test_a_hidden_field_is_not_required_and_a_shown_one_is(self):
         await self.save("location", [{"internal_record_id": "root", "kebele": "K", "water_source": "RIVER"}])
         message = await self.refused(
             self.save("location", [{"internal_record_id": "root", "kebele": "K", "water_source": "OTHER"}]))
-        self.assertEqual(message, "Livestock Location: fill in Other Water Source")
+        self.assertEqual(message, "Livestock location: fill in Other Water Source.")
 
     async def test_the_require_rule_is_enforced_on_save(self):
         message = await self.refused(self.save("events", [{"event_type": "DISEASE"}]))
-        self.assertEqual(message, "Vital Event Details, row 1: fill in Disease Type")
+        self.assertEqual(message, "Vital event details, row 1: fill in Disease Type.")
         await self.save("events", [{"event_type": "BIRTH"}])
 
     async def test_row_columns_are_checked_and_every_row_is_named(self):
         message = await self.refused(self.save("animals", [
             {"species": "CATTLE", "breed": "BORAN"}, {"species": "GOAT"}, {"weight": 3}]))
-        self.assertEqual(message, "Livestock Details, row 2: fill in Breed; "
-                                  "Livestock Details, row 3: fill in Species, Breed")
+        self.assertEqual(message, "Livestock details, row 2: fill in Breed. "
+                                  "Livestock details, row 3: fill in Species and Breed.")
 
     async def test_a_list_section_with_no_rows_passes_when_its_table_is_optional(self):
         await self.save("animals", [])
@@ -193,7 +193,7 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
             message = await self.refused(self.save("animals", []))
         finally:
             BY_ID["animals"].section_ui_schema = original
-        self.assertEqual(message, "Livestock Details: add at least one row")
+        self.assertEqual(message, "Livestock details: add at least one row.")
 
     async def test_deleted_rows_are_not_checked(self):
         await self.save("animals", [{"species": "CATTLE", "breed": "BORAN"},
@@ -213,12 +213,12 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
         await self.save("location", [{"internal_record_id": "root", "kebele": "Kebele 01"}])
         self.service.rows[("s1", ANIMALS)] = {"a": {"species": "CATTLE"}}
         message = await self.refused(self.service.finalize_submission_with_session("s1", None, "tester"))
-        self.assertEqual(message, "Livestock Details, row 1: fill in Breed")
+        self.assertEqual(message, "Livestock details, row 1: fill in Breed.")
         self.assertEqual(self.service.finalized, [])
 
     async def test_submit_checks_a_required_section_that_was_never_saved(self):
         message = await self.refused(self.service.finalize_submission_with_session("s1", None))
-        self.assertIn("Livestock Location: fill in Kebele", message)
+        self.assertIn("Livestock location: fill in Kebele", message)
 
     async def test_submit_refuses_a_form_without_a_farmer_id_or_a_fayda_id(self):
         await self.save("location", [{"internal_record_id": "root", "kebele": "Kebele 01"}])
@@ -256,12 +256,12 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
                                     "fayda_fin": "001234567890"}], "odk")
         await self.save("animals", [{"species": "CATTLE", "breed": "BORAN"}], "odk")
         message = await self.refused(self.service.finalize_submission_with_session("odk", None))
-        self.assertEqual(message, "Livestock Location: fill in Kebele")
+        self.assertEqual(message, "Livestock location: fill in Kebele.")
         self.assertEqual(self.service.finalized, [])
 
     async def test_an_incomplete_ingested_section_is_refused_on_save(self):
         message = await self.refused(self.save("animals", [{"species": "CATTLE"}], "partner"))
-        self.assertEqual(message, "Livestock Details, row 1: fill in Breed")
+        self.assertEqual(message, "Livestock details, row 1: fill in Breed.")
 
     async def test_odk_and_partner_ingestion_passes_when_complete(self):
         await self.fill_form("odk")

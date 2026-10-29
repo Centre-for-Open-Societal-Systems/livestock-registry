@@ -1,9 +1,9 @@
 import logging
 import re
-from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .local_date import local_today
 from .admin_area_sync import sync_admin_area
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -130,7 +130,7 @@ class G2PRegisterDomainServiceFarmer(AuditSnapshotMixin, G2PRegisterDomainServic
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
+        if value is not None and value > local_today():
             validation_error(f"{_label(field)}: the date cannot be in the future")
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:

@@ -55,7 +55,7 @@ def test_complete_section_has_no_problems():
 
 def test_empty_required_section_names_the_fields():
     problems = rf.section_problems(LOCATION, False, [{}], {REGISTER: {}})
-    assert problems == ["Livestock Location: fill in Kebele"]
+    assert problems == ["Livestock location: fill in Kebele"]
 
 
 def test_blank_text_counts_as_empty_but_zero_and_false_do_not():
@@ -68,7 +68,7 @@ def test_blank_text_counts_as_empty_but_zero_and_false_do_not():
 
 
 def test_a_missing_section_record_is_incomplete():
-    assert rf.section_problems(LOCATION, False, [], {}) == ["Livestock Location: fill in Kebele"]
+    assert rf.section_problems(LOCATION, False, [], {}) == ["Livestock location: fill in Kebele"]
 
 
 def test_hidden_field_is_not_required():
@@ -129,7 +129,7 @@ def test_a_list_section_needs_a_row_only_when_the_table_is_required():
     columns = [column("species", "Species", required=True)]
     assert rf.section_problems(table("Livestock Details", *columns), True, [], {}) == []
     assert rf.section_problems(table("Livestock Details", *columns, required=True), True, [], {}) == [
-        "Livestock Details: add at least one row"]
+        "Livestock details: add at least one row"]
 
 
 def test_each_row_is_checked_for_its_required_columns():
@@ -141,8 +141,8 @@ def test_each_row_is_checked_for_its_required_columns():
     )
     rows = [{"species": "CATTLE", "breed": "BORAN"}, {"species": "CATTLE", "breed": ""}, {"weight": 3}]
     assert rf.section_problems(schema, True, rows, {}) == [
-        "Livestock Details, row 2: fill in Breed",
-        "Livestock Details, row 3: fill in Species, Breed",
+        "Livestock details, row 2: fill in Breed",
+        "Livestock details, row 3: fill in Species and Breed",
     ]
 
 
@@ -157,7 +157,7 @@ def test_column_rules_use_the_row_and_hidden_columns_are_skipped():
     )
     assert rf.section_problems(schema, True, [{"event_type": "BIRTH"}], {}) == []
     assert rf.section_problems(schema, True, [{"event_type": "DISEASE"}], {}) == [
-        "Vital Event Details, row 1: fill in Disease Type"]
+        "Vital event details, row 1: fill in Disease Type"]
 
 
 def test_a_list_section_without_a_table_widget_has_nothing_to_check():

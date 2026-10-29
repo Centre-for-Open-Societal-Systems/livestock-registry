@@ -1,6 +1,5 @@
 import logging
 import re
-from datetime import date
 
 from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
@@ -8,6 +7,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 from ...farmer_reference.profile import FarmerReferenceError, normalize_uid
 from sqlalchemy import select
 
+from .local_date import local_today
 from .admin_area_sync import sync_admin_area
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -148,7 +148,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
+        if value is not None and value > local_today():
             validation_error(f"{_label(field)}: the date cannot be in the future")
 
     async def post_intake_upsert(self, rows: list, session) -> None:
@@ -241,7 +241,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         if livestock_row.state == verified and new_state.value != verified:
             return
         livestock_row.state = new_state.value
-        livestock_row.state_date = date.today()
+        livestock_row.state_date = local_today()
         await session.flush()
         _logger.info(
             "Submission %s: state -> %s (stage_order=%s, event_type=%s)",

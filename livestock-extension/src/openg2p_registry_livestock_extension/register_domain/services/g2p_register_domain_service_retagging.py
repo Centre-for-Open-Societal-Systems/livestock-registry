@@ -20,12 +20,12 @@ see ear_tag_is_retired, also enforced on the Animal section.
 import importlib
 import logging
 import re
-from datetime import date
 
 from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import exists, select, update
 
+from .local_date import local_today
 from .audit_snapshot import AuditSnapshotMixin, _get_change_payload_rows
 from .domain_validation_utils import (
     normalize_ear_tag_text,
@@ -132,7 +132,7 @@ class G2PRegisterDomainServiceRetagging(AuditSnapshotMixin, G2PRegisterDomainSer
             seen_old.add(old_tag)
             seen_new.add(new_tag)
             retag_date = parse_date(record.get("retag_date"))
-            if retag_date and retag_date > date.today():
+            if retag_date and retag_date > local_today():
                 validation_error("Date of retagging must not be in the future.")
 
             animal = await self._find_animal(old_tag, record.get("link_internal_record_id"))
@@ -238,7 +238,7 @@ class G2PRegisterDomainServiceRetagging(AuditSnapshotMixin, G2PRegisterDomainSer
         if old_tag == new_tag:
             _reject("Cannot apply retagging: the new ear tag must be different from the old ear tag.")
         retag_date = parse_date(row.retag_date)
-        if retag_date and retag_date > date.today():
+        if retag_date and retag_date > local_today():
             _reject("Cannot apply retagging: date of retagging is in the future.")
         animal = await self._find_animal(old_tag, row.link_internal_record_id, session)
         if not animal:
@@ -271,7 +271,7 @@ class G2PRegisterDomainServiceRetagging(AuditSnapshotMixin, G2PRegisterDomainSer
                 .values(ear_tag_id=new_tag)
             )
         row.ear_tag_id, row.new_ear_tag_id = old_tag, new_tag
-        row.applied_on = date.today()
+        row.applied_on = local_today()
         await session.flush()
         _logger.info(
             "Retagging %s applied: animal %s ear tag %s -> %s (reason %s)",

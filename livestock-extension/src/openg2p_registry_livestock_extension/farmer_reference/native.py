@@ -5,6 +5,7 @@ outgestion and webhook authentication remain native implementations.
 """
 from contextvars import ContextVar
 from importlib import import_module
+import logging
 import os
 
 from sqlalchemy import select
@@ -148,6 +149,22 @@ async def guard_farmer_approval(change_request, session):
     return await onboarding_service().approval_guard(session, change_request.change_request_id)
 
 
+
+_logger = logging.getLogger("coss-farmer-reference-validate")
+
+_IDENTITY_MISMATCH = {"FARMER_REFERENCE_IDENTITY_MISMATCH", "FARMER_REFERENCE_FARMER_ID_MISMATCH"}
+
+
+def _issue_code(reference_code: str) -> str:
+    """The Validate issue code for a Farmer reference refusal."""
+    if (reference_code in messages.UNAVAILABLE
+            or reference_code in {"FARMER_REFERENCE_LOOKUP_UNAVAILABLE", "FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED"}):
+        return "LOOKUP_UNAVAILABLE"
+    if reference_code in _IDENTITY_MISMATCH:
+        return "FARMER_IDENTITY_MISMATCH"
+    return "FARMER_NOT_FOUND"
+
+
 class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalClosed, G2PIntakeFormDataService):
     # FaydaIdMixin shows a stored FIN or FAN in the Fayda ID box and keeps it on a
     # blank re-save (fayda_id_view.py); RequiredFieldsMixin refuses a save or a
@@ -184,6 +201,61 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
         except FarmerReferenceError as error:
             raise G2PRegistryException(code=G2PRegistryErrorCodes.INVALID_REQUEST.value[1],
                                        message=explain(str(error), declared_ids)) from None
+
+    async def validate_submission_for_approval_with_session(self, submission_id, session):
+        """Validate also looks the farmer up (read only), so a wrong Farmer ID
+        and Fayda ID pair or an unknown farmer is reported here and not first
+        by Submit."""
+        result = await super().validate_submission_for_approval_with_session(submission_id, session)
+        if not result.issues:
+            problem = await self._farmer_problem(submission_id, session)
+            if problem:
+                from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
+                from ..required_fields import join_sentences
+
+                code, sentence = problem
+                result.issues.append(IntakeSubmissionValidationIssue(code=code, message=join_sentences([sentence])))
+                result.is_valid = False
+        return result
+
+    async def _farmer_problem(self, submission_id, session):
+        """The issue code and the sentence Submit would refuse the Farmer ID
+        and Fayda ID with, or None. Nothing is created: the signed lookup is only read. A form
+        already linked to a farmer is left to Submit."""
+        from .messages import explain
+
+        submission = await self._get_submission_or_error(submission_id, session)
+        definition = await self._get_register_definition(submission.register_id, session)
+        if definition.register_mnemonic not in {"CropSown", "Livestock"}:
+            return None
+        models = domain_models()
+        root = getattr(models, "G2PIntakeForm" + definition.register_mnemonic)
+        rows = (await session.execute(select(root).where(root.submission_id == submission_id))).scalars().all()
+        if len(rows) != 1 or await session.get(FarmerSubmissionDependency, submission_id):
+            return None
+        row = rows[0]
+        live = await session.get(getattr(models, "G2PRegister" + definition.register_mnemonic), row.internal_record_id)
+        if live and live.last_approved_at and live.farmer_uuid:
+            return None
+        declared_ids = {key: value for key, value in model_identity(row).items()
+                        if key in {"farmer_id", "fayda_fin", "fayda_fan_id"} and value}
+        try:
+            declared = intake_identity(model_identity(row))
+            if not declared.get("farmer_id"):
+                return None  # the missing ID is reported with the other missing fields
+            client = configured_lookup()
+            if declared.get("fayda_fin"):
+                source = await client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
+            else:
+                source = await client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
+            if not matches_declared_identity(declared, source.profile):
+                raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
+        except FarmerReferenceError as error:
+            return _issue_code(str(error)), explain(str(error), declared_ids)
+        except Exception as error:  # noqa: BLE001 - signing or transport failure: Validate must answer
+            _logger.warning("Farmer lookup during validate failed: %s", type(error).__name__)
+            return "LOOKUP_UNAVAILABLE", explain("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", declared_ids)
+        return None
 
     async def _finalize_with_farmer(self, submission_id, session, finalized_by, bearer_token, requester_sub,
                                     declared_ids):

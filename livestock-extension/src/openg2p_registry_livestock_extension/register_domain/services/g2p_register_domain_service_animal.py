@@ -1,9 +1,9 @@
 import logging
 import re
-from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .local_date import local_today
 from .plain_text import plain_code_text
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -11,7 +11,8 @@ from .domain_validation_utils import (
     field_label,
     as_float,
     as_int,
-    ear_tag_used_by_other_animal,
+    ear_tag_clash,
+    first_application_reference,
     format_age,
     get_species_config,
     validate_species_known,
@@ -293,6 +294,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             if record.get("internal_record_id")
         }
 
+        form_reference = first_application_reference(records)
         seen: dict[tuple, str] = {}
         for record in records:
             ear_tag_id = record.get("ear_tag_id")
@@ -301,23 +303,33 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             key = (ear_tag_id, record.get("species"), record.get("breed"))
             if key in seen:
                 validation_error(
-                    f"Ear tag '{ear_tag_id}' is used by more than one animal of the "
-                    "same species and breed in this record."
+                    f"Ear tag {ear_tag_id} is already used for another animal in this form."
                 )
             seen[key] = ear_tag_id
 
-            if await ear_tag_used_by_other_animal(
+            clash = await ear_tag_clash(
                 ear_tag_id,
                 record.get("species"),
                 record.get("breed"),
                 exclude_internal_record_ids=self_ids,
                 exclude_submission_ids=exclude_submission_ids,
                 search=search or tables_for(record),
-            ):
-                validation_error(
-                    f"Ear tag '{ear_tag_id}' is already registered to a different "
-                    "animal of the same species and breed."
-                )
+            )
+            if clash is not None:
+                validation_error(self._ear_tag_clash_message(ear_tag_id, clash, form_reference))
+
+    @staticmethod
+    def _ear_tag_clash_message(ear_tag_id, clash, form_reference) -> str:
+        """Say where the tag is already used: another animal of this same
+        form (a draft nobody has approved yet), another form, or the register."""
+        if clash.table == "intake":
+            if form_reference and clash.application_reference == form_reference:
+                return f"Ear tag {ear_tag_id} is already used for another animal in this form."
+            return f"Ear tag {ear_tag_id} is already used for an animal in another intake form that is not yet approved."
+        return (
+            f"Ear tag '{ear_tag_id}' is already registered to a different "
+            "animal of the same species and breed."
+        )
 
     async def _validate_no_duplicate_secondary_identifiers(
         self,
@@ -385,7 +397,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
+        if value is not None and value > local_today():
             validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_weight(self, record: dict) -> None:

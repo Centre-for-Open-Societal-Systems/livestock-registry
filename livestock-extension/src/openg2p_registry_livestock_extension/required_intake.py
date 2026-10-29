@@ -21,7 +21,7 @@ Put it first in the intake service's bases.
 
 import logging
 
-from .required_fields import identity_problems, section_problems
+from .required_fields import identity_problems, join_sentences, section_problems
 
 _logger = logging.getLogger("oan-required-fields")
 
@@ -33,8 +33,14 @@ def refuse(problems: list[str]) -> None:
 
     raise G2PRegistryException(
         code=G2PRegistryErrorCodes.REQUEST_VALIDATION_ERROR.value[1],
-        message="; ".join(dict.fromkeys(problems)),
+        message=join_sentences(problems),
     )
+
+
+def _incomplete(message: str):
+    from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
+
+    return IntakeSubmissionValidationIssue(code="SUBMISSION_INCOMPLETE", message=join_sentences([message]))
 
 
 class RequiredFieldsMixin:
@@ -67,6 +73,16 @@ class RequiredFieldsMixin:
         problems = await self._required_on_finalize(submission_id, session)
         if problems:
             refuse(problems)
+
+    async def validate_submission_for_approval_with_session(self, submission_id, session):
+        """Validate says what Submit will say: the platform's row and link
+        checks, then the completeness checks Submit runs, so a draft is not
+        reported valid and then refused."""
+        result = await super().validate_submission_for_approval_with_session(submission_id, session)
+        for problem in dict.fromkeys(await self._required_on_finalize(submission_id, session)):
+            result.issues.append(_incomplete(problem))
+        result.is_valid = not result.issues
+        return result
 
     async def _required_on_save(
         self, submission_id, section_id, section_payload, section_register_id, session
