@@ -13,7 +13,7 @@
 -- environment whose g2p_register_animals table already exists needs the
 -- constraint dropped in place, which is what this does. DROP NOT NULL is a
 -- no-op (not an error) when the column is already nullable, so this is safe
--- to re-run — same idempotency approach as the other patch_*.sql files here.
+-- to re-run — same idempotency approach as the other migrations here.
 
 ALTER TABLE g2p_register_animals
     ALTER COLUMN ear_tag_id DROP NOT NULL;

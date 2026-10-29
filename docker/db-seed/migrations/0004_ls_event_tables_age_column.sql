@@ -1,7 +1,7 @@
 -- Patch for already-seeded environments only.
 --
--- Adds the `age` column (G2R-57 "auto-fill: entering an Ear Tag
--- auto-populates Species and Age") that G2PHealthEvent, G2PVaccination,
+-- Adds the `age` column (auto-fill: entering an Ear Tag
+-- auto-populates Species and Age) that G2PHealthEvent, G2PVaccination,
 -- G2PVitalEvent and G2PBreeding (register_domain/models/*.py) gained after
 -- those tables were first created. A fresh install picks this up for free
 -- from the SQLAlchemy models at table-creation time; an environment whose

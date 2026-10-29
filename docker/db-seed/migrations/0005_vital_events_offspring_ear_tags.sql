@@ -9,7 +9,7 @@
 -- environment whose g2p_register_vital_events / _history_ / intake form
 -- tables already exist needs it added in place, which is what this file
 -- does, idempotently (ADD COLUMN IF NOT EXISTS), across all three
--- vital-event tables — same pattern as patch_vital_events_offspring_gender.sql.
+-- vital-event tables — same pattern as 0006_vital_events_offspring_gender.sql.
 
 ALTER TABLE g2p_register_vital_events
     ADD COLUMN IF NOT EXISTS offspring_ear_tags VARCHAR;

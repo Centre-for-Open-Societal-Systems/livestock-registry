@@ -9,7 +9,7 @@
 -- A fresh install picks this up for free from the SQLAlchemy model at
 -- table-creation time; an environment whose tables already exist needs it added
 -- in place, which is what this does, idempotently (ADD COLUMN IF NOT EXISTS) —
--- same pattern as patch_animal_quantity_column.sql.
+-- same pattern as 0003_animal_quantity_column.sql.
 --
 -- Without it the staff API answers 500 on EVERY intake-form save, not just one
 -- that fills the field in: the read-back after the write selects the model's
