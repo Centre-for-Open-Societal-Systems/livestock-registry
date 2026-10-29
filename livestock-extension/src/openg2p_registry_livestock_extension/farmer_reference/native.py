@@ -23,6 +23,7 @@ from openg2p_registry_core.services.g2p_awe_webhook_service import G2PAweWebhook
 INGESTION_PIPELINE_SOURCE = ChangeRequestSourceEnum.INGESTION_PIPELINE.value
 
 from ..direct_approval import DirectApprovalClosed
+from ..fayda_id_view import FaydaIdMixin
 from ..required_intake import RequiredFieldsMixin
 from . import messages
 from .configuration import configured_lookup
@@ -147,9 +148,10 @@ async def guard_farmer_approval(change_request, session):
     return await onboarding_service().approval_guard(session, change_request.change_request_id)
 
 
-class ReferenceIntakeService(RequiredFieldsMixin, DirectApprovalClosed, G2PIntakeFormDataService):
-    # RequiredFieldsMixin refuses a save or a submit that leaves a required field
-    # empty, on every channel (required_intake.py).
+class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalClosed, G2PIntakeFormDataService):
+    # FaydaIdMixin shows a stored FIN or FAN in the Fayda ID box and keeps it on a
+    # blank re-save (fayda_id_view.py); RequiredFieldsMixin refuses a save or a
+    # submit that leaves a required field empty, on every channel (required_intake.py).
     # No approve_submission here: the DirectApprovalClosed guard answers a
     # direct approval first, for every register, before any lookup, so a
     # made-up id and a real one get the same AWE_APPROVAL_REQUIRED.

@@ -263,12 +263,14 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
 
 
 class IntakeServiceOrderTests(unittest.TestCase):
-    def test_the_mixin_is_first_and_direct_approval_stays_before_the_platform_class(self):
+    def test_the_mixin_follows_the_fayda_view_and_direct_approval_stays_before_the_platform_class(self):
         from importlib import import_module
         native = import_module(PACKAGE + ".farmer_reference.native")
         direct = import_module(PACKAGE + ".direct_approval")
+        view = import_module(PACKAGE + ".fayda_id_view")
         mro = native.ReferenceIntakeService.__mro__
-        self.assertIs(mro[1], intake.RequiredFieldsMixin)
+        self.assertIs(mro[1], view.FaydaIdMixin)
+        self.assertIs(mro[2], intake.RequiredFieldsMixin)
         self.assertLess(mro.index(direct.DirectApprovalClosed), mro.index(native.G2PIntakeFormDataService))
 
     def test_no_class_redefines_a_direct_approval_method(self):

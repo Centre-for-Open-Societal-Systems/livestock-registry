@@ -20,8 +20,13 @@ Additions to the vendored chart:
 
 The connector service image is pinned to the crop build of the vendored connector at
 cropsown-regsitry `d0cd4f9`, which carries the Farmer-reference receiver changes (WebSub content
-envelope, Ed25519 registry-payload signing, mapped-payload validation). A livestock-owned
-connector build, and moving connector releases into oan-helm, replace this later.
+envelope, Ed25519 registry-payload signing, mapped-payload validation). That build also creates crop's four ODK
+pipelines in any connector database it starts against (`default_pipelines.py`, run at every API start),
+which put four failing "Crop Sown" connectors into the livestock connector database on 29 Oct.
+`docker/connector-service/` is the livestock-owned image: the same pinned build with that module replaced
+by one that creates nothing. Jenkins builds it with the other images (`openg2p/livestock-registry/connector-service`);
+the values pin moves to it, and the four rows are removed, in the next connector-upgrade. Moving connector
+releases into oan-helm, built from OpenG2P/registry-connector, replaces both later.
 
 Connector definitions, checkpoints and webhook secrets live in the connector database, not here.
 The Farmer-reference definition for livestock is documented in

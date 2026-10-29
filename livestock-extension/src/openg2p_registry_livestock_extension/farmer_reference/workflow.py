@@ -9,6 +9,7 @@ from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services.g2p_awe_integration_service import G2PAweIntegrationService, REGISTRY_CHANGE_REQUEST_ARTIFACT
 from openg2p_registry_core.services.g2p_awe_policy_configuration_service import G2PAwePolicyConfigurationService
 
+from .approval_context import approval_context
 from .directory import PolicyDirectory
 from .geography import approver_context
 from .models import FarmerReference, FarmerReferenceRequest, FarmerWorkflowOutbox
@@ -77,6 +78,11 @@ async def deliver_workflow(session, entry, *, directory=None, bearer_provider=No
             raise FarmerReferenceError("FARMER_REFERENCE_AWE_POLICY_CONTEXT_REQUIRED")
         candidates = await (directory or PolicyDirectory()).candidates(session, change_request.register_id)
         context = approver_context(request.action, candidates, verified_source=request.profile, approved_local=approved_local)
+    # change_type and source are always sent; the binding's context_field_names
+    # decides whether the platform copies them into the request, and the policy
+    # decides whether any stage applies.
+    context = {**context, **approval_context(request.action, response_digest=request.response_digest,
+        source_system=reference.source_system)}
     service = integration or G2PAweIntegrationService.get_component()
     if not service._awe_enabled():
         raise FarmerReferenceError("FARMER_REFERENCE_AWE_REQUIRED")
@@ -88,7 +94,7 @@ async def deliver_workflow(session, entry, *, directory=None, bearer_provider=No
     token = await (bearer_provider or service_bearer)()
     # Only this server-produced context reaches native _build_context. Client
     # payloads cannot inject assignees, a scope, or internal source versions.
-    await service.start_change_request_workflow(session, change_request, [context] if context else [], bearer_token=token,
+    await service.start_change_request_workflow(session, change_request, [context], bearer_token=token,
         requester=change_request.created_by or "system")
     if not change_request.awe_request_id:
         raise FarmerReferenceError("FARMER_REFERENCE_AWE_REQUEST_NOT_CREATED")
