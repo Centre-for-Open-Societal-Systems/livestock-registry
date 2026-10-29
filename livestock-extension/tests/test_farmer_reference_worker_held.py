@@ -75,7 +75,7 @@ class WorkerHeldTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result.draft_status,"FINAL")
             self.assertEqual(result.approval_status,"PENDING")
             self.assertEqual(result.register_ingest_process_status,"NOT_APPLICABLE")
-            self.assertEqual(result.register_ingest_process_last_error_code,"FARMER_REFERENCE_DEPENDENCY_PENDING")
+            self.assertEqual(result.register_ingest_process_last_error_code,messages.FARMER_LOOKUP_PENDING)
             self.assertEqual(row.farmer_reference_status,messages.explain(code,identity,held=True))
             self.assertNotIn("FARMER_REFERENCE_",row.farmer_reference_status)
             self.assertIsNone(row.farmer_uuid)

@@ -167,8 +167,8 @@ class PendingLookupTests(unittest.IsolatedAsyncioTestCase):
 
         # The intake row's own status is covered by the messages tests; this
         # database holds only the Farmer reference ledger.
-        async def record_status(session, submission, reference_state):
-            statuses.append(reference_state)
+        async def record_status(session, submission, text):
+            statuses.append(text)
 
         async with self.sessions.begin() as session:
             with (
@@ -177,14 +177,14 @@ class PendingLookupTests(unittest.IsolatedAsyncioTestCase):
                     "approve_submission_with_session",
                     base,
                 ),
-                patch.object(native, "show_reference_status", record_status),
+                patch.object(native, "set_intake_farmer_status", record_status),
             ):
                 approved = await service.approve_submission_with_session(
                     self.submission.submission_id, session, "reviewer"
                 )
-            self.assertEqual(statuses, ["PENDING"])
+            self.assertEqual(statuses, ["Approved, waiting for Farmer approval"])
             self.assertEqual(approved.register_ingest_process_status, "NOT_APPLICABLE")
             self.assertEqual(
                 approved.register_ingest_process_last_error_code,
-                "FARMER_REFERENCE_DEPENDENCY_PENDING",
+                "Approved, waiting for Farmer approval",
             )
