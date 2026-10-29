@@ -21,6 +21,8 @@ class Initializer(BaseInitializer):
         for name in SERVICE_NAMES:
             getattr(services, name)()
         install()
+        from .awe_proxy import install as install_scoped_awe_tasks
+        install_scoped_awe_tasks()
         from .register_domain.services.identity_verification import install_identity_verification
         install_identity_verification()
 
