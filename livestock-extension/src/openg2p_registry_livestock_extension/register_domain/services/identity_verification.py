@@ -155,7 +155,7 @@ class OANRegistrantAuthenticationService(G2PRegistrantAuthenticationService):
         audience = (provider.provider_config or {}).get("jwt_assertion_aud")
         if audience is not None:
             if not isinstance(audience, str) or not audience.strip():
-                raise _invalid("Fayda provider: jwt_assertion_aud must be a nonblank canonical token URL. Ask the administrator to correct it")
+                raise _invalid("Fayda provider: the token audience must be a full token URL, not blank. Ask the administrator to correct the provider settings")
             login.jwt_assertion_aud = audience.strip()
         try:
             login.oan_token_timeout_seconds = token_timeout_seconds(provider)
@@ -203,7 +203,7 @@ class OANRegistrantAuthenticationService(G2PRegistrantAuthenticationService):
         if not providers:
             raise _invalid(
                 "Fayda verification is not set up for this register. Ask the administrator to add an "
-                "active eSignet provider for it (g2p_registrant_authentication_providers)"
+                "active eSignet provider for it in the registrant authentication providers"
             )
         # The popup FIN restricts the signed result; only the validated provider
         # subject can become the trusted identity. FAN remains a separate field.

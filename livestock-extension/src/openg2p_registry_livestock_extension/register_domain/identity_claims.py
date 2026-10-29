@@ -105,7 +105,7 @@ def explain_failure(reason: str | None) -> str:
     timeout = re.search(r"Fayda \(eSignet\) did not answer within ([0-9]+(?:\.[0-9]+)?) seconds\.", reason or "")
     if timeout:
         return (f"Fayda (eSignet) did not answer within {timeout[1]} seconds. Verify again; "
-                "if it keeps happening, ask the administrator to check eSignet or raise token_timeout_seconds.")
+                "if it keeps happening, ask the administrator to check eSignet or allow more seconds for its answer.")
     for phrase, message in _FAILURES:
         if reason and phrase in reason:
             return message
