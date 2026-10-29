@@ -229,7 +229,9 @@ class StaffSession:
         callback = headers.get("Location") or ""
         if not callback.startswith(f"{self.iam_url}/auth/callback"):
             said = " ".join(re.findall(r'kc-feedback-text[^>]*>([^<]+)', body.decode("utf-8", "replace")))
-            raise RuntimeError(f"Keycloak refused the sign-in of {self.username} ({status}): {said.strip()[:200]}")
+            raise RuntimeError(f"Keycloak refused the sign-in of {self.username} ({status}): {said.strip()[:200]} "
+                               "(INTAKE_SEED_PASSWORD is the chart value global.aweApproverUserPassword; "
+                               "it must be the sample users' Keycloak password)")
         status, _, _ = self._open(opener, urllib.request.Request(callback))
         token = next((c.value for c in jar if c.name == "X-Access-Token"), None)
         if status not in (302, 303, 307) or not token:
