@@ -14,4 +14,17 @@ RUN chmod +x /seed/reporting-geo-sync.sh
 # The image is the platform's db-seed with the Livestock extension's metadata,
 # AWE policies and templates in place of the reference extension's. The native
 # entrypoint applies the whole tree (meta_data, awe_meta_data, templates).
+# OAN theme: the staff-portal theme (palette and background image) is data in
+# openg2p-data (themes/oan_theme). Render this registry's entry into the seed
+# tree; it runs after the registry configuration and points it at oan_theme.
+# The ref is a commit SHA; move the repository to the COSS copy once merged there.
+ARG OAN_THEME_DATA_REPO=https://github.com/asmitonweb/openg2p-data.git
+ARG OAN_THEME_DATA_REF=3c44950dac7d7752054057d1f3500784af596c10
+RUN mkdir -p /tmp/oan-theme-data /seed/meta_data/zz-oan \
+ && cd /tmp/oan-theme-data \
+ && git init -q \
+ && git fetch -q --depth 1 "${OAN_THEME_DATA_REPO}" "${OAN_THEME_DATA_REF}" \
+ && git checkout -q FETCH_HEAD \
+ && python3 scripts/themes/build_theme_sql.py livestock > /seed/meta_data/zz-oan/90_oan_theme.sql \
+ && cd / && rm -rf /tmp/oan-theme-data
 ENTRYPOINT ["/seed/entrypoint.sh"]
