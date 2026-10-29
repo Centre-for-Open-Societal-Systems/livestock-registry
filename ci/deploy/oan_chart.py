@@ -46,8 +46,9 @@ def validate_pin(pin):
     if pin["version"].startswith("0.0.0"):
         raise ValueError("Placeholder chart version is forbidden")
     # Values are fetched from the chart commit; a separate url that names another commit is never read.
+    # No str.removesuffix here: the deploy node runs a Python older than 3.9.
     values = pin.get("values") or {}
-    if values.get("url") and values["url"] != pin["repository"].removesuffix("repository/") + values.get("path", ""):
+    if values.get("url") and values["url"] != pin["repository"][:-len("repository/")] + values.get("path", ""):
         raise ValueError("Central public-values url must be the file at the pinned chart commit")
     return pin
 
