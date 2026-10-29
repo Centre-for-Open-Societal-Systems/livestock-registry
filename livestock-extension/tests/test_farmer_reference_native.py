@@ -292,7 +292,8 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(contexts, [])
                 self.assertEqual(entry.state, "PENDING")
             await workflow.deliver_workflow(session, entry, directory=Directory(), bearer_provider=bearer, integration=Integration())
-            self.assertEqual(contexts, [[{"farmer_reference_woreda_id":"woreda-1", "farmer_reference_approver_ids":["old-reviewer"]}]])
+            self.assertEqual(contexts, [[{"farmer_reference_woreda_id":"woreda-1", "farmer_reference_approver_ids":["old-reviewer"],
+                                          "change_type":"UPDATE", "source":"unverified"}]])
             self.assertEqual(entry.state, "DELIVERED")
             farmer = await session.get(native.domain_models().G2PRegisterFarmer, local_id)
             self.assertEqual(farmer.woreda_id, "woreda-1")
@@ -326,7 +327,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             entry = (await session.execute(select(ledger.FarmerWorkflowOutbox))).scalar_one()
             await workflow.deliver_workflow(session, entry, directory=NoDirectory(),
                 bearer_provider=bearer, integration=Integration())
-            self.assertEqual(contexts, [[]])
+            self.assertEqual(contexts, [[{"change_type":"ADD", "source":"unverified"}]])
             self.assertEqual(entry.state, "DELIVERED")
             # A binding may be reconfigured while an already routed task is
             # pending. Retrying its outbox must not resolve new reviewers.
@@ -337,7 +338,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             entry.state = "PENDING"
             await workflow.deliver_workflow(session, entry, directory=NoDirectory(),
                 bearer_provider=bearer, integration=Integration())
-            self.assertEqual(contexts, [[]])
+            self.assertEqual(contexts, [[{"change_type":"ADD", "source":"unverified"}]])
             self.assertEqual(entry.state, "DELIVERED")
         # Delivery does not approve the dependency or manufacture a live Farmer.
         async with self.sessions() as session:
@@ -346,6 +347,137 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(request.state, "PENDING")
             self.assertNotEqual(reference.state, "APPROVED")
             self.assertIsNone(await session.get(native.domain_models().G2PRegisterFarmer, reference.local_farmer_id))
+
+    def _context_service(self, contexts):
+        class Integration:
+            def _awe_enabled(self):
+                return True
+            def _callback_params(self):
+                return "http://synthetic-registry.invalid/callback", "synthetic-callback"
+            async def start_change_request_workflow(self, session, cr, context, **kwargs):
+                contexts.append(context)
+                cr.awe_request_id = "synthetic-awe-" + str(len(contexts))
+        return Integration()
+
+    async def _bind_default_policy(self, session):
+        from openg2p_registry_core.models import G2PRegistryAwePolicyConfiguration
+        variant = sys.modules["openg2p_registry_extensions"].__variant__
+        session.add(G2PRegistryAwePolicyConfiguration(awe_policy_config_id=str(uuid4()),
+            policy_scope="SECTION", register_id=self.farmer_id, section_id=self.section_id,
+            policy_type="registry.change_request", policy_key=f"registry.change_request.{variant}-farmer.default",
+            context_field_names=["change_type", "source"]))
+
+    async def test_workflow_context_carries_change_type_and_source_for_add_and_update(self):
+        from dataclasses import replace
+        from unittest.mock import patch
+        from openg2p_registry_core.services.g2p_awe_integration_service import G2PAweIntegrationService
+        workflow = importlib.import_module("openg2p_registry_extensions.farmer_reference.workflow")
+        class NoDirectory:
+            async def candidates(self, *args):
+                raise AssertionError("change_type and source need no geographic assignments")
+        async def bearer():
+            return "synthetic-test-token"
+        contexts = []
+        integration = self._context_service(contexts)
+        with patch.dict(os.environ, {"COSS_FARMER_SOURCE_ID": "synthetic-source"}):
+            async with self.sessions.begin() as session:
+                await self._bind_default_policy(session)
+                await self.service.ensure_dependency(session, INTAKE_ID, self.snapshot)
+                entry = (await session.execute(select(ledger.FarmerWorkflowOutbox))).scalar_one()
+                await workflow.deliver_workflow(session, entry, directory=NoDirectory(), bearer_provider=bearer, integration=integration)
+                request = await session.get(ledger.FarmerReferenceRequest, entry.request_id)
+                cr = await session.get(G2PRegisterChangeRequest, entry.native_cr_id)
+                await native.G2PRegisterChangeRequestService.get_component().approve_change_request_from_awe_webhook(
+                    cr.change_request_id, session, approved_by="synthetic-reviewer")
+                update = await self.service.queue_current_update(session, replace(self.snapshot, source_version=200,
+                    profile={**self.snapshot.profile, "first_name": "Proposed"}))
+                update_entry = await session.get(ledger.FarmerWorkflowOutbox, update.native_cr_id)
+                await workflow.deliver_workflow(session, update_entry, directory=NoDirectory(), bearer_provider=bearer, integration=integration)
+        self.assertEqual(request.action, "ADD")
+        self.assertEqual(contexts, [[{"change_type": "ADD", "source": "farmer-registry"}],
+                                    [{"change_type": "UPDATE", "source": "farmer-registry"}]])
+        # The platform copies exactly the keys the binding declares.
+        base = {"change_request_id": "synthetic"}
+        built = G2PAweIntegrationService._build_context(base, contexts[1], ["change_type", "source"])
+        self.assertEqual(built, {"change_request_id": "synthetic", "change_type": "UPDATE", "source": "farmer-registry"})
+        self.assertEqual(G2PAweIntegrationService._build_context(base, contexts[1], None), base)
+
+    async def test_workflow_context_marks_a_change_unverified_unless_the_configured_source_matches(self):
+        from unittest.mock import patch
+        workflow = importlib.import_module("openg2p_registry_extensions.farmer_reference.workflow")
+        class NoDirectory:
+            async def candidates(self, *args):
+                raise AssertionError("not needed")
+        async def bearer():
+            return "synthetic-test-token"
+        contexts = []
+        with patch.dict(os.environ, {"COSS_FARMER_SOURCE_ID": "another-source"}):
+            async with self.sessions.begin() as session:
+                await self._bind_default_policy(session)
+                await self.service.ensure_dependency(session, INTAKE_ID, self.snapshot)
+                entry = (await session.execute(select(ledger.FarmerWorkflowOutbox))).scalar_one()
+                await workflow.deliver_workflow(session, entry, directory=NoDirectory(), bearer_provider=bearer,
+                    integration=self._context_service(contexts))
+        self.assertEqual(contexts, [[{"change_type": "ADD", "source": "unverified"}]])
+
+    async def _all_skipped_event(self, cr, request_id):
+        from datetime import datetime, timezone
+        from openg2p_registry_core.schemas.awe_webhook import AweWebhookEvent
+        # What AWE sends when every stage is skipped: the same request_approved
+        # event as a human approval, for the same artifact, with no task.
+        return AweWebhookEvent(event_id=str(uuid4()), event_type="request_approved", request_id=request_id,
+            artifact_type="registry.change_request", artifact_id=cr.change_request_id, status="approved",
+            stage_order=1, actor=cr.created_by or "system", occurred_at=datetime.now(timezone.utc))
+
+    async def test_an_approval_after_every_stage_was_skipped_passes_the_awe_guard(self):
+        from dataclasses import replace
+        from unittest.mock import patch
+        workflow = importlib.import_module("openg2p_registry_extensions.farmer_reference.workflow")
+        local_id = await self._approved_reference()
+        class NoDirectory:
+            async def candidates(self, *args):
+                raise AssertionError("not needed")
+        async def bearer():
+            return "synthetic-test-token"
+        contexts = []
+        with patch.dict(os.environ, {"COSS_FARMER_SOURCE_ID": "synthetic-source"}):
+            async with self.sessions.begin() as session:
+                await self._bind_default_policy(session)
+                update = await self.service.queue_current_update(session, replace(self.snapshot, source_version=200,
+                    profile={**self.snapshot.profile, "first_name": "Proposed"}))
+                entry = await session.get(ledger.FarmerWorkflowOutbox, update.native_cr_id)
+                await workflow.deliver_workflow(session, entry, directory=NoDirectory(), bearer_provider=bearer,
+                    integration=self._context_service(contexts))
+                cr = await session.get(G2PRegisterChangeRequest, update.native_cr_id)
+                self.assertTrue(cr.awe_request_id)
+                self.assertEqual(contexts[0][0]["source"], "farmer-registry")
+                event = await self._all_skipped_event(cr, cr.awe_request_id)
+                # Not a staff approval: a human calling approve directly is still refused.
+                with self.assertRaisesRegex(Error, "AWE_APPROVAL_REQUIRED"):
+                    await native.guard_farmer_approval(cr, session)
+                await native.G2PAweWebhookService.get_component()._apply_terminal_event(event, session)
+                await session.flush()
+                self.assertEqual(cr.approval_status, "APPROVED")
+                farmer = await session.get(native.domain_models().G2PRegisterFarmer, local_id)
+                self.assertEqual(farmer.first_name, "Proposed")
+                request = await session.get(ledger.FarmerReferenceRequest, entry.request_id)
+                self.assertEqual(request.state, "APPROVED")
+
+    async def test_an_approval_event_for_a_request_without_an_awe_request_id_is_still_refused(self):
+        async with self.sessions.begin() as session:
+            await self.service.ensure_dependency(session, INTAKE_ID, self.snapshot)
+            request = (await session.execute(select(ledger.FarmerReferenceRequest))).scalar_one()
+            cr_id = request.native_cr_id
+        async with self.sessions() as session:
+            cr = await session.get(G2PRegisterChangeRequest, cr_id)
+            self.assertIsNone(cr.awe_request_id)
+            event = await self._all_skipped_event(cr, "synthetic-unknown")
+            with self.assertRaisesRegex(Error, "AWE_APPROVAL_REQUIRED"):
+                await native.G2PAweWebhookService.get_component()._apply_terminal_event(event, session)
+            # The webhook service rolls the transaction back on this error.
+            await session.rollback()
+        async with self.sessions() as session:
+            self.assertEqual((await session.get(G2PRegisterChangeRequest, cr_id)).approval_status, "PENDING")
 
     async def _workflow_http_setup(self, mode="valid"):
         """Use real native HTTP helpers; only URLs/configuration point at Postman."""
