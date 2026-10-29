@@ -22,3 +22,16 @@ def plain_code_text(text) -> str:
             break
     words = text.replace("_", " ").strip().lower()
     return words[:1].upper() + words[1:]
+
+
+# Record-name fields that hold a code. Everything else in a record name is an
+# identifier or a name (ear tag, batch reference, source system, vaccine name)
+# and is shown exactly as stored: "ET0000000123" must not become "Et0000000123".
+CODE_FIELDS = frozenset({"event_type", "vaccine_type", "species", "action_type"})
+
+
+def name_part(key: str, value) -> str:
+    """One part of a record name: words for a code field, the stored text otherwise."""
+    if key in CODE_FIELDS:
+        return plain_code_text(value)
+    return str(value if value is not None else "").strip()

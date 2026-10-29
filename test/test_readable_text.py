@@ -17,8 +17,9 @@ PACKAGE = ROOT / "livestock-extension/src/openg2p_registry_livestock_extension"
 META = PACKAGE / "meta_data"
 OVERLAY = META / "zz-oan/85_readable_text.sql"
 
-# Known short forms and the date format mask are allowed to stay in capitals.
-ALLOWED = {"ID", "FAN", "FIN", "GPS", "DA", "ODK", "AI", "DD/MM/YYYY", "ET"}
+# Known short forms (DOVAR and LITS are source systems) and the date format
+# mask are allowed to stay in capitals.
+ALLOWED = {"ID", "FAN", "FIN", "GPS", "DA", "ODK", "AI", "DD/MM/YYYY", "ET", "DOVAR", "LITS"}
 TEXT_KEYS = {
     "widget-label", "label", "display_label", "widget-data-placeholder", "widget-placeholder",
     "section-title", "widget-data-dialog-title-add", "widget-data-dialog-title-edit",

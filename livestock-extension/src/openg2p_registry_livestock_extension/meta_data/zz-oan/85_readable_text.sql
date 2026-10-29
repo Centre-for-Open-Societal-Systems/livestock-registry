@@ -56,8 +56,8 @@ SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb) |
  "SYNC": "Sync",
  "MANUAL": "Manual",
  "CASE_BOOK": "Case book",
- "DOVAR": "Dovar",
- "LITS": "Lits",
+ "DOVAR": "DOVAR",
+ "LITS": "LITS",
  "ALIVE": "Alive",
  "coss_input_date_onset_min": "Date of onset: the date is before 1900. Enter a date on or after 1900-01-01.",
  "coss_input_date_resolution_min": "Date of resolution: the date is before 1900. Enter a date on or after 1900-01-01.",
@@ -89,7 +89,7 @@ DECLARE
   "COMPLETED": "Completed", "SUCCESSFUL": "Successful", "FAILED": "Failed",
   "CREATE": "Create", "UPDATE": "Update", "DELETE": "Delete", "IMPORT": "Import",
   "SYNC": "Sync", "MANUAL": "Manual", "CASE_BOOK": "Case book",
-  "DOVAR": "Dovar", "LITS": "Lits", "ALIVE": "Alive"
+  "DOVAR": "DOVAR", "LITS": "LITS", "ALIVE": "Alive"
  }';
  placeholders constant jsonb := '{
   "dd_mm_yyyy": "DD/MM/YYYY",

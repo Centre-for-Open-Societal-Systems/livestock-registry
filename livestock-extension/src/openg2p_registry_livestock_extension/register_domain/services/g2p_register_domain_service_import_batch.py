@@ -2,7 +2,7 @@ import logging
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
-from .plain_text import plain_code_text
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import as_int, validation_error
@@ -61,7 +61,7 @@ class G2PRegisterDomainServiceImportBatch(AuditSnapshotMixin, G2PRegisterDomainS
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            plain_code_text(payload.get(key))
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

@@ -10,7 +10,7 @@ from openg2p_registry_core.models import (
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import and_, func, select
 
-from .plain_text import plain_code_text
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
@@ -683,7 +683,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            plain_code_text(payload.get(key))
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )
