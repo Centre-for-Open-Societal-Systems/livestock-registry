@@ -16,6 +16,8 @@ jobs:
       - run: pip install pytest==8.4.2 ruff==0.17.2 PyYAML==6.0.2 Jinja2 httpx PyJWT cryptography 'sqlalchemy[asyncio]>=2' aiosqlite orjson
       - name: Source and deployment contracts
         run: bash ci/validate.sh
+      - name: livestock-connector chart renders the pinned release
+        run: bash ci/connector/check-chart.sh
       - name: Native image extension checks
         run: |
           docker build -f ci/refactor/profile-tests.Dockerfile -t registry-reference-tests .

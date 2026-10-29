@@ -2,8 +2,8 @@ def call() {
 
 pipeline {
     parameters {
-        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install'],
-            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched).')
+        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
+            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the manifest diff and server-side dry run of the livestock-connector release against ci/connector. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the livestock-connector release to ci/connector (chart + values, --reset-values), printing the manifest diff and a server-side dry run first.')
     }
     // Validation and image builds run on any build agent; only the deploy
     // stages below run on vpn-agent2, the one node that reaches the clusters.
@@ -135,7 +135,8 @@ pipeline {
         }
 
         stage('Build & Push Images') {
-            when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' } } }
+            when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' }
+                           expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['connector-plan', 'connector-upgrade']) } } }
             steps {
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
@@ -263,7 +264,7 @@ EOF
                 branch 'develop'
                 // A branch-index or polled build has no explicit action: it publishes
                 // only; deploy and fresh-install are requested on purpose.
-                expression { (params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') != 'publish-only' }
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options { timeout(time: 60, unit: 'MINUTES') }
@@ -289,6 +290,34 @@ EOF
                             }
                         }
                         archiveArtifacts artifacts: 'newdev-rendered-*.yaml', allowEmptyArchive: true
+                    }
+                }
+            }
+        }
+
+        stage('Upgrade connector (New Dev)') {
+            // The livestock-connector release from git: ci/connector/chart with
+            // ci/connector/livestock-connector.values.yaml. Upgrade only; the
+            // connector database is archived to the New Dev box first.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { params.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
+            }
+            agent { label 'vpn-agent2' }
+            steps {
+                sh 'rm -rf ci scripts .central-charts'
+                unstash 'deploy'
+                script {
+                    if (params.NEW_DEV_DELIVERY_ACTION == 'connector-plan') {
+                        withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
+                            sh 'PLAN_ONLY=1 bash ci/connector/upgrade-livestock-connector.sh'
+                        }
+                    } else {
+                        withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG'),
+                                         sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
+                            sh 'bash ci/connector/upgrade-livestock-connector.sh'
+                        }
                     }
                 }
             }
