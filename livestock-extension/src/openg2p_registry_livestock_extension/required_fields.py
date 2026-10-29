@@ -25,6 +25,8 @@ MESSAGES = {
     "required_fill_in": "{section}: fill in {fields}",
     "required_fill_in_row": "{section}, row {row}: fill in {fields}",
     "required_add_row": "{section}: add at least one row",
+    "required_farmer_id": "Farmer ID: enter the farmer's Farmer Registry ID (FR- followed by 12 digits)",
+    "required_fayda_id": "Fayda ID: enter the 16-digit FAN or the 12-digit FIN",
 }
 
 # Widgets whose value is not a field of the section's record, or that other
@@ -266,3 +268,25 @@ def section_problems(
     # A condition names its field as "<register id>.<field>" or by the bare field name.
     fill = missing_in_record(widgets_of(schema), record, {**record, **values}, words)
     return [words.text("required_fill_in", section=title, fields=", ".join(fill))] if fill else []
+
+
+def identity_problems(records: list[dict], messages: dict | None = None) -> list[str]:
+    """The Farmer ID and one Fayda ID (FAN or FIN) of the form's root record.
+
+    The Farmer lookup section is skipped by `section_problems` (it validates
+    what is typed); this is the completeness half, run when the form is
+    submitted so a form without them never starts an approval. The Fayda ID
+    is a one-of on the stored `fayda_fan_id` / `fayda_fin`. Forms whose
+    records carry none of the identity fields are not asked.
+    """
+    words = Words(messages)
+    for record in records:
+        if not {"farmer_id", "fayda_fan_id", "fayda_fin"} & set(record):
+            continue
+        problems = []
+        if blank(record.get("farmer_id")):
+            problems.append(words.text("required_farmer_id"))
+        if blank(record.get("fayda_fan_id")) and blank(record.get("fayda_fin")):
+            problems.append(words.text("required_fayda_id"))
+        return problems
+    return [Words(messages).text("required_farmer_id"), Words(messages).text("required_fayda_id")]

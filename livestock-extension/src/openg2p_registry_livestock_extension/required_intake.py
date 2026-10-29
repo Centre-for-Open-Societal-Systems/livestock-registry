@@ -9,7 +9,7 @@ finalize through this service.
 - save: the section being saved, merged with what the submission already
   stores for it, must have every required field. "Next" on an empty required
   section is refused, naming the fields;
-- finalize: every section of the form must be complete, including sections
+- finalize: the Farmer ID and one Fayda ID must be stored, and every section of the form must be complete, including sections
   never opened, so an incomplete submission never starts an approval.
 
 An incomplete ingestion is refused with the same readable sentence. The
@@ -21,7 +21,7 @@ Put it first in the intake service's bases.
 
 import logging
 
-from .required_fields import section_problems
+from .required_fields import identity_problems, section_problems
 
 _logger = logging.getLogger("oan-required-fields")
 
@@ -97,7 +97,8 @@ class RequiredFieldsMixin:
             if not section.is_list and records and not values.get(section.section_register_id):
                 values[section.section_register_id] = records[0]
         messages = await self._required_messages()
-        problems: list[str] = []
+        problems: list[str] = identity_problems(
+            [r for _, records in gathered for r in records if isinstance(r, dict)], messages)
         for section, records in gathered:
             problems += section_problems(
                 section.section_ui_schema or {}, bool(section.is_list), records, values, messages)
