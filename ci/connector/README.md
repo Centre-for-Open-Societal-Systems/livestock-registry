@@ -25,7 +25,8 @@ pipelines in any connector database it starts against (`default_pipelines.py`, r
 which put four failing "Crop Sown" connectors into the livestock connector database on 29 Oct.
 `docker/connector-service/` is the livestock-owned image: the same pinned build with that module replaced
 by one that creates nothing. Jenkins builds it with the other images (`openg2p/livestock-registry/connector-service`);
-the values pin moves to it, and the four rows are removed, in the next connector-upgrade. Moving connector
+the values pin names it (develop build 116, `sha256:c8edf177…`), and `upgrade-livestock-connector.sh` step 6 removes the four
+rows through the admin API, by id and only while they carry the seeded name. Moving connector
 releases into oan-helm, built from OpenG2P/registry-connector, replaces both later.
 
 Connector definitions, checkpoints and webhook secrets live in the connector database, not here.
