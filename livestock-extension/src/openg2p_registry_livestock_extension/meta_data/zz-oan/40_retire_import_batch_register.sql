@@ -11,8 +11,8 @@
 -- database nobody has inspected, and an empty orphan table costs nothing. A
 -- later release can drop them once they are shown to be empty everywhere.
 --
--- The "Imports & Audit" tab keeps its id and now holds the audit log only, so
--- its label becomes "Audit". Idempotent: every statement matches fixed ids and
+-- The "Imports & audit" tab keeps its id and now holds the audit log only, so
+-- its display text becomes "Audit". Idempotent: every statement matches fixed ids and
 -- does nothing once they are gone.
 
 DELETE FROM "public"."g2p_register_ui_tab_sections"
@@ -30,10 +30,13 @@ DELETE FROM "public"."g2p_register_definitions"
  WHERE "register_id" = '0fd11be9-83d7-5d2e-9dea-e0653add7059'
    AND "register_mnemonic" = 'ImportBatch';
 
-UPDATE "public"."g2p_register_ui_tabs"
-   SET "tab_label" = 'Audit'
- WHERE "tab_id" = 'livestock_import_batch_tab'
-   AND "tab_label" = 'Imports & Audit';
+-- The tab label is the translation key livestock_import_batch_tab
+-- (50_tab_label_keys.sql); its display text becomes "Audit" in every language.
+-- 50_tab_label_keys.sql keeps an existing translation, so this text stays.
+UPDATE "public"."registry_languages"
+   SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb)
+       || '{"livestock_import_batch_tab": "Audit"}'::jsonb)::json
+ WHERE "language_id" IS NOT NULL;
 
 -- The section's translation key, named, in both translation columns.
 UPDATE "public"."registry_languages"

@@ -208,6 +208,8 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
         # The person filled the lookup and the location and pressed Submit; the animals
         # section was never opened, so its (optional) table is fine, but a row saved
         # earlier with a gap is not.
+        await self.save("lookup", [{"internal_record_id": "root", "farmer_id": "FR-000000000001",
+                                    "fayda_fin": "001234567890"}])
         await self.save("location", [{"internal_record_id": "root", "kebele": "Kebele 01"}])
         self.service.rows[("s1", ANIMALS)] = {"a": {"species": "CATTLE"}}
         message = await self.refused(self.service.finalize_submission_with_session("s1", None, "tester"))
@@ -216,7 +218,31 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_submit_checks_a_required_section_that_was_never_saved(self):
         message = await self.refused(self.service.finalize_submission_with_session("s1", None))
-        self.assertEqual(message, "Livestock Location: fill in Kebele")
+        self.assertIn("Livestock Location: fill in Kebele", message)
+
+    async def test_submit_refuses_a_form_without_a_farmer_id_or_a_fayda_id(self):
+        await self.save("location", [{"internal_record_id": "root", "kebele": "Kebele 01"}])
+        await self.save("animals", [{"species": "CATTLE", "breed": "BORAN"}])
+        message = await self.refused(self.service.finalize_submission_with_session("s1", None, "tester"))
+        self.assertIn("Farmer ID: enter", message)
+        self.assertIn("Fayda ID: enter the 16-digit FAN or the 12-digit FIN", message)
+        self.assertEqual(self.service.finalized, [])
+
+    async def test_either_fayda_field_satisfies_the_one_of(self):
+        for column_name, number in (("fayda_fin", "001234567890"), ("fayda_fan_id", "1234567890123456")):
+            service = Service()
+            service.rows[("s", ROOT)] = {"root": {"farmer_id": "FR-000000000001", column_name: number,
+                                                  "kebele": "Kebele 01"}}
+            service.rows[("s", ANIMALS)] = {"a": {"species": "CATTLE", "breed": "BORAN"}}
+            await service.finalize_submission_with_session("s", None, "tester")
+            self.assertEqual(service.finalized, ["s"])
+
+    async def test_submit_refuses_a_missing_farmer_id_alone(self):
+        self.service.rows[("s1", ROOT)] = {"root": {"fayda_fin": "001234567890", "farmer_id": "  ",
+                                                    "kebele": "Kebele 01"}}
+        message = await self.refused(self.service.finalize_submission_with_session("s1", None, "tester"))
+        self.assertTrue(message.startswith("Farmer ID: enter"))
+        self.assertNotIn("Fayda", message)
 
     async def test_submit_passes_a_complete_form(self):
         await self.fill_form()
@@ -226,7 +252,8 @@ class RequiredIntakeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_odk_and_partner_ingestion_is_refused_the_same_way(self):
         # The worker saves the sections the payload carries, then finalizes with no bearer.
-        await self.save("lookup", [{"internal_record_id": "root", "farmer_id": "FR-000000000001"}], "odk")
+        await self.save("lookup", [{"internal_record_id": "root", "farmer_id": "FR-000000000001",
+                                    "fayda_fin": "001234567890"}], "odk")
         await self.save("animals", [{"species": "CATTLE", "breed": "BORAN"}], "odk")
         message = await self.refused(self.service.finalize_submission_with_session("odk", None))
         self.assertEqual(message, "Livestock Location: fill in Kebele")
@@ -283,3 +310,35 @@ class IntakeServiceOrderTests(unittest.TestCase):
                     continue
                 self.assertNotIn(name, vars(cls), f"{cls.__name__} must not redefine {name}")
         self.assertIn("approve_submission", vars(direct.DirectApprovalClosed))
+
+
+class OverlayFileTests(unittest.TestCase):
+    META = __import__("pathlib").Path(intake.__file__).parent / "meta_data"
+
+    def test_required_fields_overlay_sorts_after_the_layout_files_and_stays_targeted(self):
+        files = sorted(str(p.relative_to(self.META)).replace("\\", "/") for p in self.META.rglob("*.sql"))
+        overlay = files.index("zz-oan/45_required_fields.sql")
+        self.assertTrue(all(files.index(n) < overlay for n in files if n.startswith("register-metadata/")))
+        self.assertTrue(all(files.index(n) < overlay for n in files if n.startswith("zz-oan/") and n < "zz-oan/45"))
+        sql = (self.META / "zz-oan" / "45_required_fields.sql").read_text(encoding="utf-8")
+        self.assertNotIn("NOT IN", sql.upper())
+        for section_id, widget_id in (("livestock_survey_personnel_section_02", "surveyor_name"),
+                                      ("livestock_livestock_location_section_03", "livestock_geo_hierarchy")):
+            self.assertIn(f"'{section_id}'", sql)
+            self.assertIn(f"'{widget_id}'", sql)
+        self.assertIn("RAISE EXCEPTION", sql)
+        self.assertNotIn("section_ui_schema = '", sql)  # never replaces a whole section
+
+
+class IdentityProblemTests(unittest.TestCase):
+    def setUp(self):
+        self.fields = importlib.import_module(PACKAGE + ".required_fields")
+
+    def test_complete_identity_has_no_problem(self):
+        self.assertEqual(self.fields.identity_problems([{"farmer_id": "FR-1", "fayda_fin": "1"}]), [])
+
+    def test_blank_values_are_problems(self):
+        self.assertEqual(len(self.fields.identity_problems([{"farmer_id": "", "fayda_fin": None, "fayda_fan_id": ""}])), 2)
+
+    def test_a_form_with_no_identity_record_is_refused(self):
+        self.assertEqual(len(self.fields.identity_problems([{"kebele": "x"}])), 2)

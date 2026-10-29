@@ -137,6 +137,8 @@ pipeline {
         stage('Build & Push Images') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' }
                            expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['connector-plan', 'connector-upgrade']) } } }
+            // Per-build Docker config: login, push and logout never touch the agent user's shared ~/.docker/config.json, so concurrent builds on one host cannot invalidate each other's ECR credentials.
+            environment { DOCKER_CONFIG = "${env.WORKSPACE}/.docker-${env.BUILD_TAG}" }
             steps {
                 withCredentials([
                     string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
@@ -148,11 +150,13 @@ pipeline {
                     }
                     sh '''
                         echo "=== Logging in to ECR ==="
+                        # Keep the buildx/compose CLI plugins visible from the per-build config dir.
+                        mkdir -p "$DOCKER_CONFIG"; chmod 700 "$DOCKER_CONFIG"; if [ -d "$HOME/.docker/cli-plugins" ]; then ln -sfn "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"; fi
                         aws ecr get-login-password --region ${AWS_REGION} | \
                             docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     '''
                     script {
-                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'registry-connector']
+                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'registry-connector', 'registry-connector-ui']
                         components.each { name ->
                             def image = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:${env.IMAGE_TAG}"
                             sh """
@@ -457,7 +461,7 @@ Jenkins
         }
         always {
             sh 'docker image prune -f || true'
-            sh 'docker logout ${ECR_REGISTRY} || true'
+            sh 'rm -rf "${WORKSPACE}/.docker-${BUILD_TAG}"'
         }
     }
 }

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    field_label,
     normalize_event_ear_tag,
     validate_known_code,
     animal_identified_by,
@@ -134,13 +135,13 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
         if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+            validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_date_order(self, record: dict, earlier: str, later: str) -> None:
         start = parse_date(record.get(earlier))
         end = parse_date(record.get(later))
         if start and end and end < start:
-            validation_error(f"{later} must not be before {earlier}")
+            validation_error(f"{field_label(later)} must not be before {field_label(earlier).lower()}.")
 
     async def post_approve(self, change_request: G2PRegisterChangeRequest, session) -> None:
         """DISEASE/INJURY event -> the linked animal's Health Status becomes

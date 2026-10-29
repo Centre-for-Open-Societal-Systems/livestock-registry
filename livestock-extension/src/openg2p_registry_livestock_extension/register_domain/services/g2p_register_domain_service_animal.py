@@ -7,6 +7,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    field_label,
     as_float,
     as_int,
     ear_tag_used_by_other_animal,
@@ -140,7 +141,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             ear_tag_id = record.get("ear_tag_id")
             if not is_blank(ear_tag_id) and await ear_tag_is_retired(ear_tag_id):
                 validation_error(
-                    f"ear_tag_id '{ear_tag_id}' was retired by an ear tag replacement and cannot be reused."
+                    f"Ear tag '{ear_tag_id}' was retired by an ear tag replacement and cannot be reused."
                 )
 
     async def post_intake_upsert(self, rows: list, session) -> None:
@@ -224,7 +225,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 "this species is recorded as a flock, not one row per animal."
             )
         elif quantity <= 0:
-            validation_error("quantity must be greater than zero")
+            validation_error("Quantity (head count) must be greater than zero.")
         else:
             # Store the parsed int, not whatever string/float the form sent —
             # same normalize-on-write approach as _validate_ear_tag_id above.
@@ -251,7 +252,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         normalized = re.sub(r"\s+", "", str(value)).upper()
         if not _EAR_TAG_PATTERN.match(normalized):
             validation_error(
-                "ear_tag_id must be ET followed by exactly 10 digits, e.g. ET0000000013"
+                "Ear tag must be ET followed by exactly 10 digits, e.g. ET0000000013."
             )
         # Store the normalized form, not whatever casing/spacing was typed —
         # otherwise "et5678765435" and "ET5678765435" would both pass this
@@ -299,7 +300,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             key = (ear_tag_id, record.get("species"), record.get("breed"))
             if key in seen:
                 validation_error(
-                    f"ear_tag_id '{ear_tag_id}' is used by more than one animal of the "
+                    f"Ear tag '{ear_tag_id}' is used by more than one animal of the "
                     "same species and breed in this record."
                 )
             seen[key] = ear_tag_id
@@ -313,7 +314,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 search=search or tables_for(record),
             ):
                 validation_error(
-                    f"ear_tag_id '{ear_tag_id}' is already registered to a different "
+                    f"Ear tag '{ear_tag_id}' is already registered to a different "
                     "animal of the same species and breed."
                 )
 
@@ -352,7 +353,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             key = (secondary_identifier, record.get("species"), record.get("breed"))
             if key in seen:
                 validation_error(
-                    f"secondary_identifier '{secondary_identifier}' is used by more "
+                    f"Secondary identifier '{secondary_identifier}' is used by more "
                     "than one animal of the same species and breed in this record."
                 )
             seen[key] = secondary_identifier
@@ -366,7 +367,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 search=search or tables_for(record),
             ):
                 validation_error(
-                    f"secondary_identifier '{secondary_identifier}' is already "
+                    f"Secondary identifier '{secondary_identifier}' is already "
                     "registered to a different animal of the same species and breed."
                 )
 
@@ -384,12 +385,12 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
         if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+            validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_weight(self, record: dict) -> None:
         weight = as_float(record.get("weight"))
         if weight is not None and weight <= 0:
-            validation_error("weight must be greater than zero")
+            validation_error("Weight must be greater than zero.")
 
     def _populate_age_from_date_of_birth(self, record: dict) -> None:
         """Derive the stored Age display string from date_of_birth (shared
