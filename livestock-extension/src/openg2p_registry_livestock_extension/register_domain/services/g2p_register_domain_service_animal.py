@@ -4,6 +4,7 @@ from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .plain_text import plain_code_text
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
@@ -453,6 +454,6 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             record_name.append(str(identifier).strip())
         species = payload.get("species")
         if species and str(species).strip():
-            record_name.append(str(species).strip())
+            record_name.append(plain_code_text(species))
 
         return " ".join(record_name).strip()

@@ -309,6 +309,6 @@ class G2PRegisterDomainServiceRetagging(AuditSnapshotMixin, G2PRegisterDomainSer
         old_tag = str(payload.get("ear_tag_id") or "").strip()
         new_tag = str(payload.get("new_ear_tag_id") or "").strip()
         if old_tag or new_tag:
-            record_name.append(f"RETAG {old_tag} -> {new_tag}".strip())
+            record_name.append(f"Ear tag replaced: {old_tag} to {new_tag}".strip())
 
         return " ".join(record_name).strip()

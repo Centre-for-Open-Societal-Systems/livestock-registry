@@ -2,6 +2,7 @@ import logging
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import as_int, validation_error
@@ -23,11 +24,11 @@ class G2PRegisterDomainServiceImportBatch(AuditSnapshotMixin, G2PRegisterDomainS
                  ("success_count", "failure_count", "conflict_count")]
         for value in [total, *parts]:
             if value is not None and value < 0:
-                validation_error("row counts must not be negative")
+                validation_error("Total rows, succeeded, failed and conflicts must each be zero or more.")
         if total is not None and all(part is not None for part in parts):
             if sum(parts) > total:
                 validation_error(
-                    "success_count + failure_count + conflict_count must not exceed total_rows"
+                    "Succeeded, failed and conflicts added together must not be more than total rows."
                 )
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
@@ -60,7 +61,7 @@ class G2PRegisterDomainServiceImportBatch(AuditSnapshotMixin, G2PRegisterDomainS
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

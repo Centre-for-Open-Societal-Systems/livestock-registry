@@ -43,6 +43,8 @@ from email.mime.text import MIMEText
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from .plain_text import plain_code_text
+
 _logger = logging.getLogger("g2p-outbreak-alert")
 
 DEFAULT_WINDOW_DAYS = 14
@@ -221,9 +223,10 @@ def _send_alert_email(cluster: dict, recipients: list[str]) -> bool:
     use_tls = os.getenv("OUTBREAK_ALERT_SMTP_USE_TLS", "false").lower() == "true"
     sender = os.getenv("OUTBREAK_ALERT_FROM_EMAIL", "no-reply@livestock-registry.local")
 
-    subject = f"⚠ Possible outbreak: {cluster['disease_type']} in {cluster['district']}"
+    disease = plain_code_text(cluster["disease_type"])
+    subject = f"⚠ Possible outbreak: {disease} in {cluster['district']}"
     body = (
-        f"{cluster['case_count']} notifiable disease cases of {cluster['disease_type']} "
+        f"{cluster['case_count']} notifiable disease cases of {disease} "
         f"have been recorded in {cluster['district']}"
         + (f", {cluster['region']}" if cluster.get("region") else "")
         + f" within the last {DEFAULT_WINDOW_DAYS} days (since {cluster['window_start']}).\n\n"

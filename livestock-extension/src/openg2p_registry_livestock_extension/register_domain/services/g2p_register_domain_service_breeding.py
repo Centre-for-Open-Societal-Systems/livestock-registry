@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import and_
 
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
@@ -94,8 +95,8 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         gender = await get_animal_gender(str(ear_tag_id).strip())
         if gender and str(gender).upper() != "FEMALE":
             validation_error(
-                "Breeding can only be logged against a Female animal "
-                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).title()})."
+                "Breeding can only be logged against a female animal "
+                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).lower()})."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
@@ -249,7 +250,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )
