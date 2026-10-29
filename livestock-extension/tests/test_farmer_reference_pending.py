@@ -39,7 +39,9 @@ class PendingLookupTests(unittest.IsolatedAsyncioTestCase):
             },
         )
         self.submission = SimpleNamespace(
-            submission_id=str(uuid4()), created_by="synthetic-staff"
+            submission_id=str(uuid4()),
+            created_by="synthetic-staff",
+            approval_status="PENDING",
         )
         self.row = SimpleNamespace(
             farmer_id=None,
@@ -161,13 +163,26 @@ class PendingLookupTests(unittest.IsolatedAsyncioTestCase):
             return SimpleNamespace(register_mnemonic="Livestock")
 
         service._get_register_definition = definition
+        statuses = []
+
+        # The intake row's own status is covered by the messages tests; this
+        # database holds only the Farmer reference ledger.
+        async def record_status(session, submission, reference_state):
+            statuses.append(reference_state)
+
         async with self.sessions.begin() as session:
-            with patch.object(
-                native.G2PIntakeFormDataService, "approve_submission_with_session", base
+            with (
+                patch.object(
+                    native.G2PIntakeFormDataService,
+                    "approve_submission_with_session",
+                    base,
+                ),
+                patch.object(native, "show_reference_status", record_status),
             ):
                 approved = await service.approve_submission_with_session(
                     self.submission.submission_id, session, "reviewer"
                 )
+            self.assertEqual(statuses, ["PENDING"])
             self.assertEqual(approved.register_ingest_process_status, "NOT_APPLICABLE")
             self.assertEqual(
                 approved.register_ingest_process_last_error_code,
