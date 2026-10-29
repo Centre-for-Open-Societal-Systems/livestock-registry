@@ -45,7 +45,7 @@ class NotificationTests(unittest.TestCase):
         enriched=module.G2PFarmerReferenceNotificationEnricher().enrich(self.event,None)
         self.assertEqual(set(enriched),{'farmer_id','fayda_fan_id'})
         package=Path(importlib.import_module(PACKAGE).__file__).parent
-        template=(package/'templates/farmer_reference_update.json.j2').read_text(encoding='utf-8')
+        template=(package/'templates/livestock_farmer_reference_update.json.j2').read_text(encoding='utf-8')
         rendered=json.loads(Environment().from_string(template).render(expanded={**enriched,'first_name':'Untrusted','woreda_id':'untrusted'}))
         self.assertEqual(next(iter(rendered.values())),[enriched])
 

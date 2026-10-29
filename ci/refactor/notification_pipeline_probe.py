@@ -56,7 +56,7 @@ with Session(engine) as session:
         section_id=cfg['section_id'],semantic_pattern_id=pattern.semantic_pattern_id,pipeline_action='UPDATE',internal_record_id=local_id)
     enriched=transform._enrich_raw_data_json(classified,raw,session)
     assert enriched==identity
-    template=(repo/f'{domain}-extension/src/{package.__name__}/templates/farmer_reference_update.json.j2').read_text(encoding='utf-8')
+    template=(repo/f'{domain}-extension/src/{package.__name__}/templates/{domain}_farmer_reference_update.json.j2').read_text(encoding='utf-8')
     rendered=json.loads(TemplateHelper().get_component().env.from_string(template).render(expanded=enriched))
     transform._validate_transformed_data_json(classified,rendered,session)
     assert next(iter(rendered.values()))==[identity]
