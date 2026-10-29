@@ -9,6 +9,16 @@ Yash Sontakke · 26–28 October 2026 · tested @ 5db011b of `deploy/develop-ref
 
 The PR was run unchanged on a laptop with docker compose: develop's compose for Keycloak / IAM / Master Data / AWE / ID generator, the five registry images built from the PR on the public rc.557 base images, a mock Farmer Registry for the signed lookup, and a small Master Data shim because the local MDM image is older than the one the PR expects. No PR code was modified. Test assets: API chain scripts, a 54-case validation matrix, Playwright browser runs with screenshots, the sanity DCI test. This file is the "what we had / what is missing / what comes next" list asked for on 27 October and will be updated as items are fixed.
 
+## Run 2 – develop head on Asmit's oan-developer stack (29 Oct)
+
+Stack: `openg2p-developer` (`oan-developer` branch), livestock built from COSS `develop` @ 3f2deb6 (#88), commons from the pinned charts, Master Data develop.118 with the ETH-OAN pack, mock Farmer Registry for the signed lookup (Asmit: "mock is fine for now"), default reviewers alex.carter → nina.patel. No code modified; local-only compose overrides for the mock and the beat DB settings.
+
+Verified: seeds (11 registers, 15 sections, 3 AWE policies + callback secret), Keycloak users, Master Data geography (21 037 units, P-codes) and the livestock lists in the pack, login, identity/survey/location sections in the browser, Livestock Details dialog with species/breed from Master Data, and the API chain end to end: finalize → signed lookup → Farmer ADD change request → AWE tasks → both stages approved by alex.carter and nina.patel → farmer FR-310000000002 in the register → ingest worker adds livestock LS-283958219081 linked to the farmer, with `woreda_id`/`geo_lowest_level_value_id` set.
+
+Changes versus the 5db011b run: B6 entrypoint and callback secret fixed (#81); B8 not reproduced; **B10 fixed by #88** (one native geo widget with map). B1 reproduced exactly (webhook 500 until the Farmer flag is set to FALSE by hand; AWE's retry then completes the chain).
+
+New findings on develop head (added to the table as B11–B14): the species/breed deadlock between core Master Data validation and the extension's own code lists (no animal can be saved at all), empty Vaccine dropdown, geo values landing only in the native columns, and the livestock beat producers missing from beat's schedule.
+
 ## 1. What we had before the refactor (develop, deployed on dev)
 
 - Web intake form with 8 sections: Farmer (ID, FAN, name, contact), Survey Personnel, Location, Livestock Details, Health Events, Vaccinations, Vital Events, Breeding; 11 registers (Farmer, Livestock, Animal, HealthEvent, Vaccination, VitalEvent, Breeding, Retagging, VaccineSchedule, ImportBatch, AuditLog).
@@ -42,7 +52,11 @@ The PR was run unchanged on a laptop with docker compose: develop's compose for 
 | B7 | Extension beat producers use `openg2p_registry_celery_worker.engine`; without the removed settings bridge the beat process connects to localhost:5432 | celery-beat config | Reminders/outbreak alert crash unless `REGISTRY_CELERY_WORKERS_DB_*` is also set on celery-beat |
 | B8 | AWE seed runs before AWE has created its tables on a fresh stack (to re-check with the #81 entrypoint) | seed order | AWE policies missing on first install |
 | B9 | staff-api and partner-api both run `migrate` at start → IntegrityError race on a fresh DB | platform CMD | Startup noise; app still starts |
-| B10 | Location section renders two sets of Region/Zone/Woreda/Kebele selects (original selects + new native geo-hierarchy widget) | `zzzz_location_widgets.sql` | Confusing UI |
+| B10 | Location section renders two sets of Region/Zone/Woreda/Kebele selects (original selects + new native geo-hierarchy widget). **Fixed by #88** (verified 29 Oct) | `zzzz_location_widgets.sql` | Confusing UI |
+| B11 | **Species / breed deadlock.** Core `validate_attribute_values` (Master Data) accepts only the pack codes (`CATTLE`, `GOATS`, …; breed `BREED_IMPROVED`, …) while the extension accepts only its own `LIVESTOCK_SPECIES_*` values and checks breed against `LIVESTOCK_BREED` names; the old code-list seed that provided those values is gone. Every combination is rejected | `g2p_register_domain_service_animal.py`, Master Data lists | **No animal can be saved on develop head**, UI or API; health/vaccination/vital/breeding sections unusable |
+| B12 | The native geo widget writes `geo_lowest_level_value_id` + `geo_code_hierarchy_json`; the extension's `region_id`/`zone_id`/`woreda_id`/`kebele_id` stay NULL from the UI and the name columns stay NULL (B2) | location section, domain services | Woreda-based logic and reports have no data unless they read the native columns |
+| B13 | Livestock beat producers (vaccination/calving/approval reminders, outbreak alert, audit retention) are imported via `CELERY_IMPORTS` but never enter beat's effective schedule (17 platform entries only) | `tasks/__init__.py` sets `current_app.conf.beat_schedule` too early | Reminders and outbreak alerts never run |
+| B14 | Vaccine dropdown has no options (no vaccine list in Master Data); no disease list either; Age stays blank in the Livestock dialog; ear tag is a typed field in every event dialog | Master Data pack, UI | Vaccinations cannot be entered in the UI |
 
 ## 4. Missing (removed, needs re-implementation the supported way)
 
@@ -66,12 +80,12 @@ Fayda eSignet popup, Kafka `FARMER_REFERENCE_CHANGED_V1`, dashboard, file import
 
 ## 7. Next (to agree with Asmit; order = priority)
 
-1. Seed fixes: B1, B5, B6 (callback template, code lists, geo), B8; db-seed guard behind a flag.
+1. Seed fixes: B1, B5, B6 (code lists), B8; and B11: move the extension to the pack codes for species/breed (species config keyed by pack code, breed names from `LIVESTOCK_BREED_NAME`), add vaccine/disease lists to openg2p-data.
 2. B2: port the dead-hook logic into what the platform calls (registered intake-service subclass or `post_approve` / `post_ingest`), or request a native post-section-save hook from OpenG2P.
 3. ODK: template seed + envelope path (connector configuration or partner-api ingest subclass); B4 and B9 reported to OpenG2P.
 4. Dialog behaviour as registered widgets under `ui/staff-ui/overrides`; remove the duplicated location selects.
 5. File import as native import configuration + template; group-by-farmer in `post_ingest`.
 6. Seeds into the openg2p-data fork: code lists, geo with parent ids, users/roles/data policies, vaccine schedules; decide where species config lives.
-7. Beat settings (B7), DCI id types, reporting views, compose stack back.
+7. Beat schedule registration (B13) and settings (B7), geo columns (B12), DCI id types, reporting views, compose stack back.
 8. Approval routing: decide between the two-fixed-reviewer default (c0ac3bd) and the Woreda-based routing we had on dev; configure real reviewers in AWE before any deployment.
 9. Re-run this validation on develop head (74f881a or later), then align dev Master Data version and geo data with rc.557, configure farmer lookup, reviewers, eSignet, and run the full regression on dev.
