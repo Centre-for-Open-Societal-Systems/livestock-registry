@@ -1,6 +1,6 @@
 -- "Import from file" entry for the Livestock intake form (the only intake form).
 -- Its file-import data model (file_import_to_livestock_intake, seeded in
--- zz-oan/50_file_import_to_livestock_intake.sql) has key paths, a pass-through
+-- zz-oan/60_file_import_to_livestock_intake.sql) has key paths, a pass-through
 -- pattern and a Jinja template that take one flat CSV/Excel row per intake. The
 -- ODK data model (odk_to_livestock_intake) belongs to the ODK connector and is
 -- not used here. The configuration id is fixed and the row is upserted, so an

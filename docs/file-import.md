@@ -77,7 +77,7 @@ Gender, health status and vaccination status are static options of the table, li
 | Piece | Where |
 |---|---|
 | Import configuration | `meta_data/registry-configurations/g2p_registry_import_file_configurations.sql` |
-| Data model `file_import_to_livestock_intake`, key paths (`$.headers.*`, payload `$.body`), pattern with the pass-through enricher, template and document rows | `meta_data/zz-oan/50_file_import_to_livestock_intake.sql` |
+| Data model `file_import_to_livestock_intake`, key paths (`$.headers.*`, payload `$.body`), pattern with the pass-through enricher, template and document rows | `meta_data/zz-oan/60_file_import_to_livestock_intake.sql` |
 | Pass-through enricher | `ingestion_pipeline/enricher_services/g2p_livestock_enricher_services.py` (`G2PPassThroughEnricherService`) |
 | Jinja template | `templates/livestock_file_import_intake.j2` |
 | Tests | `livestock-extension/tests/test_file_import.py` |
