@@ -1,5 +1,4 @@
--- The intake asks for the Farmer ID and one Fayda ID (FIN12 or FAN16, or Verify
--- with Fayda); everything else about the farmer comes from the Farmer Registry.
+-- The intake asks for the Farmer ID and one Fayda ID (FIN12 or FAN16); everything else about the farmer comes from the Farmer Registry.
 -- "One of FIN or FAN" is checked by the field rules (Next and submit), not shown
 -- as two required fields. Native approval and the approved Farmer dependency
 -- still control live activation.
@@ -20,7 +19,7 @@ BEGIN
    ELSIF node->>'widget-data-path' = '997676d3-7008-59f9-b23e-613ad79bbb08.fayda_fan_id' THEN
      result := (result - 'widget-data-options') || '{"widget-required":false,"widget-label":"Fayda FAN (16 digits)","widget-data-placeholder":"Or enter the 16-digit FAN"}'::jsonb;
    ELSIF node->>'widget-data-path' = '997676d3-7008-59f9-b23e-613ad79bbb08.fayda_fin' THEN
-     result := result || jsonb_build_object('widget-required',false,'widget-label','Fayda FIN (12 digits)','widget-data-placeholder','FIN, or use Verify with Fayda','widget-data-options','{"actions": [{"action": "disable", "condition": {"field": "997676d3-7008-59f9-b23e-613ad79bbb08.last_authentication_status", "operator": "equals", "value": "SUCCESS"}}]}'::jsonb);
+     result := result || jsonb_build_object('widget-required',false,'widget-label','Fayda FIN (12 digits)','widget-data-placeholder','Or enter the 12-digit FIN');
    ELSIF node->>'widget-data-path' = 'f9c6a359-9563-5a43-b0fe-6c7e452037a3.fayda_fan_id' THEN
      result := result || '{"widget-required":false}'::jsonb;
    END IF;

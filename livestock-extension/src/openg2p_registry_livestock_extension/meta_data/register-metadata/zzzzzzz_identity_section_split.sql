@@ -31,9 +31,9 @@ SELECT register_id, 'livestock_intake_identity_section_01', section_register_id,
           jsonb_build_object('panel-id', 'vertical_panel_ls_intake_identity_ids',
             'panel-orientation', 'vertical',
             'widgets', pg_temp.oan_widgets(section_ui_schema, ARRAY['farmer_id','fayda_fin','fayda_fan_id'])),
-          jsonb_build_object('panel-id', 'vertical_panel_ls_intake_identity_verification',
+          jsonb_build_object('panel-id', 'vertical_panel_ls_intake_identity_status',
             'panel-orientation', 'vertical',
-            'widgets', pg_temp.oan_widgets(section_ui_schema, ARRAY['identity_verification','farmer_reference_status']))))))
+            'widgets', pg_temp.oan_widgets(section_ui_schema, ARRAY['farmer_reference_status']))))))
 FROM g2p_register_sections WHERE section_id = 'livestock_livestock_record_section_01'
 ON CONFLICT (section_id) DO UPDATE SET
   section_mnemonic = EXCLUDED.section_mnemonic,
@@ -66,13 +66,13 @@ DO $$ BEGIN
       jsonb_path_query(s.section_ui_schema, 'strict $.** ? (exists (@."widget"))') w
     WHERE s.section_id = 'livestock_intake_identity_section_01'
       AND w->>'widget-id' NOT IN ('farmer_id','fayda_fin','fayda_fan_id',
-                                  'identity_verification','farmer_reference_status')) THEN
-    RAISE EXCEPTION 'Farmer Identity on an intake may hold only Farmer ID, FIN, FAN and Fayda verification';
+                                  'farmer_reference_status')) THEN
+    RAISE EXCEPTION 'Farmer Identity on an intake may hold only Farmer ID, FIN, FAN and the reference status';
   END IF;
   IF (SELECT count(*) FROM g2p_register_sections s,
       jsonb_path_query(s.section_ui_schema, 'strict $.** ? (exists (@."widget"))') w
-      WHERE s.section_id = 'livestock_intake_identity_section_01') <> 5 THEN
-    RAISE EXCEPTION 'The intake identity section must contain exactly five identity/status widgets without duplicates';
+      WHERE s.section_id = 'livestock_intake_identity_section_01') <> 4 THEN
+    RAISE EXCEPTION 'The intake identity section must contain exactly four identity/status widgets without duplicates';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM g2p_intake_form_ui_tab_sections
       WHERE section_id = 'livestock_intake_identity_section_01')

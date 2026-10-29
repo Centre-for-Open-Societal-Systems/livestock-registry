@@ -1,4 +1,4 @@
--- Final UI-only projection: FIN is supplied through Verify with Fayda.
+-- Final UI-only projection: FIN is shown read-only on the record.
 -- Retain every field/path and the separate editable 16-digit FAN alternative.
 CREATE OR REPLACE FUNCTION pg_temp.oan_popup_only_fin(node jsonb)
 RETURNS jsonb LANGUAGE plpgsql AS $$
@@ -14,7 +14,7 @@ BEGIN
         OR node->>'widget-data-path' LIKE '%.fayda_fin') THEN
       result := (result - 'widget-data-placeholder' - 'widget-data-options' - 'widget-data-validation')
         || '{"widget":"display","widget-type":"display","widget-readonly":true,
-             "widget-required":false,"widget-label":"Fayda FIN (from verification)"}'::jsonb;
+             "widget-required":false,"widget-label":"Fayda FIN"}'::jsonb;
     END IF;
   ELSE
     result := node;
@@ -32,7 +32,7 @@ DECLARE result jsonb; child record; part jsonb; widget_id text;
 BEGIN
   IF jsonb_typeof(node) = 'object' AND node ? 'widget' THEN
     widget_id := node->>'widget-id';
-    IF widget_id = ANY(ARRAY['farmer_id','fayda_fin','fayda_fan_id','identity_verification','farmer_reference_status']) THEN
+    IF widget_id = ANY(ARRAY['farmer_id','fayda_fin','fayda_fan_id','farmer_reference_status']) THEN
       IF seen ? widget_id THEN
         RETURN jsonb_build_object('node', NULL, 'seen', seen, 'omit', true);
       END IF;
@@ -67,7 +67,7 @@ DO $$ BEGIN
       FROM g2p_register_sections s, jsonb_path_query(s.section_ui_schema, 'strict $.**') w
       WHERE s.section_id IN ('livestock_livestock_record_section_01','livestock_intake_identity_section_01')
         AND jsonb_typeof(w) = 'object' AND w ? 'widget'
-        AND w->>'widget-id' IN ('farmer_id','fayda_fin','fayda_fan_id','identity_verification','farmer_reference_status')
+        AND w->>'widget-id' IN ('farmer_id','fayda_fin','fayda_fan_id','farmer_reference_status')
       GROUP BY s.section_id, w->>'widget-id' HAVING count(*) <> 1) THEN
     RAISE EXCEPTION 'Registered and intake identity controls must occur exactly once per section';
   END IF;
@@ -78,6 +78,6 @@ DO $$ BEGIN
         AND (w->>'widget' IS DISTINCT FROM 'display'
           OR w->>'widget-readonly' IS DISTINCT FROM 'true'
           OR w->>'widget-required' IS DISTINCT FROM 'false')) THEN
-    RAISE EXCEPTION 'FIN on intake and register forms must be a read-only verification projection';
+    RAISE EXCEPTION 'FIN on intake and register forms must be a read-only projection';
   END IF;
 END $$;
