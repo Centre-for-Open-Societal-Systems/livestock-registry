@@ -152,13 +152,16 @@ pipeline {
                             docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     '''
                     script {
-                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui']
+                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'connector-service']
                         components.each { name ->
                             def image = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:${env.IMAGE_TAG}"
                             sh """
                                 echo "=== Building and pushing ${name} ==="
                                 docker build --build-arg RP_VERSION=${RP_VERSION} \
                                     -f docker/${name}/Dockerfile -t ${image} --pull .
+                                # ECR does not create repositories on push (connector-service is new).
+                                aws ecr describe-repositories --region ${AWS_REGION} --repository-names ${ECR_PATH}/${name} > /dev/null 2>&1 \
+                                  || aws ecr create-repository --region ${AWS_REGION} --repository-name ${ECR_PATH}/${name} > /dev/null
                                 docker push ${image}
                             """
                         }
