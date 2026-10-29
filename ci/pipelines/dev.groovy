@@ -152,18 +152,26 @@ pipeline {
                             docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     '''
                     script {
-                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'connector-service']
+                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'registry-connector']
                         components.each { name ->
                             def image = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:${env.IMAGE_TAG}"
                             sh """
                                 echo "=== Building and pushing ${name} ==="
                                 docker build --build-arg RP_VERSION=${RP_VERSION} \
                                     -f docker/${name}/Dockerfile -t ${image} --pull .
-                                # ECR does not create repositories on push (connector-service is new).
+                                # ECR does not create repositories on push (registry-connector is new).
                                 aws ecr describe-repositories --region ${AWS_REGION} --repository-names ${ECR_PATH}/${name} > /dev/null 2>&1 \
                                   || aws ecr create-repository --region ${AWS_REGION} --repository-name ${ECR_PATH}/${name} > /dev/null
                                 docker push ${image}
                             """
+                            if (name == 'registry-connector') {
+                                // The connector extension's tests, inside the image just pushed.
+                                sh """
+                                    docker run --rm -u 0 -v "\$PWD/docker/registry-connector:/ext:ro" -w /ext -e PYTHONDONTWRITEBYTECODE=1 \
+                                      --entrypoint sh ${image} -c \
+                                      'pip install --quiet --no-cache-dir --root-user-action=ignore pytest==8.4.2 && python -m pytest -q -p no:cacheprovider tests'
+                                """
+                            }
                         }
 
                         if (env.DASHBOARD_UI_SHA) {
