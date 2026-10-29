@@ -2,12 +2,16 @@
 from .profile import FarmerReferenceError, reference_identity, intake_identity
 
 EVENT_TYPE = "farmer_reference.changed.v1"
+# The Farmer registry's readable name for the same notice (topic and event type,
+# data model FARMER_CHANGED_V1). Both are accepted while senders move over.
+FARMER_CHANGED_EVENT_TYPE = "farmer-registry.farmer.changed.v1"
+EVENT_TYPES = frozenset({EVENT_TYPE, FARMER_CHANGED_EVENT_TYPE})
 EVENT_FIELDS = frozenset({"event_id", "event_type", "farmer_id", "fayda_fan_id", "fayda_fin"})
 REQUIRED_EVENT_FIELDS = frozenset({"event_id", "event_type", "farmer_id"})
 
 
 def notification_identity(data):
-    if (not isinstance(data, dict) or not REQUIRED_EVENT_FIELDS <= set(data) or set(data) - EVENT_FIELDS or data.get("event_type") != EVENT_TYPE or
+    if (not isinstance(data, dict) or not REQUIRED_EVENT_FIELDS <= set(data) or set(data) - EVENT_FIELDS or data.get("event_type") not in EVENT_TYPES or
             not isinstance(data.get("event_id"), str) or not data["event_id"].strip() or len(data["event_id"]) > 256):
         raise FarmerReferenceError("FARMER_REFERENCE_INVALID_NOTIFICATION")
     return reference_identity(data)
