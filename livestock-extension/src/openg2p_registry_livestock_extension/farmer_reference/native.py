@@ -74,6 +74,18 @@ async def create_native_request(session, local_id, profile, action, *, created_b
     return cr
 
 
+async def show_reference_status(session, submission, reference_state):
+    """Show the approved intake's Farmer reference state in its Farmer lookup section."""
+    from .messages import approved_intake_status
+    definition = await session.get(G2PRegisterDefinition, submission.register_id)
+    if definition is None or definition.register_mnemonic not in {"CropSown", "Livestock"}:
+        return
+    root = getattr(domain_models(), "G2PIntakeForm" + definition.register_mnemonic)
+    row = (await session.execute(select(root).where(root.submission_id == submission.submission_id))).scalars().first()
+    if row is not None:
+        row.farmer_reference_status = approved_intake_status(reference_state)
+
+
 def onboarding_service():
     return OnboardingService(domain_models().G2PRegisterFarmer, create_native_request)
 
@@ -90,6 +102,8 @@ async def record_native_decision(session, cr_id, approved):
         if not approved:
             if request.action == "ADD":
                 submission.register_ingest_process_last_error_code = "FARMER_REFERENCE_DEPENDENCY_REJECTED"
+                if submission.approval_status == "APPROVED":
+                    await show_reference_status(session, submission, "REJECTED")
             continue
         if (submission.approval_status == "APPROVED" and submission.draft_status == "FINAL" and
                 submission.register_ingest_process_status == "NOT_APPLICABLE" and
@@ -98,6 +112,7 @@ async def record_native_decision(session, cr_id, approved):
             # intake, change its approval, reset attempts, or replay business AWE.
             submission.register_ingest_process_status = "PENDING"
             submission.register_ingest_process_last_error_code = None
+            await show_reference_status(session, submission, "APPROVED")
     await session.flush()
 
 
@@ -118,6 +133,7 @@ async def release_waiting_domains(session):
             submission.register_ingest_process_last_error_code = None
         else:
             submission.register_ingest_process_last_error_code = "FARMER_REFERENCE_DEPENDENCY_REJECTED"
+        await show_reference_status(session, submission, state)
     await session.flush()
     return len(rows)
 
@@ -144,6 +160,8 @@ class ReferenceIntakeService(DirectApprovalClosed, G2PIntakeFormDataService):
                 pending_lookup = await session.get(FarmerPendingLookup, submission_id)
                 suffix = "PENDING" if pending_lookup and pending_lookup.state == "PENDING" else "REQUIRED" if not reference else "REJECTED" if reference.state == "REJECTED" else "PENDING"
                 submission.register_ingest_process_last_error_code = "FARMER_REFERENCE_DEPENDENCY_" + suffix
+                if suffix != "REQUIRED":
+                    await show_reference_status(session, submission, "REJECTED" if suffix == "REJECTED" else "PENDING")
                 await session.flush()
         return submission
 
