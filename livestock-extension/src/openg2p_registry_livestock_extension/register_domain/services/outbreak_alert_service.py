@@ -43,6 +43,7 @@ from email.mime.text import MIMEText
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from .local_date import local_today
 from .plain_text import plain_code_text
 
 _logger = logging.getLogger("g2p-outbreak-alert")
@@ -82,7 +83,7 @@ def detect_outbreak_clusters(
     livestock.internal_record_id` (health events carry no admin-area
     columns of their own — see register_domain/models/admin_area.py).
     """
-    as_of = as_of or date.today()
+    as_of = as_of or local_today()
     window_start = as_of - timedelta(days=window_days)
 
     query = text("""

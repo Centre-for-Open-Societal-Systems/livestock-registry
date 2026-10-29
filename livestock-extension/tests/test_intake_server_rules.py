@@ -28,6 +28,14 @@ def run(coro):
     return asyncio.run(coro)
 
 
+@pytest.fixture(autouse=True)
+def _no_remembered_farmer_answers():
+    native = importlib.import_module(PACKAGE + ".farmer_reference.native")
+    native._answers.clear()
+    yield
+    native._answers.clear()
+
+
 # A. the registry's date --------------------------------------------------------
 
 def test_a_utc_evening_is_already_the_next_day_in_ethiopia():
@@ -207,7 +215,7 @@ def test_a_tag_found_in_the_register_keeps_the_register_message():
     with pytest.raises(G2PRegistryException) as caught:
         _check(utils.TableMatch("register"), [ROW])
     assert caught.value.message == (
-        "Ear tag 'ET0000000123' is already registered to a different animal of the same species and breed."
+        "Ear tag ET0000000123 is already registered to a different animal of the same species and breed."
     )
 
 
@@ -366,6 +374,7 @@ def test_an_unreachable_registry_is_reported_as_unavailable(monkeypatch):
     profile = importlib.import_module(PACKAGE + ".farmer_reference.profile")
     messages = importlib.import_module(PACKAGE + ".farmer_reference.messages")
     for reference_code in ("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", "FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED"):
+        _native()._answers.clear()
         service = _lookup_service(monkeypatch, AsyncMock(side_effect=profile.FarmerReferenceError(reference_code)))
         code, text = run(service._farmer_problem("s", _farmer_session(_row())))
         assert code == "LOOKUP_UNAVAILABLE"
@@ -404,3 +413,128 @@ def test_the_record_name_migration_follows_the_last_one_and_changes_only_names_s
     with open(os.path.join(folder, "0010_record_names_readable.sql"), encoding="utf-8") as handle:
         text = handle.read()
     assert "pg_temp.plain_code_text(%2$I) <> %2$I" in text
+
+
+# G. follow-ups: lookup deadline, throttle, messages, registry date --------------------
+
+def _native():
+    return importlib.import_module(PACKAGE + ".farmer_reference.native")
+
+
+def test_a_slow_farmer_registry_is_cut_off_by_one_overall_deadline(monkeypatch):
+    messages = importlib.import_module(PACKAGE + ".farmer_reference.messages")
+    native = _native()
+
+    async def slow(*args, **kwargs):
+        await asyncio.sleep(5)
+
+    monkeypatch.setattr(native, "_VALIDATE_DEADLINE_SECONDS", 0.05)
+    monkeypatch.setattr(native, "_answers", {})
+    service = _lookup_service(monkeypatch, slow)
+    code, text = run(service._farmer_problem("slow", _farmer_session(_row())))
+    assert code == "LOOKUP_UNAVAILABLE"
+    assert text == messages.explain(
+        "FARMER_REFERENCE_LOOKUP_UNAVAILABLE", {"farmer_id": "FR-123456789012", "fayda_fan_id": "1234567890123456"}
+    )
+
+
+def test_a_quick_answer_is_not_cut_off(monkeypatch):
+    native = _native()
+    monkeypatch.setattr(native, "_answers", {})
+    found = SimpleNamespace(profile={"farmer_id": "FR-123456789012", "fayda_fan_id": "1234567890123456"})
+    service = _lookup_service(monkeypatch, AsyncMock(return_value=found))
+    assert run(service._farmer_problem("quick", _farmer_session(_row()))) is None
+
+
+def test_repeated_validate_clicks_call_the_farmer_registry_once(monkeypatch):
+    native = _native()
+    profile = importlib.import_module(PACKAGE + ".farmer_reference.profile")
+    monkeypatch.setattr(native, "_answers", {})
+    lookup = AsyncMock(side_effect=profile.FarmerReferenceError("FARMER_REFERENCE_NOT_FOUND"))
+    service = _lookup_service(monkeypatch, lookup)
+    first = run(service._farmer_problem("same", _farmer_session(_row())))
+    second = run(service._farmer_problem("same", _farmer_session(_row())))
+    assert first == second and first[0] == "FARMER_NOT_FOUND"
+    assert lookup.await_count == 1
+    run(service._farmer_problem("other", _farmer_session(_row())))
+    assert lookup.await_count == 2
+
+
+def test_a_changed_id_or_an_expired_answer_asks_the_farmer_registry_again(monkeypatch):
+    native = _native()
+    monkeypatch.setattr(native, "_answers", {})
+    found = SimpleNamespace(profile={"farmer_id": "FR-123456789012", "fayda_fan_id": "1234567890123456"})
+    lookup = AsyncMock(return_value=found)
+    service = _lookup_service(monkeypatch, lookup)
+    run(service._farmer_problem("s", _farmer_session(_row())))
+    changed = _row()
+    changed.fayda_fan_id = "6543210987654321"
+    run(service._farmer_problem("s", _farmer_session(changed)))
+    assert lookup.await_count == 2
+    native._answers.clear()
+    monkeypatch.setattr(native, "_ANSWER_SECONDS", -1.0)
+    run(service._farmer_problem("s", _farmer_session(changed)))
+    run(service._farmer_problem("s", _farmer_session(changed)))
+    assert lookup.await_count == 4
+
+
+def test_remembered_answers_stay_bounded(monkeypatch):
+    native = _native()
+    monkeypatch.setattr(native, "_answers", {})
+    monkeypatch.setattr(native, "_ANSWER_LIMIT", 3)
+    for number in range(10):
+        native._remember_answer(("s", number), None)
+    assert len(native._answers) == 3 and ("s", 9) in native._answers
+
+
+def test_an_unknown_reference_code_is_logged_and_never_shown(caplog):
+    messages = importlib.import_module(PACKAGE + ".farmer_reference.messages")
+    with caplog.at_level("WARNING"):
+        text = messages.explain("FARMER_REFERENCE_SOMETHING_NEW", {"farmer_id": "FR-1"})
+    assert "FARMER_REFERENCE_" not in text
+    assert text.startswith("The Farmer Registry check could not be completed.")
+    assert "FARMER_REFERENCE_SOMETHING_NEW" in caplog.text
+
+
+def test_a_known_reference_code_is_not_logged_as_missing(caplog):
+    messages = importlib.import_module(PACKAGE + ".farmer_reference.messages")
+    with caplog.at_level("WARNING"):
+        messages.explain("FARMER_REFERENCE_NOT_FOUND", {"farmer_id": "FR-1"})
+    assert "missing" not in caplog.text
+
+
+def test_the_ear_tag_is_not_quoted_in_the_register_clash_message():
+    text = animal.G2PRegisterDomainServiceAnimal._ear_tag_clash_message(
+        "ET0000000123", SimpleNamespace(table="register", application_reference=None), None
+    )
+    assert text.startswith("Ear tag ET0000000123 is already registered") and "'" not in text
+
+
+def test_business_dates_read_the_registry_date_not_the_server_date():
+    late = datetime(2026, 10, 29, 22, 30, tzinfo=UTC)  # already 30 October in Addis Ababa
+    with patch.object(local_date, "datetime") as clock:
+        clock.now.return_value = late
+        expected = date(2026, 10, 30)
+        profile = importlib.import_module(PACKAGE + ".farmer_reference.profile")
+        assert profile._local_today() == expected
+        for module in ("reminder_alert_utils", "vaccination_status_service", "outbreak_alert_service"):
+            assert hasattr(importlib.import_module(SERVICES + module), "local_today")
+        assert importlib.import_module(SERVICES + "reminder_alert_utils").today() == expected
+    # a birth date of the registry's today is accepted, tomorrow is refused
+    profile = importlib.import_module(PACKAGE + ".farmer_reference.profile")
+    today = date(2026, 10, 30)
+    assert profile.local_profile({"birth_date": "2026-10-30"}, today=today)["date_of_birth"] == today
+    with pytest.raises(profile.FarmerReferenceError):
+        profile.local_profile({"birth_date": "2026-10-31"}, today=today)
+
+
+def test_the_migration_is_in_the_source_map():
+    import json
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    path = root / "docs" / "refactor" / "SOURCE_MAP.json"
+    if not path.exists():
+        pytest.skip("source map not mounted")
+    sources = {entry["source"] for entry in json.loads(path.read_text(encoding="utf-8"))["files"]}
+    assert "docker/db-seed/migrations/0010_record_names_readable.sql" in sources

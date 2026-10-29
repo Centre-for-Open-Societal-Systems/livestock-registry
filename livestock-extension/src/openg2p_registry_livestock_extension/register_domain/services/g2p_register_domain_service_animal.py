@@ -327,7 +327,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 return f"Ear tag {ear_tag_id} is already used for another animal in this form."
             return f"Ear tag {ear_tag_id} is already used for an animal in another intake form that is not yet approved."
         return (
-            f"Ear tag '{ear_tag_id}' is already registered to a different "
+            f"Ear tag {ear_tag_id} is already registered to a different "
             "animal of the same species and breed."
         )
 
