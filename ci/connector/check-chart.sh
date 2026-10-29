@@ -17,5 +17,5 @@ done
 grep -q 'name: livestock-farmer-lookup-signing-ed25519' "$out"
 grep -q -- '- "istio-system/development"' "$out"
 grep -q 'connector-livestock-registry.development.oanstaging.com' "$out"
-! grep -q 'kind: Job' "$out"
+if grep -q 'kind: Job' "$out"; then echo "FAIL: the chart renders a Job" >&2; exit 1; fi
 echo "PASS: livestock-connector chart renders the pinned image, signing env and the existing route"
