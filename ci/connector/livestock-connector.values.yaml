@@ -1,0 +1,79 @@
+# User values of the New Dev livestock-connector release (namespace livestock),
+# applied with `helm upgrade --reset-values` by ci/connector/upgrade-livestock-connector.sh
+# (Jenkins NEW_DEV_DELIVERY_ACTION=connector-plan / connector-upgrade).
+# Taken from `helm get values livestock-connector` at revision 3 (2026-10-19),
+# plus the Farmer-reference receiver settings. No secret values: the database
+# password and the signing key come from existing Secrets.
+fullnameOverride: livestock-connector
+
+global:
+  hostname: connector-livestock-registry.development.oanstaging.com
+  postgresqlHost: commons-postgresql.commons.svc.cluster.local
+  postgresqlPort: 5432
+  redisHost: livestock-registry-redis-master
+  redisPort: 6379
+  partnerApiService: livestock-registry-partner-api
+  connectorDB: livestock_connector_livestock
+  connectorDBUser: livestock_livestock_connector_user
+  connectorDBSecret: livestock-connector
+  connectorDBUserPasswordKey: livestock-connector-db-user
+
+imagePullSecrets:
+  - name: ecr-pull-secret
+
+commonEnv:
+  CONNECTOR_CORS_ORIGINS: https://connector-livestock-registry.development.oanstaging.com
+
+# Farmer-reference receiver (WebSub topic oan.farmer-reference.changed.v1):
+# validate the mapped payload and sign the registry payload with the livestock
+# lookup key, whose public half Partner Management holds for
+# Live_stock_partner_internal. Same settings as the crop connector.
+extraEnv:
+  CONNECTOR_VALIDATE_MAPPED_PAYLOAD: "true"
+  CONNECTOR_SIGNING_KID: livestock-lookup-ed25519-d50109ec16dc9ab4
+extraEnvFrom:
+  CONNECTOR_SIGNING_KEY_PEM:
+    secretKeyRef:
+      name: livestock-farmer-lookup-signing-ed25519
+      key: private-key.pem
+      optional: false
+
+# Connector service image: the crop Jenkins build of the vendored connector at
+# cropsown-regsitry d0cd4f9, which carries the 19ef0ec receiver changes (WebSub
+# content envelope, Ed25519 registry-payload signing, mapped-payload
+# validation). The code is registry-agnostic. Tags develop-109 and develop-116
+# name this digest. A livestock-owned connector build replaces it with the
+# connector-as-config work in oan-helm.
+api:
+  image:
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/gen2/cropsown-registry/connector-service
+    tag: develop-116
+    digest: sha256:198da6ff46db0c4f8ef20550163de78a4833075dbf08d361c5a2905b6bc8ede6
+    pullPolicy: IfNotPresent
+worker:
+  image:
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/gen2/cropsown-registry/connector-service
+    tag: develop-116
+    digest: sha256:198da6ff46db0c4f8ef20550163de78a4833075dbf08d361c5a2905b6bc8ede6
+    pullPolicy: IfNotPresent
+beat:
+  image:
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/gen2/cropsown-registry/connector-service
+    tag: develop-116
+    digest: sha256:198da6ff46db0c4f8ef20550163de78a4833075dbf08d361c5a2905b6bc8ede6
+    pullPolicy: IfNotPresent
+ui:
+  image:
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/connector-ui
+    tag: live-20260930-0452
+    pullPolicy: IfNotPresent
+
+istio:
+  virtualservice:
+    # The running VirtualService is bound to this gateway (helm get manifest, revision 3).
+    gateway: istio-system/development
+
+# The connector database and user exist since the first install (revision 1);
+# the chart's postgres-init would only re-run the init on upgrade.
+postgres-init:
+  enabled: false
