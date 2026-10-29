@@ -522,7 +522,7 @@ class Loader:
             self.registry.link(submission_id, reference_id)
         for section, rows in stage["sections"].items():
             # The save that creates the submission is sent once: a lost answer must not create a second
-            # draft (the next run completes the first one, found by its Fayda ID).
+            # draft (the next run completes the first one, found by its own root record id).
             saved = self.submitter.post("/intake-form-data/save_intake_form_submission", {
                 "submission_id": submission_id, "section_id": section, "section_payload": rows,
                 "section_register_id": registers[section], "form_id": form_id, "register_id": register_id,

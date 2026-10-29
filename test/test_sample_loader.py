@@ -539,6 +539,7 @@ def test_a_refused_decision_waits_before_the_task_is_read_again(loader, monkeypa
     runner.approve("sub-1")
     assert slept == [3] and status["sub-1"] == "APPROVED"
 
+
 def test_the_loaders_own_intake_is_looked_up_by_its_root_record(loader):
     asked = []
     registry = loader.Registry.__new__(loader.Registry)
