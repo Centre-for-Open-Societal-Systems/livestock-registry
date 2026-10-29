@@ -4,12 +4,11 @@
 -- to re-run. Runs against the registry (livestock) database.
 
 INSERT INTO "public"."data_models" ("data_model_id","data_model_mnemonic","pattern_for_data_model","response_template_document_id","is_active") VALUES
--- No response template: the ODK connector reads the platform's own reply
--- (response_body.response_payload.correlation_id). The DCI response template
--- reshaped it into {"message": {"ack_status", "correlation_id"}}, which the
--- connector does not read, so every run was logged without its correlation id.
-('d2c7a1e4-5f60-4b8a-9c3d-1e2f3a4b5c6d','LIVESTOCK_ODK_MODEL','$.body.header.sender_id=>^Livestock$',NULL,'TRUE')
-ON CONFLICT ("data_model_id") DO UPDATE SET "response_template_document_id" = NULL;
+-- The DCI response template answers the connector; see data_models.sql for
+-- why it is set. This row must stay identical to the one there: this folder
+-- seeds after data-models/, so a different value here would win.
+('d2c7a1e4-5f60-4b8a-9c3d-1e2f3a4b5c6d','LIVESTOCK_ODK_MODEL','$.body.header.sender_id=>^Livestock$','1f0953d4-f0fb-4336-a126-4d0519a74ffc','TRUE')
+ON CONFLICT ("data_model_id") DO UPDATE SET "response_template_document_id" = EXCLUDED."response_template_document_id";
 
 INSERT INTO "public"."incoming_model_key_paths" (
     "key_path_id","data_model_id","key_path_for_message_id","key_path_for_sender",
