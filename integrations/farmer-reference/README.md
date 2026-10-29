@@ -15,7 +15,8 @@ second selects the existing Farmer identity section only for UPDATE. There is
 no matching ADD form, so unknown Farmers cannot onboard through notifications.
 
 The registered native enricher validates the event type, event ID and string
-Farmer ID/UID16 pair. It returns only the pair. The Jinja transformation emits
+Farmer ID plus Fayda ID pair (the 16-digit FAN or the 12-digit FIN, whichever the
+Farmer registry holds). It returns only the pair. The Jinja transformation emits
 only those fields; notification demographics never become trusted data. The
 registered CR service requires the configured source partner and a matching
 approved local reference and identity pair, then fetches the current signed,
@@ -68,3 +69,10 @@ Notifications with a corrected UID do not authorize identity changes. The
 receiving service resolves the same immutable source person using the approved
 local identity and requires the signed response to establish the corrected UID.
 The correction stays pending until local approval and never modifies IAM grants.
+
+The receiving connector's definition validates the notice with
+`notification.schema.json`: a Farmer ID and either `fayda_fan_id` (16 digits) or
+`fayda_fin` (12 digits), under either notice name (`farmer_reference.changed.v1`
+or `farmer-registry.farmer.changed.v1`). The Farmer registry sends `fayda_fin` for
+a farmer registered with a FIN only; a schema that requires `fayda_fan_id` fails
+those notices at the connector, before they reach this registry.
