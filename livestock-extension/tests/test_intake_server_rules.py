@@ -280,9 +280,10 @@ def _validate(service, base):
 
 
 def test_validate_reports_a_farmer_who_cannot_be_linked():
-    service = _reference_service("No farmer with Farmer ID FR-000000000001 is in the Farmer Registry")
+    service = _reference_service(("FARMER_NOT_FOUND", "No farmer with Farmer ID FR-000000000001 is in the Farmer Registry"))
     result = _validate(service, SimpleNamespace(issues=[], is_valid=True))
     assert not result.is_valid
+    assert result.issues[0].code == "FARMER_NOT_FOUND"
     assert result.issues[0].message == "No farmer with Farmer ID FR-000000000001 is in the Farmer Registry."
 
 
@@ -348,15 +349,38 @@ def test_an_unknown_farmer_is_explained_before_submit(monkeypatch):
     service = _lookup_service(
         monkeypatch, AsyncMock(side_effect=profile.FarmerReferenceError("FARMER_REFERENCE_NOT_FOUND"))
     )
-    text = run(service._farmer_problem("s", _farmer_session(_row())))
+    code, text = run(service._farmer_problem("s", _farmer_session(_row())))
+    assert code == "FARMER_NOT_FOUND"
     assert text.startswith("No farmer with Farmer ID FR-123456789012 and FAN 1234567890123456 is in the Farmer Registry")
 
 
 def test_a_wrong_pair_is_explained_before_submit(monkeypatch):
     found = SimpleNamespace(profile={"farmer_id": "FR-123456789012", "fayda_fan_id": "9999999999999999"})
     service = _lookup_service(monkeypatch, AsyncMock(return_value=found))
-    text = run(service._farmer_problem("s", _farmer_session(_row())))
+    code, text = run(service._farmer_problem("s", _farmer_session(_row())))
+    assert code == "FARMER_IDENTITY_MISMATCH"
     assert text.startswith("The Farmer ID and Fayda ID belong to different farmers in the Farmer Registry")
+
+
+def test_an_unreachable_registry_is_reported_as_unavailable(monkeypatch):
+    profile = importlib.import_module(PACKAGE + ".farmer_reference.profile")
+    messages = importlib.import_module(PACKAGE + ".farmer_reference.messages")
+    for reference_code in ("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", "FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED"):
+        service = _lookup_service(monkeypatch, AsyncMock(side_effect=profile.FarmerReferenceError(reference_code)))
+        code, text = run(service._farmer_problem("s", _farmer_session(_row())))
+        assert code == "LOOKUP_UNAVAILABLE"
+        assert text == messages.explain(reference_code, {"farmer_id": "FR-123456789012", "fayda_fan_id": "1234567890123456"})
+
+
+def test_a_signing_failure_is_unavailable_not_an_error(monkeypatch, caplog):
+    messages = importlib.import_module(PACKAGE + ".farmer_reference.messages")
+    service = _lookup_service(monkeypatch, AsyncMock(side_effect=RuntimeError("key file /secret/x unreadable")))
+    code, text = run(service._farmer_problem("s", _farmer_session(_row())))
+    assert code == "LOOKUP_UNAVAILABLE"
+    assert text == messages.explain(
+        "FARMER_REFERENCE_LOOKUP_UNAVAILABLE", {"farmer_id": "FR-123456789012", "fayda_fan_id": "1234567890123456"}
+    )
+    assert "RuntimeError" in caplog.text and "/secret/x" not in caplog.text
 
 
 def test_a_matching_pair_has_no_problem(monkeypatch):

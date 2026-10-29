@@ -5,6 +5,7 @@ outgestion and webhook authentication remain native implementations.
 """
 from contextvars import ContextVar
 from importlib import import_module
+import logging
 import os
 
 from sqlalchemy import select
@@ -148,6 +149,22 @@ async def guard_farmer_approval(change_request, session):
     return await onboarding_service().approval_guard(session, change_request.change_request_id)
 
 
+
+_logger = logging.getLogger("coss-farmer-reference-validate")
+
+_IDENTITY_MISMATCH = {"FARMER_REFERENCE_IDENTITY_MISMATCH", "FARMER_REFERENCE_FARMER_ID_MISMATCH"}
+
+
+def _issue_code(reference_code: str) -> str:
+    """The Validate issue code for a Farmer reference refusal."""
+    if (reference_code in messages.UNAVAILABLE
+            or reference_code in {"FARMER_REFERENCE_LOOKUP_UNAVAILABLE", "FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED"}):
+        return "LOOKUP_UNAVAILABLE"
+    if reference_code in _IDENTITY_MISMATCH:
+        return "FARMER_IDENTITY_MISMATCH"
+    return "FARMER_NOT_FOUND"
+
+
 class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalClosed, G2PIntakeFormDataService):
     # FaydaIdMixin shows a stored FIN or FAN in the Fayda ID box and keeps it on a
     # blank re-save (fayda_id_view.py); RequiredFieldsMixin refuses a save or a
@@ -196,13 +213,14 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
                 from openg2p_registry_core.schemas.intake_form import IntakeSubmissionValidationIssue
                 from ..required_fields import join_sentences
 
-                result.issues.append(IntakeSubmissionValidationIssue(code="FARMER_NOT_FOUND", message=join_sentences([problem])))
+                code, sentence = problem
+                result.issues.append(IntakeSubmissionValidationIssue(code=code, message=join_sentences([sentence])))
                 result.is_valid = False
         return result
 
     async def _farmer_problem(self, submission_id, session):
-        """The sentence Submit would refuse the Farmer ID and Fayda ID with,
-        or None. Nothing is created: the signed lookup is only read. A form
+        """The issue code and the sentence Submit would refuse the Farmer ID
+        and Fayda ID with, or None. Nothing is created: the signed lookup is only read. A form
         already linked to a farmer is left to Submit."""
         from .messages import explain
 
@@ -233,7 +251,10 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
             if not matches_declared_identity(declared, source.profile):
                 raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
         except FarmerReferenceError as error:
-            return explain(str(error), declared_ids)
+            return _issue_code(str(error)), explain(str(error), declared_ids)
+        except Exception as error:  # noqa: BLE001 - signing or transport failure: Validate must answer
+            _logger.warning("Farmer lookup during validate failed: %s", type(error).__name__)
+            return "LOOKUP_UNAVAILABLE", explain("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", declared_ids)
         return None
 
     async def _finalize_with_farmer(self, submission_id, session, finalized_by, bearer_token, requester_sub,
