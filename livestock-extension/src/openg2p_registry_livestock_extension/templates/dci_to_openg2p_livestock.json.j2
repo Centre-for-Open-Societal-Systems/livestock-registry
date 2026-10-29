@@ -26,7 +26,7 @@
 {% set fayda_id = farmer.get('fayda_id') or farmer.get('fayda_fin') or farmer.get('fayda_fan_id') or farmer_identifier.get('identifier_value', '') %}
 
 {
-  "ls_intake_identity": [
+  "livestock_farmer_lookup": [
     {
       "record_name": {{ farmer_code | tojson }},
       "farmer_id": "{{ farmer_code }}",

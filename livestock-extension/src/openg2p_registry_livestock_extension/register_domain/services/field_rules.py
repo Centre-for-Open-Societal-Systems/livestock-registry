@@ -56,7 +56,7 @@ LABELS = {
     "farmer_id": "Farmer ID",
     "fayda_fin": "FIN (Fayda ID)",
     "fayda_fan_id": "Fayda ID (FAN)",
-    "fayda_id": "Fayda ID (FAN)",
+    "fayda_id": "Fayda ID (FAN or FIN)",
     "da_name": "DA Name",
     "surveyor_name": "DA Name",
     "ai_technician_name": "AI Technician Name",
@@ -74,7 +74,8 @@ MESSAGES = {
     "coss_field_date_min": "{label}: the date is before 1900. Enter a date on or after 1900-01-01.",
     "coss_field_date_future": "{label}: the date is in the future. Enter today or an earlier date.",
     "coss_field_farmer_id_required": "{label}: enter the farmer's Farmer Registry ID (FR- followed by 12 digits).",
-    "coss_field_fayda_one_of": "Fayda ID: enter the 12-digit FIN or the 16-digit FAN, or use Verify with Fayda.",
+    "coss_field_fayda_one_of": "Fayda ID: enter the 16-digit FAN or the 12-digit FIN.",
+    "coss_field_fayda_id_format": "{label}: enter the 16-digit FAN or the 12-digit FIN, digits only.",
 }
 
 
@@ -129,6 +130,7 @@ def clean_records(records):
             continue
         if record.get("edit_action") == "DELETE":
             continue
+        problems.extend(split_fayda_id(record))
         for key, value in list(record.items()):
             field = key.rsplit(".", 1)[-1] if isinstance(key, str) else None
             if value is None or isinstance(value, str) and not value.strip():
@@ -139,12 +141,11 @@ def clean_records(records):
                     problems.append(problem)
                 else:
                     record[key] = value.strip()
-            elif field in {"farmer_id", "fayda_fin", "fayda_fan_id", "fayda_id"}:
+            elif field in {"farmer_id", "fayda_fin", "fayda_fan_id"}:
                 normalizer, error_key = {
                     "farmer_id": (normalize_farmer_id, "coss_field_farmer_id_format"),
                     "fayda_fin": (normalize_fin, "coss_field_fin_format"),
                     "fayda_fan_id": (normalize_uid, "coss_field_fan_format"),
-                    "fayda_id": (normalize_uid, "coss_field_fan_format"),
                 }[field]
                 try:
                     record[key] = normalizer(value)
@@ -166,6 +167,33 @@ def clean_records(records):
                     record[key] = parsed.isoformat()
         problems.extend(identity_issues(record))
     return problems
+
+
+def split_fayda_id(record):
+    """Store the one typed Fayda ID of the Farmer lookup section as FAN or FIN.
+
+    The section asks for a single Fayda ID. Sixteen digits are a FAN and twelve
+    digits are a FIN; the value is stored in the existing fayda_fan_id or
+    fayda_fin field and the other one is cleared, so the Farmer reference lookup,
+    dedup and stored data keep their two separate fields.
+    """
+    issues = []
+    for key in [k for k in record if isinstance(k, str) and k.rsplit(".", 1)[-1] == "fayda_id"]:
+        value = record.pop(key)
+        prefix = key[: -len("fayda_id")]
+        if value is None or isinstance(value, str) and not value.strip():
+            farmer_id = next((v for k, v in record.items() if isinstance(k, str) and k.rsplit(".", 1)[-1] == "farmer_id"), "")
+            if not (farmer_id.strip() if isinstance(farmer_id, str) else farmer_id):
+                issues.append(Issue("farmer_id", "coss_field_farmer_id_required"))
+            issues.append(Issue("fayda_id", "coss_field_fayda_one_of"))
+            continue
+        digits = "".join(value.split()) if isinstance(value, str) else ""
+        if digits.isascii() and digits.isdigit() and len(digits) in (12, 16):
+            record[prefix + "fayda_fan_id"] = digits if len(digits) == 16 else None
+            record[prefix + "fayda_fin"] = digits if len(digits) == 12 else None
+        else:
+            issues.append(Issue("fayda_id", "coss_field_fayda_id_format"))
+    return issues
 
 
 def identity_issues(record):

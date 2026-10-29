@@ -96,7 +96,7 @@ def intake_identity(record: Mapping, *, required=True, require_farmer=False) -> 
         if value is not None and (not isinstance(value, str) or value.strip()):
             result[field] = normalizer(value)
     if required and not (result.get("fayda_fan_id") or result.get("fayda_fin")):
-        raise FarmerReferenceError("Fayda ID: enter a 12-digit FIN or a 16-digit FAN, or verify with Fayda")
+        raise FarmerReferenceError("Fayda ID: enter the 16-digit FAN or the 12-digit FIN")
     if require_farmer and not result.get("farmer_id"):
         raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_IDENTITY_REQUIRED")
     return result

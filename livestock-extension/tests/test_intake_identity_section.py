@@ -69,7 +69,7 @@ class IntakeIdentitySectionTests(unittest.IsolatedAsyncioTestCase):
                 "farmer_id":"FR-000000000001", "fayda_id":"001234567890"}}))
             self.assertNotIn("ls_livestock_record", transformed)
             submission = await native.G2PIntakeFormDataService.get_component().save_intake_form_submission_with_session(
-                None, current.section_id, transformed[current.section_mnemonic], current.section_register_id,
+                None, current.section_id, transformed["livestock_farmer_lookup"], current.section_register_id,
                 "e92e8be1-207f-518e-99c2-8bc21cc1f112", DOMAIN, "synthetic-odk", session)
             row = (await session.execute(select(models.G2PIntakeFormLivestock)
                 .where(models.G2PIntakeFormLivestock.submission_id == submission.submission_id))).scalar_one()

@@ -20,13 +20,13 @@ def test_odk_one_identifier_is_split_without_importing_farmer_profile(identifier
     if IS_CROP:
         data={'farmer_identity':identity,'production_season_info':{'crop_year':'2026','production_season':'meher'},
               stage:[{}] if stage!='harvesting' else {}, 'address_info':{'woreda_id':'holding-woreda'}}
-        template='csr_odk_transform.j2';section='cs_intake_record'
+        template='csr_odk_transform.j2';section='crop_farmer_lookup'
     else:
         data={'farmer':identity,'location':{'location_source':'mds','region_code':'ET01',
               'zone_code':'ET0101','woreda_code':'ET010101','kebele_code':'ET010101101001'},
               'livestock':[{'species_id':'cattle','breed':'local','gender':'female',
                             'primary_identifier':'ANIMAL-001','date_of_birth':'2020-01-01'}]}
-        template='ls_odk_transform.j2';section='ls_intake_identity'
+        template='ls_odk_transform.j2';section='livestock_farmer_lookup'
     result=json.loads(Environment().from_string((ROOT/'templates'/template).read_text(encoding='utf-8')).render(expanded=data))
     root=result[section][0]
     assert root['farmer_id']=='FR-000000000001'
@@ -57,7 +57,7 @@ def test_dci_mapping_uses_intake_identity_and_preserves_domain_observations(iden
         'animal_details': [{'ear_tag_id': 'ANIMAL-001', 'sex': 'female', 'birth_date': '2020-01-01'}]}
     template = (ROOT/'templates'/'dci_to_openg2p_livestock.json.j2').read_text(encoding='utf-8')
     result = json.loads(Environment().from_string(template).render(expanded=data))
-    root = result['ls_intake_identity'][0]
+    root = result['livestock_farmer_lookup'][0]
     assert 'ls_livestock_record' not in result
     assert root['farmer_id'] == 'FR-000000000001' and root[field] == identifier
     assert root['fayda_fan_id' if field == 'fayda_fin' else 'fayda_fin'] is None

@@ -233,3 +233,38 @@ def test_identity_section_needs_the_farmer_id_and_one_fayda_id():
 def test_identity_rule_skips_records_without_the_identity_fields():
     assert rules.identity_issues({"animal_type": "Cattle"}) == []
     assert rules.identity_issues({"farmer_id": ""}) == []
+
+
+@pytest.mark.parametrize(
+    "typed,fan,fin",
+    [
+        ("0000 1234 5678 9012", "0000123456789012", None),
+        ("0000123456789012", "0000123456789012", None),
+        (" 001234567890 ", None, "001234567890"),
+    ],
+)
+def test_farmer_lookup_stores_the_one_fayda_id_as_fan_or_fin_by_length(typed, fan, fin):
+    for prefix in ("", "register."):
+        record = {prefix + "farmer_id": "FR-000000000001", prefix + "fayda_id": typed}
+        assert rules.clean_records([record]) == []
+        assert prefix + "fayda_id" not in record
+        assert record[prefix + "fayda_fan_id"] == fan
+        assert record[prefix + "fayda_fin"] == fin
+
+
+@pytest.mark.parametrize("typed", ["12345", "00123456789012345", "FR-000000000001", "١٢٣٤٥٦٧٨٩٠١٢", 1234567890123456])
+def test_farmer_lookup_refuses_a_fayda_id_that_is_neither_fan_nor_fin(typed):
+    record = {"farmer_id": "FR-000000000001", "fayda_id": typed}
+    problems = rules.clean_records([record])
+    assert [problem.key for problem in problems] == ["coss_field_fayda_id_format"]
+    message = rules.explain(problems[0])
+    assert message == "Fayda ID (FAN or FIN): enter the 16-digit FAN or the 12-digit FIN, digits only."
+    assert "fayda_fan_id" not in record and "fayda_fin" not in record
+
+
+def test_farmer_lookup_needs_both_fields_and_says_so_in_plain_words():
+    problems = rules.clean_records([{"farmer_id": " ", "fayda_id": ""}])
+    assert sorted(problem.key for problem in problems) == ["coss_field_farmer_id_required", "coss_field_fayda_one_of"]
+    for problem in problems:
+        message = rules.explain(problem)
+        assert "_" not in message and "Verify" not in message
