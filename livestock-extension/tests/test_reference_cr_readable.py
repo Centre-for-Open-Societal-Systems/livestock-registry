@@ -39,6 +39,16 @@ class PendingReferenceReadableTests(unittest.IsolatedAsyncioTestCase):
             result = await self.service._ensure_change_request_readable("cr-1", None, session)
         self.assertIs(result, self.change_request)
 
+    async def test_a_caller_with_data_policies_keeps_the_native_check(self):
+        policies = [{"resource": "geography", "values": ["ET0101"]}]
+        session = session_for(SimpleNamespace(action="ADD"), self.change_request, None)
+        native_check = AsyncMock(return_value="native")
+        with patch.object(native.G2PRegisterChangeRequestService, "_ensure_change_request_readable", new=native_check):
+            result = await self.service._ensure_change_request_readable("cr-1", policies, session)
+        self.assertEqual(result, "native")
+        native_check.assert_awaited_once_with("cr-1", policies, session)
+        session.execute.assert_not_awaited()
+
     async def test_approved_add_with_its_farmer_record_keeps_the_native_check(self):
         session = session_for(SimpleNamespace(action="ADD"), self.change_request, object())
         native_check = AsyncMock(return_value="native")

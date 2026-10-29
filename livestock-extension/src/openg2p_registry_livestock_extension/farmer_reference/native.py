@@ -285,7 +285,11 @@ class ReferenceChangeRequestService(DirectApprovalClosed, G2PRegisterChangeReque
         # A source-reference ADD names a Farmer record that exists only once the
         # request is approved. The native check demands that subject record, so a
         # pending (or rejected) ADD could not be opened (REG-ERR-002). Such a
-        # request is read on its own; every other request keeps the native check.
+        # request is read on its own, but only for a caller without data policies:
+        # the native check is also where those policies apply, so a scoped user
+        # keeps it (and is refused) rather than seeing every pending ADD.
+        if data_policies:
+            return await super()._ensure_change_request_readable(change_request_id, data_policies, session)
         managed = (await session.execute(select(FarmerReferenceRequest).where(
             FarmerReferenceRequest.native_cr_id == change_request_id,
             FarmerReferenceRequest.action == "ADD"))).scalar_one_or_none()
