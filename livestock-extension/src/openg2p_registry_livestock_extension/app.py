@@ -27,6 +27,8 @@ class Initializer(BaseInitializer):
         install_identity_verification()
         from .history_change_request_source import install as install_history_change_request_source
         install_history_change_request_source()
+        from .history_without_change_request import install as install_history_without_change_request
+        install_history_without_change_request()
 
     async def fastapi_app_startup(self, app):
         await super().fastapi_app_startup(app)
