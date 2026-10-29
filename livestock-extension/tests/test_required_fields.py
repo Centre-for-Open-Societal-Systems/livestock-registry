@@ -177,3 +177,24 @@ def test_messages_never_show_underscores_or_hyphens_from_keys():
                                           "widget-data-path": REGISTER + ".head_count_total"})
     (text,) = rf.section_problems(schema, False, [{}], {})
     assert "_" not in text and "-" not in text
+
+
+def test_the_animal_row_overlay_sorts_after_every_file_that_rewrites_the_section():
+    from pathlib import Path
+
+    meta = Path(rf.__file__).parent / "meta_data"
+    overlay = meta / "register-metadata/zzzzzzzzzz_required_animal_row.sql"
+    assert sorted((meta / "register-metadata").glob("*.sql"))[-1] == overlay
+    # Files outside register-metadata that sort after it never touch the animal section.
+    for path in (p for p in sorted(meta.rglob("*.sql")) if p > overlay):
+        if path.parent.name == "registry-configurations":
+            continue
+        assert "livestock_animal_details_section_01" not in path.read_text(encoding="utf8"), path.name
+    text = overlay.read_text(encoding="utf8")
+    assert "'ls_animal_details_table'" in text and "RAISE EXCEPTION" in text
+
+
+def test_an_intake_without_an_animal_row_is_refused_once_the_table_is_required():
+    schema = table("Livestock details", column("species", "Species", required=True), required=True)
+    assert rf.section_problems(schema, True, [], {}) == ["Livestock details: add at least one row"]
+    assert rf.section_problems(schema, True, [{"species": "CATTLE"}], {}) == []
