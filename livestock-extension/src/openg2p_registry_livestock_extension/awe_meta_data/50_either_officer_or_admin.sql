@@ -14,23 +14,23 @@ WHERE id IN (
   AND (mode <> 'any-n' OR mode_value IS DISTINCT FROM 1);
 
 -- Display name only: the stage ids, orders, modes and rules are untouched.
-UPDATE public.approval_stage SET name='Stage 1 officers', updated_at=NOW()
+UPDATE public.approval_stage SET name='First approval', updated_at=NOW()
 WHERE id IN (
     'a5ca8625-143d-57b3-b220-912bdeda193d',
     '586da3d5-65f1-566a-80ea-3b4b30d17b82',
     '580c4a2b-c638-5099-aac5-72860e9ff4ff',
     'd2d6c2ea-3e4d-51e5-8e97-78a273e26ecc'
 )
-  AND name <> 'Stage 1 officers';
+  AND name <> 'First approval';
 -- Display name only: the stage ids, orders, modes and rules are untouched.
-UPDATE public.approval_stage SET name='Stage 2 officers', updated_at=NOW()
+UPDATE public.approval_stage SET name='Second approval', updated_at=NOW()
 WHERE id IN (
     'e072783f-27ad-582b-b30f-a942d329850a',
     '8536ea7d-7c57-5cb6-af1c-54f992ea3059',
     '23cd6619-b044-55a9-aa1c-ee3b190950d5',
     '96243f6c-b4d1-5bca-8f08-aaefad9d04ca'
 )
-  AND name <> 'Stage 2 officers';
+  AND name <> 'Second approval';
 -- Stages created on long-lived databases before the seeds carried them (no
 -- seed row, so no id to list). Matched by policy key plus the exact old name;
 -- only the display name changes, and the statement is a no-op once applied.

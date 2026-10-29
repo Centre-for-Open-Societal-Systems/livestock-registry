@@ -54,7 +54,7 @@ def test_seeded_policy_has_the_default_stages_and_the_same_skip_rule_on_each():
     for officer in OFFICERS:
         assert code.count(officer) == 1
     assert code.count('"admin"') == 2
-    stages = re.findall(rf"\('[0-9a-f-]{{36}}','{re.escape(SKIP_KEY)}',(\d),'Stage", code)
+    stages = re.findall(rf"\('[0-9a-f-]{{36}}','{re.escape(SKIP_KEY)}',(\d),'(?:First|Second) approval", code)
     assert stages == ["1", "2"]
     # Insert-only: an active policy version is immutable and seeds never delete.
     assert not re.search(r"(?m)^\s*(UPDATE|DELETE)\b|\bNOT IN\b", code)

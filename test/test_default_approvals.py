@@ -31,14 +31,14 @@ def test_seeds_match_the_declared_policies_and_move_older_databases_in_place():
         "40_callback_secret.sql.tpl", "50_either_officer_or_admin.sql", "60_verified_update_skips_review.sql"]
     stage_sql = (seeds / "20_approval_stage.sql").read_text()
     rule_sql = (seeds / "30_approver_rule.sql").read_text()
-    assert "Officers" not in stage_sql and stage_sql.count("'Stage 1 officers'") == stage_sql.count("'Stage 2 officers'") == 3
+    assert "Officers" not in stage_sql and stage_sql.count("'First approval'") == stage_sql.count("'Second approval'") == 3
     assert "'all'" not in stage_sql and stage_sql.count("'any-n',1,") == 1
     seeded_stage_ids = re.findall(r"\('([0-9a-f-]{36})','registry\.", stage_sql)
     assert len(seeded_stage_ids) == 6
     assert rule_sql.count("alex.carter") == rule_sql.count("nina.patel") == 3
     assert rule_sql.count('"admin"') == 6
     assert len(set(re.findall(r"\('([0-9a-f-]{36})'", rule_sql))) == 12, "every approver rule needs its own stable id"
-    for key, order in re.findall(r"'(registry\.[a-z_]+\.[a-z-]+\.default)',(\d),'Stage", stage_sql):
+    for key, order in re.findall(r"'(registry\.[a-z_]+\.[a-z-]+\.default)',(\d),'(?:First|Second) approval", stage_sql):
         assert re.search(re.escape("'" + key + "'") + rf",{order},'" + re.escape('{"user_id": "admin"}'), rule_sql)
     update = (seeds / "50_either_officer_or_admin.sql").read_text()
     assert update.count("UPDATE public.approval_stage SET mode='any-n', mode_value=1") == 1
