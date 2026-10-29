@@ -46,7 +46,7 @@ The earlier sandbox `odk.13.207.43.8.nip.io` (project 14) was retired on 2026-10
 
 | Form (survey sheet) | Intake section | Notes |
 |---|---|---|
-| `farmer/*` | `ls_farmer_identity`, `ls_livestock_record` | `fayda_fan_id` 16 digits, `farmer_id` `FR-` + 10 digits; `gender` upper-cased |
+| `farmer/*` | `ls_farmer_identity`, `ls_livestock_record` | `fayda_fan_id` a 16-digit FAN or 12-digit FIN (the transform splits by length), `farmer_id` `FR-` + 12 digits; `gender` upper-cased |
 | `survey_personnel/*` | `ls_survey_personnel` | |
 | `location/region_id … kebele_id` | `ls_farmer_location`, `ls_livestock_location` | region slug → name in the template; zone/woreda/kebele codes → names by `odk_ingest_hooks.resolve_geo_label` against Master Data (exact id first, suffix match last) |
 | `livestock` (repeat) | `ls_animal_details` | species → the Master Data `LIVESTOCK_SPECIES` code of the country pack (cattle → `CATTLE`, goat → `GOATS`, camel → `CAMELS`, donkey/horse/mule → `EQUINES`, chicken → `POULTRY`; pig and beehive are not in the pack and are rejected); breed → its `LIVESTOCK_BREED` type (a cross → `BREED_HYBRID`, an exotic breed → `BREED_IMPROVED`, an indigenous breed → `BREED_LOCAL`); poultry uses `secondary_identifier` + `quantity` and Sex `mixed`, as its Master Data species settings say |
