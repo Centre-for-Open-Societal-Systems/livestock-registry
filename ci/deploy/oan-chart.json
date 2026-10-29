@@ -10,8 +10,8 @@
     "promotionReady": true,
     "values": {
       "path": "environments/dev/values/livestock.yaml",
-      "sha256": "4ae8e8a728d69b02d4b4a7f9e13f1c174ac72076c562c4eca7f5922426c1603d",
-      "url": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/4fb16a24bcf03e47316cd8b783605d979e6982b5/environments/dev/values/livestock.yaml"
+      "sha256": "6de6e65514da97f7b79daebb58ca3c2f2fd2c5d16606c3a1e42b0dc11393fd29",
+      "url": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/58e77978a3525174ded909fa096d1842d37ed540/environments/dev/values/livestock.yaml"
     },
     "platformVersion": "1.2.2-rc.557"
   },
