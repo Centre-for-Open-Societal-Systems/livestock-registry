@@ -49,3 +49,15 @@ def test_older_forms_keep_names_without_ids_or_hierarchy():
     row = render({'region': 'oromia', 'zone': 'East Shewa', 'woreda': "Ada'a", 'kebele': 'Dire Arerti'})['ls_livestock_location'][0]
     assert row['woreda'] == "Ada'a"
     assert 'woreda_id' not in row and 'geo_code_hierarchy_json' not in row
+
+
+def test_v7_form_submission_builds_the_hierarchy():
+    """The v7 form's location group, as Central returns it, with the hidden
+    location_source question and the four *_code answers."""
+    submission = json.loads((Path(__file__).resolve().parents[2] / 'odk' / 'sample_submissions.json').read_text(encoding='utf-8'))['value'][0]
+    location = submission['location']
+    assert set(location) == {'region_code', 'zone_code', 'woreda_code', 'kebele_code', 'location_source'}
+    row = render(location)['ls_livestock_location'][0]
+    chain = [h['level_value_id'] for h in row['geo_code_hierarchy_json']['hierarchy']]
+    assert chain == [location[k] for k in ('region_code', 'zone_code', 'woreda_code', 'kebele_code')]
+    assert row['geo_lowest_level_value_id'] == location['kebele_code']
