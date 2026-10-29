@@ -43,13 +43,23 @@ the farmer reference as soon as it exists) is completed rather than entered
 again: saving a section replaces that section's rows.
 
 A sample farmer whose intake fails (after the network retries) is logged and
-counted, and the others still load; sample data never fails the upgrade it
-rides on. The next seed run picks the farmer up again.
+counted, and the others still load. A failure before any farmer (a setting,
+the database, a sign-in) is logged and the loader ends without sample data:
+sample data never fails the upgrade it rides on. The next seed run tries again.
 
-Within the seed job's time: once INTAKE_SEED_TIME_BUDGET seconds (default 480)
-have passed the loader starts no further intake and ends successfully; the
-next upgrade's seed continues where it stopped. INTAKE_SEED_APPROVE_TIMEOUT and
-INTAKE_SEED_INGEST_TIMEOUT (default 180 s each) bound the intake in progress.
+Approvals are restart-safe: the loader looks up the intake's open or claimed
+task at whichever stage it has reached, so a stage approved by an earlier run
+is not looked for again; a claim or a decision is sent once and, when its
+answer is lost, the task is read again instead of resending it.
+
+Within the seed job's time (the deploy waits 15 minutes for the hook): the
+clock starts with the loader. After INTAKE_SEED_TIME_BUDGET seconds (default
+420) no further intake starts, and after INTAKE_SEED_HARD_LIMIT (default 660)
+the intake in progress stops waiting for its approval or ingestion; what is
+left is counted and the next upgrade's seed continues it. A request takes at
+most 4 tries of 30 s plus 14 s of backoff, so the loader ends within about
+13 minutes. INTAKE_SEED_APPROVE_TIMEOUT and INTAKE_SEED_INGEST_TIMEOUT
+(default 180 s each) bound the waits of one intake.
 
 Network: requests cross the public ingress (staff IAM, Keycloak) and the
 staff API; a connection error, a timeout or a gateway status (502, 503, 504)
@@ -81,7 +91,9 @@ from psycopg2.extras import Json
 
 INTAKE_ARTIFACT = "registry.intake_form"
 TRANSIENT_HTTP = (502, 503, 504)  # the gateway's answer when the service behind it is away
-NETWORK_ATTEMPTS = 5
+NETWORK_ATTEMPTS = 4
+REQUEST_TIMEOUT = 30  # seconds per try
+STARTED = time.time()  # the time budget counts from here
 TASK_PAGE_SIZE, TASK_PAGES = 100, 20
 PACK = os.environ.get("SAMPLE_PACK", "ETH-OAN")
 OPENG2P_DATA_DIR = Path(os.environ.get("OPENG2P_DATA_DIR", "/openg2p-data"))
@@ -220,22 +232,28 @@ def tls_context() -> ssl.SSLContext:
     return context
 
 
-def fetch(opener, request, timeout: int = 60) -> tuple[int, object, bytes]:
-    """Status, headers and body; network errors and gateway statuses are retried with backoff."""
-    for attempt in range(1, NETWORK_ATTEMPTS + 1):
+def fetch(opener, request, timeout: int = REQUEST_TIMEOUT,
+          attempts: int = NETWORK_ATTEMPTS) -> tuple[int, object, bytes]:
+    """Status, headers and body; network errors and gateway statuses are retried with backoff.
+
+    A request that must not be applied twice is sent with attempts=1. The query is left out of what is
+    logged: IAM's callback carries a one-time code there.
+    """
+    where = f"{request.get_method()} {request.full_url.split('?', 1)[0]}"
+    for attempt in range(1, attempts + 1):
         try:
             with opener.open(request, timeout=timeout) as response:
                 status, headers, body = response.status, response.headers, response.read()
         except urllib.error.HTTPError as exc:
             status, headers, body = exc.code, exc.headers, exc.read()
         except (urllib.error.URLError, OSError) as exc:
-            if attempt == NETWORK_ATTEMPTS:
-                raise RuntimeError(f"{request.get_method()} {request.full_url}: {exc}") from exc
+            if attempt == attempts:
+                raise RuntimeError(f"{where}: {exc}") from exc
             status, headers, body = None, None, str(exc)
-        if status is not None and (status not in TRANSIENT_HTTP or attempt == NETWORK_ATTEMPTS):
+        if status is not None and (status not in TRANSIENT_HTTP or attempt == attempts):
             return status, headers, body
         wait = 2 ** attempt
-        log(f"{request.get_method()} {request.full_url}: {status or body}; again in {wait}s")
+        log(f"{where}: {status or body}; again in {wait}s")
         time.sleep(wait)
     raise AssertionError("unreachable")
 
@@ -288,13 +306,13 @@ class StaffSession:
         self._token = token
         log(f"signed in as {self.username}")
 
-    def _send(self, path: str, data: bytes, content_type: str) -> tuple[int, dict]:
+    def _send(self, path: str, data: bytes, content_type: str, attempts: int) -> tuple[int, dict]:
         for attempt in (1, 2):
             csrf = uuid.uuid4().hex
             request = urllib.request.Request(f"{self.api_url}{path}", data=data, method="POST", headers={
                 "Authorization": f"Bearer {self._token}", "X-CSRF-Token": csrf, "Cookie": f"X-CSRF-Token={csrf}",
                 "Content-Type": content_type})
-            status, _, body = fetch(self._api, request, 120)
+            status, _, body = fetch(self._api, request, attempts=attempts)
             try:
                 reply = json.loads(body or b"{}")
             except ValueError:
@@ -306,14 +324,16 @@ class StaffSession:
             return status, reply
         return status, reply
 
-    def post(self, path: str, payload: dict) -> dict:
+    def post(self, path: str, payload: dict, once: bool = False) -> dict:
+        """The response payload; `once` for a request that must not be applied twice (no network retry)."""
         envelope = {
             "request_header": {"sender_app_mnemonic": "livestock-db-seed", "sender_app_url": "http://db-seed",
                                "request_id": str(uuid.uuid4()),
                                "request_timestamp": datetime.now(timezone.utc).isoformat()},
             "request_body": {"request_payload": payload, "pagination_request": {"current_page": 1, "page_size": 100}},
         }
-        status, reply = self._send(path, json.dumps(envelope).encode(), "application/json")
+        status, reply = self._send(path, json.dumps(envelope).encode(), "application/json",
+                                   1 if once else NETWORK_ATTEMPTS)
         header = reply.get("response_header") or {}
         if status != 200 or header.get("response_status") != "SUCCESS":
             raise RuntimeError(f"{path} as {self.username}: {status} {header.get('response_error_code')} "
@@ -447,12 +467,14 @@ class Registry:
 
 
 class Loader:
-    time_budget = 480  # seconds; INTAKE_SEED_TIME_BUDGET overrides
+    time_budget = 420  # seconds from the loader's start; INTAKE_SEED_TIME_BUDGET overrides
+    hard_limit = 660  # no wait runs past this; INTAKE_SEED_HARD_LIMIT overrides
 
     def __init__(self, registry: Registry, submitter: StaffSession, approvers: list[StaffSession],
                  approve_timeout: int, ingest_timeout: int):
         self.registry, self.submitter, self.approvers = registry, submitter, approvers
         self.time_budget = int(os.environ.get("INTAKE_SEED_TIME_BUDGET", "").strip() or self.time_budget)
+        self.hard_limit = int(os.environ.get("INTAKE_SEED_HARD_LIMIT", "").strip() or self.hard_limit)
         self.approve_timeout, self.ingest_timeout = approve_timeout, ingest_timeout
         self.forms = registry.forms()
 
@@ -466,61 +488,71 @@ class Loader:
         if submission_id:
             self.registry.link(submission_id, reference_id)
         for section, rows in stage["sections"].items():
+            # The save that creates the submission is sent once: a lost answer must not create a second
+            # draft (the next run completes the first one, found by its Fayda ID).
             saved = self.submitter.post("/intake-form-data/save_intake_form_submission", {
                 "submission_id": submission_id, "section_id": section, "section_payload": rows,
                 "section_register_id": registers[section], "form_id": form_id, "register_id": register_id,
                 "created_by": self.submitter.username, "documents": [],
-            })
+            }, once=not submission_id)
             if not submission_id:
                 submission_id = saved.get("submission_id")
                 if not submission_id:
                     raise RuntimeError(f"saving {section} on {stage['form']} returned no submission")
                 self.registry.link(submission_id, reference_id)
         self.submitter.post("/intake-form-data/finalize_intake_form_submission", {
-            "submission_id": submission_id, "register_id": register_id, "form_id": form_id})
+            "submission_id": submission_id, "register_id": register_id, "form_id": form_id}, once=True)
         return submission_id
 
     def approve(self, submission_id: str) -> None:
-        """Stage 1 as the first approver, then stage 2 as the second, each once its task opens."""
-        deadline = time.time() + self.approve_timeout
-        for stage, approver in enumerate(self.approvers, 1):
-            while True:
-                if self.registry.approval_status(submission_id) == "APPROVED":
-                    return
+        """Approve the intake at whichever stage it has reached: stage 1 as the first approver, stage 2 as the
+        second. A claim or decision whose answer is lost is not sent again; the task is read again."""
+        deadline = min(time.time() + self.approve_timeout, STARTED + self.hard_limit)
+        while self.registry.approval_status(submission_id) != "APPROVED":
+            acted = False
+            for stage, approver in enumerate(self.approvers, 1):
                 task = self.open_task(approver, submission_id, stage)
                 if task:
+                    self.decide(approver, task, submission_id, stage)
+                    acted = True
                     break
-                if time.time() > deadline:
-                    raise RuntimeError(f"no stage {stage} task for {approver.username} on intake {submission_id} "
-                                       f"within {self.approve_timeout}s")
+            if time.time() > deadline:
+                raise RuntimeError(f"intake {submission_id} is not approved within {self.approve_timeout}s")
+            if not acted:
                 time.sleep(3)
-            approver.post("/awe/claim_task", {"task_id": task["id"]})
+
+    @staticmethod
+    def decide(approver: StaffSession, task: dict, submission_id: str, stage: int) -> None:
+        try:
+            if task.get("status", "open") == "open":
+                approver.post("/awe/claim_task", {"task_id": task["id"]}, once=True)
             approver.post("/awe/submit_task_decision", {
                 "task_id": task["id"], "action": "approve", "comment": "Sample data (db-seed)",
-                "artifact_id": submission_id, "artifact_type": INTAKE_ARTIFACT, "current_stage": stage})
+                "artifact_id": submission_id, "artifact_type": INTAKE_ARTIFACT, "current_stage": stage}, once=True)
             log(f"      stage {stage} approved as {approver.username}")
-        while self.registry.approval_status(submission_id) != "APPROVED":
-            if time.time() > deadline:
-                raise RuntimeError(f"intake {submission_id} is not approved after both stages")
-            time.sleep(3)
+        except RuntimeError as exc:
+            log(f"      stage {stage} as {approver.username}: {exc}; reading the task again")
 
     @staticmethod
     def open_task(approver: StaffSession, submission_id: str, stage: int) -> dict | None:
-        """The approver's open task for this intake and stage, looked up page by page."""
-        for page in range(1, TASK_PAGES + 1):
-            tasks = approver.post("/awe/list_my_tasks", {"status": "open", "artifact_type": INTAKE_ARTIFACT,
-                                                         "page": page, "page_size": TASK_PAGE_SIZE})
-            items = (tasks.get("data") or {}).get("items") or []
-            task = next((t for t in items
-                         if t.get("artifact_id") == submission_id and int(t.get("stage_order") or 0) == stage), None)
-            if task or len(items) < TASK_PAGE_SIZE:
-                return task
+        """The approver's open or claimed task for this intake and stage, looked up page by page."""
+        for status in ("open", "claimed"):
+            for page in range(1, TASK_PAGES + 1):
+                tasks = approver.post("/awe/list_my_tasks", {"status": status, "artifact_type": INTAKE_ARTIFACT,
+                                                             "page": page, "page_size": TASK_PAGE_SIZE})
+                items = (tasks.get("data") or {}).get("items") or []
+                task = next((t for t in items if t.get("artifact_id") == submission_id
+                             and int(t.get("stage_order") or 0) == stage), None)
+                if task:
+                    return {"status": status, **task}
+                if len(items) < TASK_PAGE_SIZE:
+                    break
         return None
 
     def run(self, planned: list[dict]) -> dict:
         done = {"farmers seeded": 0, "farmers restored": 0, "farmers referenced": 0, "intakes approved": 0,
                 "resumed": 0, "drafts completed": 0, "skipped": 0, "left for the next run": 0, "failed": 0}
-        stop_at = time.time() + self.time_budget
+        stop_at = STARTED + self.time_budget
         approved_by = self.approvers[-1].username
         for person in planned:
             try:
@@ -556,15 +588,23 @@ class Loader:
                         log(f"    {stage['form']}: intake {submission_id} submitted")
                         done["intakes approved"] += 1
                     self.approve(submission_id)
-                    self.registry.wait_for("g2p_register_livestocks", root, self.ingest_timeout)
+                    self.registry.wait_for("g2p_register_livestocks", root, self.wait_time(self.ingest_timeout))
                     log(f"    {stage['form']}: in the register")
-            except RuntimeError as exc:
-                done["failed"] += 1
-                log(f"  {person['individual_id']}: FAILED, left for the next run: {exc}")
+            except Exception as exc:  # sample data must not fail the upgrade; the next run retries
+                if time.time() >= STARTED + self.hard_limit:
+                    done["left for the next run"] += 1
+                    log(f"  {person['individual_id']}: out of time, left for the next run: {exc}")
+                else:
+                    done["failed"] += 1
+                    log(f"  {person['individual_id']}: FAILED, left for the next run: {exc!r}")
         if done["left for the next run"]:
             log(f"time budget of {self.time_budget}s used: {done['left for the next run']} stage intakes are left "
                 "for the next seed run")
         return done
+
+    def wait_time(self, timeout: int) -> int:
+        """`timeout`, cut to what is left before the hard limit."""
+        return max(1, min(timeout, int(STARTED + self.hard_limit - time.time())))
 
     @staticmethod
     def _with_farmer_id(stage: dict, farmer_id: str) -> dict:
@@ -629,6 +669,5 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except Exception as exc:
-        print(f"[load-sample-data] FAILED: {exc}", file=sys.stderr)
-        raise
+    except Exception as exc:  # a setting, the database or a sign-in: logged; the upgrade goes on
+        print(f"[load-sample-data] FAILED before loading sample data, none loaded: {exc!r}", file=sys.stderr)

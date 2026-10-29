@@ -169,13 +169,20 @@ class FakeApprover:
     def __init__(self, name, stage, registry, calls):
         self.username, self.stage, self.registry, self.calls = name, stage, registry, calls
 
-    def post(self, path, payload):
+    def post(self, path, payload, once=False):
         self.calls.append((self.username, path))
+        decided = getattr(self.registry, "decided", set())
+        self.registry.decided = decided
         if path == "/awe/list_my_tasks":
+            if payload["status"] != "open":
+                return {"data": {"items": []}}
             return {"data": {"items": [{"id": f"task-{sid}-{self.stage}", "artifact_id": sid,
-                                        "stage_order": self.stage} for sid in self.registry.pending]}}
+                                        "stage_order": self.stage} for sid in self.registry.pending
+                                       if (sid, self.stage) not in decided
+                                       and (self.stage == 1 or (sid, 1) in decided)]}}
         if path == "/awe/submit_task_decision":
             assert payload["current_stage"] == self.stage and payload["action"] == "approve"
+            decided.add((payload["artifact_id"], self.stage))
             if self.stage == 2:
                 self.registry.status[payload["artifact_id"]] = "APPROVED"
         return {}
@@ -281,8 +288,8 @@ KEYCLOAK_TOKEN = "https://keycloak.example.org/realms/staff/protocol/openid-conn
 @pytest.mark.parametrize("environ, expected", [
     ({"STAFF_IAM_URL": "https://iam.example.org", "STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://iam.example.org"),
     ({"STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://staff-iam.example.org"),
-    ({"STAFF_TOKEN_URL": "https://keycloak.farmer.openg2p.org/realms/staff/protocol/openid-connect/token"},
-     "https://staff-iam.farmer.openg2p.org"),
+    ({"STAFF_TOKEN_URL": "https://keycloak.registry.example.org/realms/staff/protocol/openid-connect/token"},
+     "https://staff-iam.registry.example.org"),
 ])
 def test_staff_iam_is_the_public_host_next_to_keycloak(loader, monkeypatch, environ, expected):
     for name in ("STAFF_IAM_URL", "STAFF_TOKEN_URL"):
@@ -393,3 +400,73 @@ def test_one_failing_farmer_does_not_stop_the_others(loader):
     registry.ensure_farmer = ensure_farmer
     done, submitted, _ = run(loader, registry)
     assert done["failed"] == 1 and done["farmers seeded"] == 1 and submitted
+
+
+def test_a_request_sent_once_is_not_retried(loader):
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request("https://crop.example.org/awe/submit_task_decision")
+    opener = FlakyOpener(urllib.error.URLError("connection reset"), 200)
+    with pytest.raises(RuntimeError, match="connection reset"):
+        loader.fetch(opener, request, attempts=1)
+    assert opener.calls == 1
+
+
+def test_the_retry_log_leaves_out_the_query(loader, monkeypatch):
+    logged = []
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(loader, "log", logged.append)
+    request = __import__("urllib.request").request.Request("https://staff-iam.example.org/auth/callback?code=secret")
+    loader.fetch(FlakyOpener(503, 200), request)
+    assert logged and all("secret" not in line for line in logged)
+
+
+class StageTwoApprover:
+    """Stage 1 was approved by an earlier run; the stage 2 task waits, claimed or open."""
+
+    def __init__(self, stage, claimed, registry, calls):
+        self.username, self.stage, self.claimed, self.registry, self.calls = f"u{stage}", stage, claimed, registry, calls
+
+    def post(self, path, payload, once=False):
+        self.calls.append((self.username, path, once))
+        if path == "/awe/list_my_tasks":
+            wanted = "claimed" if self.claimed else "open"
+            if self.stage == 2 and payload["status"] == wanted and self.registry.get("sub-1") != "APPROVED":
+                return {"data": {"items": [{"id": "t2", "artifact_id": "sub-1", "stage_order": 2}]}}
+            return {"data": {"items": []}}
+        if path == "/awe/submit_task_decision":
+            self.registry["sub-1"] = "APPROVED"
+        return {}
+
+
+@pytest.mark.parametrize("claimed", [False, True])
+def test_approval_resumes_at_the_stage_reached(loader, claimed):
+    status, calls = {}, []
+    runner = loader.Loader.__new__(loader.Loader)
+    runner.registry = types.SimpleNamespace(approval_status=status.get)
+    runner.approve_timeout = 5
+    runner.approvers = [StageTwoApprover(1, claimed, status, calls), StageTwoApprover(2, claimed, status, calls)]
+    runner.approve("sub-1")
+    sent = [(user, path) for user, path, once in calls if path != "/awe/list_my_tasks"]
+    assert sent == ([] if claimed else [("u2", "/awe/claim_task")]) + [("u2", "/awe/submit_task_decision")]
+    assert all(once for _, path, once in calls if path != "/awe/list_my_tasks")
+
+
+def test_a_lost_decision_is_read_again_not_resent(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    status, calls = {}, []
+
+    class LostAnswer(StageTwoApprover):
+        def post(self, path, payload, once=False):
+            reply = super().post(path, payload, once)
+            if path == "/awe/submit_task_decision":
+                raise RuntimeError("POST /awe/submit_task_decision: timed out")
+            return reply
+
+    runner = loader.Loader.__new__(loader.Loader)
+    runner.registry = types.SimpleNamespace(approval_status=status.get)
+    runner.approve_timeout = 5
+    runner.approvers = [LostAnswer(1, True, status, calls), LostAnswer(2, True, status, calls)]
+    runner.approve("sub-1")
+    assert [path for _, path, _ in calls].count("/awe/submit_task_decision") == 1
