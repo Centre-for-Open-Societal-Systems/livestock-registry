@@ -26,8 +26,8 @@ def test_unreachable_source_says_nothing_was_submitted():
         assert "Nothing was submitted" in messages.explain(code)
 
 
-def test_unknown_code_keeps_a_reference_and_sentences_pass_through():
-    assert "FARMER_REFERENCE_SOMETHING_NEW" in messages.explain("FARMER_REFERENCE_SOMETHING_NEW")
+def test_unknown_code_is_never_shown_and_sentences_pass_through():
+    assert "FARMER_REFERENCE_SOMETHING_NEW" not in messages.explain("FARMER_REFERENCE_SOMETHING_NEW")
     assert messages.explain("Fayda FIN: enter exactly 12 digits") == "Fayda FIN: enter exactly 12 digits"
 
 

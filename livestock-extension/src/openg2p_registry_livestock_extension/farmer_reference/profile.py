@@ -143,6 +143,13 @@ def validate_identity_fields(record: dict) -> None:
             record[field] = normalizer(record[field])
 
 
+def _local_today() -> date:
+    # Imported here: the services package pulls in the whole register domain.
+    from ..register_domain.services.local_date import local_today
+
+    return local_today()
+
+
 def local_profile(source: Mapping, *, today: date | None = None) -> dict:
     """Copy the explicit allowlist; omissions remain absent, including on UPDATE.
 
@@ -166,7 +173,7 @@ def local_profile(source: Mapping, *, today: date | None = None) -> dict:
                     parsed = value if isinstance(value, date) else date.fromisoformat(value)
                 except (ValueError, TypeError):
                     raise FarmerReferenceError("FARMER_REFERENCE_INVALID_BIRTH_DATE") from None
-                if parsed > (today or date.today()):
+                if parsed > (today or _local_today()):
                     raise FarmerReferenceError("FARMER_REFERENCE_INVALID_BIRTH_DATE")
                 result[field] = parsed
         elif value is not None and not isinstance(value, str):

@@ -3,7 +3,7 @@
 import asyncio
 import importlib
 import os
-from datetime import date, timedelta
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -12,6 +12,8 @@ PACKAGE = os.environ.get(
     "REGISTRY_EXTENSION_MODULE", "openg2p_registry_livestock_extension"
 )
 rules = importlib.import_module(PACKAGE + ".register_domain.services.field_rules")
+# The rules compare with the registry date (Africa/Addis_Ababa), not the host date.
+local_today = importlib.import_module(PACKAGE + ".register_domain.services.local_date").local_today
 from openg2p_registry_core.errors import G2PRegistryException
 
 
@@ -60,16 +62,16 @@ def test_supplied_malformed_or_out_of_bounds_dates_are_explained(value):
 def test_date_blanks_today_date_objects_legacy_display_dates_and_future_rules():
     for value in (None, "", "   "):
         assert rules.clean_records([{"registration_date": value}]) == []
-    for value in ("today", date.today()):
+    for value in ("today", local_today()):
         record = {"registration_date": value}
         assert rules.clean_records([record]) == []
-        assert record["registration_date"] == date.today().isoformat()
+        assert record["registration_date"] == local_today().isoformat()
     record = {"registration_date": "24/10/2026"}
     assert rules.clean_records([record]) == []
     assert record["registration_date"] == "2026-10-24"
     assert (
         rules.clean_records(
-            [{"date_of_birth": (date.today() + timedelta(days=1)).isoformat()}]
+            [{"date_of_birth": (local_today() + timedelta(days=1)).isoformat()}]
         )[0].key
         == "coss_field_date_future"
     )

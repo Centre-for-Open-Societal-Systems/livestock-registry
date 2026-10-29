@@ -27,6 +27,8 @@ from datetime import date
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from .local_date import local_today
+
 _logger = logging.getLogger("g2p-reminder-alerts")
 
 
@@ -38,7 +40,7 @@ def flag_overdue_vaccinations(engine: Engine, as_of: date | None = None) -> list
     logged. A DECEASED animal is left alone — it is no longer due anything.
     Returns the ear tags flipped this run.
     """
-    as_of = as_of or date.today()
+    as_of = as_of or local_today()
 
     query = text("""
         WITH latest_vaccination AS (

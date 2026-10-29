@@ -3,6 +3,8 @@
 No platform method is reassigned. CR construction, approval, history, ingestion,
 outgestion and webhook authentication remain native implementations.
 """
+import asyncio
+import time
 from contextvars import ContextVar
 from importlib import import_module
 import logging
@@ -155,6 +157,32 @@ _logger = logging.getLogger("coss-farmer-reference-validate")
 _IDENTITY_MISMATCH = {"FARMER_REFERENCE_IDENTITY_MISMATCH", "FARMER_REFERENCE_FARMER_ID_MISMATCH"}
 
 
+# Validate reuses its last Farmer answer for a submission and declared IDs for a
+# short time, so repeated clicks do not each call the Farmer registry.
+_ANSWER_SECONDS = 30.0
+_ANSWER_LIMIT = 256
+_VALIDATE_DEADLINE_SECONDS = 8.0
+_NO_ANSWER = object()
+_answers: dict = {}
+
+
+def _recent_answer(key):
+    entry = _answers.get(key)
+    if entry and entry[0] > time.monotonic():
+        return entry[1]
+    _answers.pop(key, None)
+    return _NO_ANSWER
+
+
+def _remember_answer(key, answer):
+    now = time.monotonic()
+    for stale in [k for k, (expires, _) in _answers.items() if expires <= now]:
+        del _answers[stale]
+    while len(_answers) >= _ANSWER_LIMIT:
+        del _answers[next(iter(_answers))]
+    _answers[key] = (now + _ANSWER_SECONDS, answer)
+
+
 def _issue_code(reference_code: str) -> str:
     """The Validate issue code for a Farmer reference refusal."""
     if (reference_code in messages.UNAVAILABLE
@@ -244,14 +272,41 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
             if not declared.get("farmer_id"):
                 return None  # the missing ID is reported with the other missing fields
             client = configured_lookup()
-            if declared.get("fayda_fin"):
-                source = await client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
-            else:
-                source = await client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
+        except FarmerReferenceError as error:
+            return _issue_code(str(error)), explain(str(error), declared_ids)
+        except Exception as error:  # noqa: BLE001 - signing or transport failure: Validate must answer
+            _logger.warning("Farmer lookup during validate failed: %s", type(error).__name__)
+            return "LOOKUP_UNAVAILABLE", explain("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", declared_ids)
+        # Repeated Validate clicks on the same declared IDs reuse the last answer for a moment.
+        key = (submission_id, tuple(sorted(declared_ids.items())))
+        cached = _recent_answer(key)
+        if cached is not _NO_ANSWER:
+            return cached
+        answer = await self._lookup_answer(client, declared, declared_ids)
+        # An outage is not remembered: the next click looks up again once it is over.
+        if answer is None or answer[0] != "LOOKUP_UNAVAILABLE":
+            _remember_answer(key, answer)
+        return answer
+
+    async def _lookup_answer(self, client, declared, declared_ids):
+        from .messages import explain
+
+        try:
+            # The HTTP timeout applies to each phase (connect, then the streamed
+            # answer); the whole lookup gets two of them.
+            phase = getattr(getattr(client, "config", None), "timeout_seconds", None) or _VALIDATE_DEADLINE_SECONDS
+            async with asyncio.timeout(2 * phase):
+                if declared.get("fayda_fin"):
+                    source = await client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
+                else:
+                    source = await client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
             if not matches_declared_identity(declared, source.profile):
                 raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
         except FarmerReferenceError as error:
             return _issue_code(str(error)), explain(str(error), declared_ids)
+        except TimeoutError:
+            _logger.warning("Farmer lookup during validate timed out")
+            return "LOOKUP_UNAVAILABLE", explain("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", declared_ids)
         except Exception as error:  # noqa: BLE001 - signing or transport failure: Validate must answer
             _logger.warning("Farmer lookup during validate failed: %s", type(error).__name__)
             return "LOOKUP_UNAVAILABLE", explain("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", declared_ids)
