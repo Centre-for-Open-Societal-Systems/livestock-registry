@@ -41,8 +41,6 @@ class G2PIdGeneratorService(BaseService, G2PIdGeneratorInterface):
             return IdAffix(prefix="RT-", suffix="")
         if mnemonic == "vaccineschedule":
             return IdAffix(prefix="VS-", suffix="")
-        if mnemonic == "importbatch":
-            return IdAffix(prefix="IB-", suffix="")
         if mnemonic == "auditlog":
             return IdAffix(prefix="AL-", suffix="")
 

@@ -205,10 +205,6 @@ SET "section_ui_schema" = replace(section_ui_schema::text, '"section-title": "Fa
 WHERE "register_id" = 'f9c6a359-9563-5a43-b0fe-6c7e452037a3' AND "section_id" = 'livestock_farmer_location_section_02';
 
 UPDATE "public"."g2p_register_sections"
-SET "section_ui_schema" = replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(section_ui_schema::text, '"widget-label": "Import Batch Details"', '"widget-label": "Import batch details"'), '"widget-label": "Source System"', '"widget-label": "Source system"'), '"label": "DOVAR"', '"label": "Dovar"'), '"label": "LITS"', '"label": "Lits"'), '"label": "CASE_BOOK"', '"label": "Case book"'), '"label": "ALIVE"', '"label": "Alive"'), '"label": "MANUAL"', '"label": "Manual"'), '"label": "PENDING"', '"label": "Pending"'), '"label": "PROCESSING"', '"label": "Processing"'), '"label": "COMPLETED"', '"label": "Completed"'), '"label": "FAILED"', '"label": "Failed"'), '"widget-label": "File Name"', '"widget-label": "File name"'), '"widget-label": "File Document"', '"widget-label": "File document"'), '"widget-label": "Total Rows"', '"widget-label": "Total rows"'), '"widget-label": "Error / Conflict Log"', '"widget-label": "Error / conflict log"'), '"widget-label": "Processed By"', '"widget-label": "Processed by"'), '"widget-label": "Processed On"', '"widget-label": "Processed on"'), '"widget-data-dialog-title-add": "Add Import Batch Details"', '"widget-data-dialog-title-add": "Add import batch details"'), '"widget-data-dialog-title-edit": "Edit Import Batch Details"', '"widget-data-dialog-title-edit": "Edit import batch details"'), '"section-title": "Import Batch Details"', '"section-title": "Import batch details"')::jsonb, "section_description" = 'Import batch details'
-WHERE "register_id" = '997676d3-7008-59f9-b23e-613ad79bbb08' AND "section_id" = 'livestock_import_batch_details_section_01';
-
-UPDATE "public"."g2p_register_sections"
 SET "section_ui_schema" = replace(replace(replace(replace(replace(replace(replace(replace(replace(section_ui_schema::text, '"widget-label": "Vaccination Details"', '"widget-label": "Vaccination details"'), '"widget-label": "Ear Tag / Secondary Identifier"', '"widget-label": "Ear tag / secondary identifier"'), '"widget-label": "Vaccination Date"', '"widget-label": "Vaccination date"'), '"widget-label": "Next Due Date"', '"widget-label": "Next due date"'), '"widget-label": "Batch / Lot Number"', '"widget-label": "Batch / lot number"'), '"widget-label": "Administered By"', '"widget-label": "Administered by"'), '"widget-data-dialog-title-add": "Add Vaccination Details"', '"widget-data-dialog-title-add": "Add vaccination details"'), '"widget-data-dialog-title-edit": "Edit Vaccination Details"', '"widget-data-dialog-title-edit": "Edit vaccination details"'), '"section-title": "Vaccination Details"', '"section-title": "Vaccination details"')::jsonb, "section_description" = 'Vaccination details'
 WHERE "register_id" = '997676d3-7008-59f9-b23e-613ad79bbb08' AND "section_id" = 'livestock_vaccination_details_section_01';
 
@@ -256,14 +252,6 @@ UPDATE "public"."g2p_register_schemas"
 SET "filter_schema" = replace("filter_schema"::jsonb::text, '"display_label": "Event Type"', '"display_label": "Event type"')::json
 WHERE "register_id" = '192c08b0-5403-5167-968a-2676d4af2879';
 
-UPDATE "public"."g2p_register_schemas"
-SET "search_result_schema" = replace(replace("search_result_schema"::jsonb::text, '"display_label": "Source System"', '"display_label": "Source system"'), '"display_label": "Total Rows"', '"display_label": "Total rows"')::json
-WHERE "register_id" = '0fd11be9-83d7-5d2e-9dea-e0653add7059';
-
-UPDATE "public"."g2p_register_schemas"
-SET "filter_schema" = replace("filter_schema"::jsonb::text, '"display_label": "Source System"', '"display_label": "Source system"')::json
-WHERE "register_id" = '0fd11be9-83d7-5d2e-9dea-e0653add7059';
-
 UPDATE "public"."g2p_register_definitions"
 SET "register_subject" = 'Health events'
 WHERE "register_id" = 'a40e4a02-1b82-5b31-89df-71624bd96545';
@@ -279,10 +267,6 @@ WHERE "register_id" = '192c08b0-5403-5167-968a-2676d4af2879';
 UPDATE "public"."g2p_register_definitions"
 SET "register_subject" = 'Vaccine schedules'
 WHERE "register_id" = '5cdf80bf-0cdb-53e4-a4cf-71927f809250';
-
-UPDATE "public"."g2p_register_definitions"
-SET "register_subject" = 'Import batches'
-WHERE "register_id" = '0fd11be9-83d7-5d2e-9dea-e0653add7059';
 
 UPDATE "public"."g2p_register_definitions"
 SET "register_subject" = 'Audit logs'
@@ -306,7 +290,6 @@ SET "core_translation" = (COALESCE("core_translation"::jsonb, '{}'::jsonb) ||
  "ls_farmer_identity": "Farmer identity",
  "ls_farmer_location": "Farmer location",
  "ls_health_event_details": "Health event details",
- "ls_import_batch_details": "Import batch details",
  "ls_livestock_record": "Farmer details",
  "ls_retagging_details": "Ear tag replacement",
  "ls_survey_personnel": "Survey personnel",

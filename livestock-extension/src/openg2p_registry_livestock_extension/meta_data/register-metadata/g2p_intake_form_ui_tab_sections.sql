@@ -1,10 +1,8 @@
 -- Sections shown on the livestock intake form, in order.
 --
--- Import Batch Details and Audit Log Details are deliberately absent: both are
--- system-generated (import batches come from bulk ingestion, audit rows are
--- written by the platform), so there is nothing for an operator to fill in at
--- registration. They remain on the register's "Imports & Audit" tab, which is
--- where they are read.
+-- Audit Log Details is deliberately absent: audit rows are written by the
+-- platform, so there is nothing for an operator to fill in at registration. It
+-- remains on the register's "Audit" tab, which is where it is read.
 -- intake_tab_section_3 (Farmer Details — the read-only farmer profile card
 -- keyed off the livestock record's own farmer_id/fayda_fan_id/farmer_name,
 -- schema 997676d3-...) was removed on purpose: it is not required for

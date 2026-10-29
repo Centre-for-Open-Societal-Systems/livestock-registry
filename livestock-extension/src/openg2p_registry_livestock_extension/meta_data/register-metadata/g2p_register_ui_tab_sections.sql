@@ -13,7 +13,6 @@ INSERT INTO "public"."g2p_register_ui_tab_sections" ("tab_section_id","register_
 -- by everyone. The section/register/data are untouched, just not shown here.
 ('92418b0b-585f-59ca-acb1-75135fd8a9fa','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_vital_event_tab','livestock_vital_event_details_section_01',10),
 ('67638503-557e-59f9-a983-7e2d6bfb9909','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_vital_event_tab','livestock_breeding_details_section_01',20),
-('84721b63-f862-5ca7-aba5-fee321f2564b','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_import_batch_tab','livestock_import_batch_details_section_01',10),
 ('0083d17f-86f0-5b7b-a14b-b98c8d58035f','997676d3-7008-59f9-b23e-613ad79bbb08','livestock_import_batch_tab','livestock_audit_log_details_section_01',20),
 ('b370d3d0-4a65-557d-afaa-19e2a940fc45','f9c6a359-9563-5a43-b0fe-6c7e452037a3','livestock_farmer_tab','livestock_farmer_identity_section_01',10),
 ('b6cd413f-1078-59ed-a55b-178e01fa749a','f9c6a359-9563-5a43-b0fe-6c7e452037a3','livestock_farmer_tab','livestock_farmer_location_section_02',20),
