@@ -2,7 +2,7 @@
 
 The Location sections bind the native geo-hierarchy widget to the register's
 geo_lowest_level_value_id / geo_code_hierarchy_json (Master Data geo unit ids,
-P-codes: ET04, ET0404, ET040404, ET040404888003). The document is
+P-codes: ET04, ET0404, ET040404, ET04040404). The document is
 ``{"hierarchy": [{"level_id": "l1", "level_mnemonic": "region",
 "level_value_id": "ET04", "level_value_mnemonic": "Oromia"}, ...],
 "lowest_level_value_id": ...}``; region_id ... kebele_id are filled from it so

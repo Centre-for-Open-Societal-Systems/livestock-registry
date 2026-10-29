@@ -45,8 +45,9 @@
 {% set loc_woreda_val = loc.get('woreda_name_id') or loc.get('woreda_id') or loc.get('woreda') or d.get('holding_woreda_id') or d.get('holding_woreda') or d.get('woreda_name_id') or d.get('woreda_id') or d.get('woreda') or fl.get('woreda_id') or fl.get('woreda') or fl.get('woreda_name_id') or d.get('farmer_woreda_id') or d.get('farmer_woreda') or '' %}
 {% set loc_kebele_val = loc.get('kebele_name_id') or loc.get('kebele_id') or loc.get('kebele') or d.get('holding_kebele_id') or d.get('holding_kebele') or d.get('kebele_name_id') or d.get('kebele_id') or d.get('kebele') or fl.get('kebele_id') or fl.get('kebele') or fl.get('kebele_name_id') or d.get('farmer_kebele_id') or d.get('farmer_kebele') or '' %}
 
-{# Form v5 and later pick the locations from the Master Data Entity Lists
-   (tools/odk-geo-sync) and submit each place's Master Data id as <level>_code.
+{# Form v7 picks the locations from the CSV media attached to the form
+   (odk/tools/build_location_media.py) and submits each place's Master Data id
+   as <level>_code, with location_source=mds.
    The ids are Master Data geo unit ids (P-codes, ET040404); they go to
    region_id ... kebele_id and geo_lowest_level_value_id, and the names are left
    to the registry, which fills them from the ids on save (admin_area_sync).

@@ -14,7 +14,7 @@ the Master Data hierarchy. The lists are attached to the form in Central as
 external CSVs (region_odk.csv ... kebele_odk.csv), with a parent column that the
 cascading choice_filter uses.
 
-Labels are made readable: underscores become spaces and runs of spaces collapse.
+Labels are made readable: underscores become spaces and runs of spaces collapse; places that still share a name under one parent get their code appended.
 The codes are never changed. Geography is per environment: rebuild the lists
 from the environment's Master Data export when it was not seeded from the pack.
 """
@@ -26,6 +26,7 @@ import io
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 import openpyxl
@@ -52,9 +53,12 @@ def load(pack: Path) -> dict[str, list[dict]]:
             units[level].append(unit)
     known: dict[str, set[str]] = {level: {u["level_value_id"] for u in rows} for level, rows in units.items()}
     for level, rows in units.items():
+        if len(known[level]) != len(rows):
+            raise ValueError("duplicate " + level + " codes in the pack")
+    for level, rows in units.items():
         parent = PARENT[level]
         for unit in rows:
-            label = readable(unit.get("display_name") or unit["level_value_mnemonic"])
+            label = readable(unit.get("level_value_mnemonic") or unit["display_name"])
             if not label:
                 raise ValueError("empty label for " + unit["level_value_id"])
             if parent and unit["parent_level_value_id"] not in known[parent]:
@@ -62,14 +66,23 @@ def load(pack: Path) -> dict[str, list[dict]]:
     return units
 
 
+def labelled(units: dict[str, list[dict]], level: str) -> list[tuple[str, str, str]]:
+    """(code, label, parent code) per unit. Two places under one parent that share
+    a name get their code appended, so the enumerator can tell them apart."""
+    rows = [(u["level_value_id"], readable(u.get("level_value_mnemonic") or u["display_name"]),
+             u["parent_level_value_id"] if PARENT[level] else "") for u in units[level]]
+    seen = Counter((parent, label) for _, label, parent in rows)
+    return sorted(((code, f"{label} ({code})" if seen[(parent, label)] > 1 else label, parent)
+                   for code, label, parent in rows))
+
+
 def csv_text(units: dict[str, list[dict]], level: str) -> str:
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
     parent = PARENT[level]
     writer.writerow(["name", "label"] + ([parent] if parent else []))
-    for unit in sorted(units[level], key=lambda u: u["level_value_id"]):
-        row = [unit["level_value_id"], readable(unit.get("display_name") or unit["level_value_mnemonic"])]
-        writer.writerow(row + ([unit["parent_level_value_id"]] if parent else []))
+    for code, label, parent_code in labelled(units, level):
+        writer.writerow([code, label] + ([parent_code] if parent else []))
     return out.getvalue()
 
 
@@ -78,7 +91,7 @@ def update_form(workbook) -> bool:
     sheet = workbook["survey"]
     col = {c.value: c.column for c in sheet[1] if c.value}
     changed = False
-    kebele_row = None
+    kebele_row = None  # the row of the last location question; location_source follows it
     names = {sheet.cell(r, col["name"]).value for r in range(2, sheet.max_row + 1)}
     for r in range(2, sheet.max_row + 1):
         name = sheet.cell(r, col["name"]).value
@@ -95,6 +108,8 @@ def update_form(workbook) -> bool:
                 if level == "kebele":
                     kebele_row = r
     if "location_source" not in names:
+        if kebele_row is None:
+            raise ValueError("the form has no kebele_code or kebele_id question to place location_source after")
         sheet.insert_rows(kebele_row + 1)
         sheet.cell(kebele_row + 1, col["type"], "calculate")
         sheet.cell(kebele_row + 1, col["name"], "location_source")

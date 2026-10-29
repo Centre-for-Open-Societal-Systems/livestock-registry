@@ -24,8 +24,7 @@ TEMPLATE = os.path.join(
 SAMPLE = os.path.join(HERE, "sample_submissions.json")
 
 SECTIONS = (
-    "ls_farmer_identity", "ls_farmer_location", "ls_survey_personnel",
-    "ls_livestock_record", "ls_livestock_location", "ls_animal_details",
+    "ls_survey_personnel", "livestock_farmer_lookup", "ls_livestock_location", "ls_animal_details",
     "ls_health_event_details", "ls_vaccination_details",
     "ls_vital_event_details", "ls_breeding_details",
 )
@@ -50,13 +49,15 @@ def main():
     failures = []
     for sub in subs:
         out = render(template, sub)
-        name = out["ls_farmer_identity"][0]["farmer_name"]
+        name = out["livestock_farmer_lookup"][0]["farmer_id"]
         for s in SECTIONS:
             check(s in out and isinstance(out[s], list), f"{name}: section {s} missing", failures)
-        farmer = out["ls_farmer_identity"][0]
-        check(farmer["gender"] in (None, "MALE", "FEMALE", "OTHER"), f"{name}: farmer gender {farmer['gender']!r} not upper-case", failures)
-        record = out["ls_livestock_record"][0]
+        record = out["livestock_farmer_lookup"][0]
         check(record["state"] == "DRAFT", f"{name}: livestock record state {record['state']!r}, expected DRAFT (the approval ladder starts there)", failures)
+        loc = out["ls_livestock_location"][0]
+        chain = [h["level_value_id"] for h in loc["geo_code_hierarchy_json"]["hierarchy"]]
+        want_chain = [sub["location"][k] for k in ("region_code", "zone_code", "woreda_code", "kebele_code")]
+        check(chain == want_chain, f"{name}: location hierarchy {chain} != {want_chain}", failures)
         for a in out["ls_animal_details"]:
             check("state" not in a, f"{name}: animal row carries a state ({a.get('state')!r})", failures)
             check(a["species"] in SPECIES, f"{name}: species {a['species']!r} not a LIVESTOCK_SPECIES code of the pack", failures)

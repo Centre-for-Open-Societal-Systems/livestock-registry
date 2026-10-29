@@ -177,7 +177,7 @@ def test_columns_are_the_register_fields_of_the_flat_sections_and_the_one_animal
     assert ANIMAL <= animal_column_keys()
     full = {**BASE, 'surveyor_name': 'Sample Surveyor', 'surveyor_mobile_number': '0911000000',
             'supervisor_name': 'Sample Supervisor', 'supervisor_mobile_number': '0922000000',
-            'region': 'ET04', 'zone': 'ET0404', 'woreda': 'ET040404', 'kebele': 'ET040404888003',
+            'region': 'ET04', 'zone': 'ET0404', 'woreda': 'ET040404', 'kebele': 'ET04040404',
             'latitude': '9.01', 'longitude': '38.74', 'secondary_identifier': 'BAND-1', 'quantity': '3',
             'weight': '250.5', 'age': '6 years'}
     assert set(full) == columns
@@ -234,7 +234,7 @@ def test_identity_location_and_personnel_match_what_the_odk_template_renders_for
     identity = {'farmer_id': 'FR-000000000001', 'fayda_id': '0000123456789012'}
     odk = render({'farmer': identity,
                   'location': {'location_source': 'mds', 'region_code': 'ET04', 'zone_code': 'ET0404',
-                               'woreda_code': 'ET040404', 'kebele_code': 'ET040404888003'},
+                               'woreda_code': 'ET040404', 'kebele_code': 'ET04040404'},
                   'survey_personnel': {'surveyor_name': 'Sample', 'surveyor_mobile_number': '1',
                                        'supervisor_name': 'Chief', 'supervisor_mobile_number': '2'},
                   'livestock': [{'species_id': 'cattle', 'breed': 'local', 'gender': 'female', 'ear_tag_id': 'ET0000000013',
@@ -242,7 +242,7 @@ def test_identity_location_and_personnel_match_what_the_odk_template_renders_for
                                  'health_status': 'healthy', 'vaccination_status': 'up_to_date'}]}, 'odk_to_livestock_intake.j2')
     actual = render({**BASE, 'surveyor_name': 'Sample', 'surveyor_mobile_number': '1', 'supervisor_name': 'Chief',
                      'supervisor_mobile_number': '2', 'region': 'ET04', 'zone': 'ET0404', 'woreda': 'ET040404',
-                     'kebele': 'ET040404888003'})
+                     'kebele': 'ET04040404'})
     for key in ('farmer_id', 'fayda_fin', 'fayda_fan_id', 'record_name', 'status', 'state', 'total_animals'):
         assert actual['livestock_farmer_lookup'][0][key] == odk['livestock_farmer_lookup'][0][key], key
     assert actual['ls_survey_personnel'] == odk['ls_survey_personnel']
@@ -277,7 +277,7 @@ def test_location_stops_at_the_deepest_level_given_and_numbers_become_numbers():
     ({'latitude': '91', 'longitude': '38'}, 'column latitude must be between'),
     ({'latitude': '9', 'longitude': '181'}, 'column longitude must be between'),
     ({'latitude': '9'}, 'columns latitude and longitude must be given together'),
-    ({'kebele': 'ET040404888003'}, 'column kebele needs the level above it'),
+    ({'kebele': 'ET04040404'}, 'column kebele needs the level above it'),
     ({'region': 'ET04', 'woreda': 'ET040404'}, 'column woreda needs the level above it'),
 ])
 def test_a_value_the_register_cannot_take_fails_the_row_naming_the_column(change, message):

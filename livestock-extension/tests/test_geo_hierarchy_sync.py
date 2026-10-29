@@ -17,9 +17,9 @@ DOCUMENT = {
         {"level_id": "l1", "level_mnemonic": "region", "level_value_id": "ET04", "level_value_mnemonic": "Oromia"},
         {"level_id": "l2", "level_mnemonic": "zone", "level_value_id": "ET0404", "level_value_mnemonic": "East Shewa"},
         {"level_id": "l3", "level_mnemonic": "woreda", "level_value_id": "ET040404", "level_value_mnemonic": "Ada'a"},
-        {"level_id": "l4", "level_mnemonic": "kebele", "level_value_id": "ET040404888003", "level_value_mnemonic": "Dire Arerti"},
+        {"level_id": "l4", "level_mnemonic": "kebele", "level_value_id": "ET04040404", "level_value_mnemonic": "Qanani"},
     ],
-    "lowest_level_value_id": "ET040404888003",
+    "lowest_level_value_id": "ET04040404",
 }
 
 
@@ -34,12 +34,12 @@ def row(**kwargs):
 def test_places_use_bare_pcodes_and_skip_the_country():
     assert geo.hierarchy_places(DOCUMENT) == {
         "region": ("ET04", "Oromia"), "zone": ("ET0404", "East Shewa"),
-        "woreda": ("ET040404", "Ada'a"), "kebele": ("ET040404888003", "Dire Arerti")}
+        "woreda": ("ET040404", "Ada'a"), "kebele": ("ET04040404", "Qanani")}
 
 
 def test_document_may_be_json_text_or_bare_list():
     assert geo.hierarchy_places(json.dumps(DOCUMENT))["woreda"] == ("ET040404", "Ada'a")
-    assert geo.hierarchy_places(DOCUMENT["hierarchy"])["kebele"][0] == "ET040404888003"
+    assert geo.hierarchy_places(DOCUMENT["hierarchy"])["kebele"][0] == "ET04040404"
     assert geo.hierarchy_places("not json") == {} and geo.hierarchy_places(None) == {}
     assert geo.hierarchy_places({"hierarchy": [{"level_mnemonic": "region"}]}) == {}
 
@@ -47,14 +47,14 @@ def test_document_may_be_json_text_or_bare_list():
 def test_apply_sets_ids_and_missing_names():
     r = row(geo_code_hierarchy_json=DOCUMENT, region="Oromiya")
     assert geo.apply_hierarchy(r) is True
-    assert (r.region_id, r.zone_id, r.woreda_id, r.kebele_id) == ("ET04", "ET0404", "ET040404", "ET040404888003")
+    assert (r.region_id, r.zone_id, r.woreda_id, r.kebele_id) == ("ET04", "ET0404", "ET040404", "ET04040404")
     assert r.region == "Oromiya"  # a given name is kept for Master Data to refresh
-    assert (r.zone, r.woreda, r.kebele) == ("East Shewa", "Ada'a", "Dire Arerti")
+    assert (r.zone, r.woreda, r.kebele) == ("East Shewa", "Ada'a", "Qanani")
 
 
 def test_apply_clears_levels_below_the_chosen_one():
     shorter = {"hierarchy": DOCUMENT["hierarchy"][:4]}
-    r = row(geo_code_hierarchy_json=shorter, kebele_id="ET040404888003", kebele="Dire Arerti")
+    r = row(geo_code_hierarchy_json=shorter, kebele_id="ET04040404", kebele="Qanani")
     assert geo.apply_hierarchy(r) is True
     assert r.woreda_id == "ET040404" and r.kebele_id is None
 

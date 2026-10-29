@@ -34,7 +34,7 @@ Import configuration: `file_import_to_livestock_intake`.
 | `region` | Location (`ls_livestock_location`) | No | Master Data geo unit id (P-code), for example ET04 |
 | `zone` | Location (`ls_livestock_location`) | No | Master Data geo unit id (P-code), for example ET0404; needs the region |
 | `woreda` | Location (`ls_livestock_location`) | No | Master Data geo unit id (P-code), for example ET040404; needs the zone |
-| `kebele` | Location (`ls_livestock_location`) | No | Master Data geo unit id (P-code), for example ET040404888003; needs the woreda |
+| `kebele` | Location (`ls_livestock_location`) | No | Master Data geo unit id (P-code), for example ET04040404; needs the woreda |
 | `latitude` | Location (`ls_livestock_location`) | No | Decimal degrees, -90 to 90; needs the longitude too |
 | `longitude` | Location (`ls_livestock_location`) | No | Decimal degrees, -180 to 180; needs the latitude too |
 | `ear_tag_id` | Livestock details (`ls_animal_details`) | Conditional | ET followed by exactly 10 digits, for example ET0000000013. Required when the species needs an ear tag |
