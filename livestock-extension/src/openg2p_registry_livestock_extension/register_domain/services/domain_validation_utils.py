@@ -409,7 +409,7 @@ async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None
 
 async def humanize_attribute_value(value_id: str | None) -> str:
     """The human-readable label for a code-list value id (e.g.
-    "LIVESTOCK_SPECIES_SHEEP" -> "Sheep"), for building a validation message
+    "SHEEP" -> "Sheep"), for building a validation message
     a user can actually act on. Read from Master Data; falls back to the raw
     id if it isn't a known value (or is blank) — validation error text should
     never go silent just because a lookup came up empty.
@@ -422,42 +422,41 @@ async def humanize_attribute_value(value_id: str | None) -> str:
 
 
 async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
-    """(requires_ear_tag, is_flock_species) for a LIVESTOCK_SPECIES value —
-    e.g. Poultry/Beehive vs. Cattle/Sheep/... — configurable per species from
-    Configuration > Attributes > Species (an Edit Attribute Value's "Requires
-    Ear Tag" / "Flock / Group Species" checkboxes), not a hardcoded species
-    list in this codebase. Backed by G2PLivestockSpeciesConfig, a
-    per-value side table (see core-patches/apply_patches.py Fix 4) the same
-    way G2PAttributeValueSchedule already backs per-value vaccine scheduling
-    — most species (and every non-species attribute value) never get a row
-    there, which is why every field on it is nullable.
+    """(requires_ear_tag, is_flock_species) for a LIVESTOCK_SPECIES value,
+    read from the value's attributes in Master Data. The country pack declares
+    both on the list (openg2p-data ETH-OAN, LIVESTOCK_SPECIES attribute_schema:
+    Poultry is a flock without ear tags, Cattle/Goats/Sheep/... are tagged one
+    by one), so a new species or a changed rule is a pack change, not a code
+    change.
 
-    Defaults to (True, False) — ear-tag-required, not a flock — whenever no
-    row exists (species left blank, a species nobody has configured yet, or
-    a brand-new species just added in Configuration). That default matches
-    every species' actual behavior before this table existed, so an
-    unconfigured species behaves exactly as before rather than silently
-    losing its ear-tag requirement.
+    Defaults to (True, False), ear tag required and not a flock, when the
+    species is blank, unknown, or carries no attributes yet.
     """
     requires_ear_tag, is_flock_species = True, False
     if is_blank(species_value_id):
         return requires_ear_tag, is_flock_species
+    from ... import master_data_lists
 
-    from openg2p_fastapi_common.context import dbengine
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    from ..models.species_config import G2PLivestockSpeciesConfig
-
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        config = await session.get(G2PLivestockSpeciesConfig, species_value_id)
-        if config is None:
-            return requires_ear_tag, is_flock_species
-        if config.requires_ear_tag is not None:
-            requires_ear_tag = config.requires_ear_tag
-        if config.is_flock_species is not None:
-            is_flock_species = config.is_flock_species
+    attributes = await master_data_lists.value_attributes("LIVESTOCK_SPECIES", str(species_value_id))
+    if isinstance(attributes.get("requires_ear_tag"), bool):
+        requires_ear_tag = attributes["requires_ear_tag"]
+    if isinstance(attributes.get("is_flock_species"), bool):
+        is_flock_species = attributes["is_flock_species"]
     return requires_ear_tag, is_flock_species
+
+
+async def validate_species_known(record: dict) -> None:
+    """The species must be an active value of the Master Data LIVESTOCK_SPECIES
+    list (the country pack's CATTLE, GOATS, SHEEP, ...). Skipped when Master
+    Data cannot be read: an unreadable list must not block every save."""
+    species = record.get("species")
+    if is_blank(species):
+        return
+    from ... import master_data_lists
+
+    values = await master_data_lists.get_list("LIVESTOCK_SPECIES")
+    if values and str(species).strip() not in values:
+        validation_error(f"Species '{species}' is not in the species list.")
 
 
 async def validate_species_matches(record: dict) -> None:
@@ -735,19 +734,23 @@ async def validate_known_code(record: dict, field: str, attribute_id: str, label
         validation_error(f"{label} '{value}' is not in the {label.lower()} list.")
 
 
-async def attribute_value_parent(value_id) -> str | None:
-    """parent_value_id of a code-list value (e.g. LIVESTOCK_BREED_BORAN ->
-    LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->
-    LIVESTOCK_SPECIES_CATTLE), read from Master Data. None when the value is
-    unknown or has no parent."""
+async def attribute_value_parent(value_id, list_code: str | None = None) -> str | None:
+    """The species a breed or vaccine belongs to, read from Master Data: the
+    value's ``species`` attribute in list ``list_code`` (how the country pack
+    links VACCINE_TYPE_ANTHRAX_CATTLE to CATTLE), else its catalogue parent.
+    None when the value is unknown or names no species."""
     if is_blank(value_id):
         return None
     from ... import master_data_lists
 
+    if list_code:
+        species = (await master_data_lists.value_attributes(list_code, str(value_id))).get("species")
+        if isinstance(species, str) and species.strip():
+            return species.strip()
     return await master_data_lists.parent(str(value_id).strip())
 
 
-async def validate_belongs_to_species(value_id, species, kind: str) -> None:
+async def validate_belongs_to_species(value_id, species, kind: str, list_code: str | None = None) -> None:
     """Reject a breed/vaccine whose catalogue parent is a DIFFERENT species
     than the one on the record. The dialogs show the full breed and vaccine
     lists on the official staff-ui (no species filter inside a pop-up), so
@@ -755,7 +758,7 @@ async def validate_belongs_to_species(value_id, species, kind: str) -> None:
     parent in the catalogue is left alone."""
     if is_blank(value_id) or is_blank(species):
         return
-    parent = await attribute_value_parent(value_id)
+    parent = await attribute_value_parent(value_id, list_code)
     if parent is None or parent == str(species).strip():
         return
     value_label = await humanize_attribute_value(value_id)
