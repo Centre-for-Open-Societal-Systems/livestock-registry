@@ -60,7 +60,11 @@ async def _hierarchy_from_lowest_value(row) -> bool:
     if any(getattr(row, f"{level}_id", None) for level in LEVELS):
         return False
     chain = await geo_chain(lowest)
-    if not any(entry.get("level_mnemonic") in LEVELS for entry in chain):
+    # Only a whole chain, region down to the chosen place (a country above it
+    # is kept): a partial one would clear names the row already holds.
+    levels = [(entry.get("level_mnemonic") or "").casefold() for entry in chain]
+    levels = levels[levels.index("region"):] if "region" in levels else []
+    if not levels or levels != list(LEVELS[:len(levels)]):
         return False
     row.geo_code_hierarchy_json = {
         "hierarchy": chain,

@@ -106,15 +106,49 @@ def test_a_woreda_code_leaves_the_kebele_empty():
     assert (row.woreda, row.kebele, row.kebele_id) == ("Adama", None, None)
 
 
-def test_names_pointing_at_their_parent_by_name_still_resolve():
+def test_names_pointing_at_their_parent_by_name_still_resolve(monkeypatch):
     named = {key: dict(node) for key, node in INDEX.items()}
     named["ET0401"]["parent_level_value_id"] = "Oromia"
     named["ET040101"]["parent_level_value_id"] = "East Shewa"
     named["ET04010101"]["parent_level_value_id"] = "Adama"
-    lists._client = lambda: FakeClient(named)
+    monkeypatch.setattr(lists, "_client", lambda: FakeClient(named))
     row = make_row(geo_lowest_level_value_id="ET04010101")
     run(sync.sync_admin_area(row))
     assert (row.region, row.kebele) == ("Oromia", "Dire Arerti")
+
+
+def _name_keyed(index):
+    named = {key: dict(node) for key, node in index.items()}
+    for node in named.values():
+        parent = index.get(node["parent_level_value_id"] or "")
+        if parent and node["level_mnemonic"] != "region":
+            node["parent_level_value_id"] = parent["level_value_mnemonic"]
+    return named
+
+
+def test_a_parent_name_is_matched_only_at_the_level_above(monkeypatch):
+    # A woreda named like its zone: the kebele's parent is the woreda, the
+    # woreda's parent is the zone, never the other way round.
+    index = {key: dict(node) for key, node in INDEX.items()}
+    index["ET040101"]["level_value_mnemonic"] = "East Shewa"
+    monkeypatch.setattr(lists, "_client", lambda: FakeClient(_name_keyed(index)))
+    row = make_row(geo_lowest_level_value_id="ET04010101")
+    assert run(sync.sync_admin_area(row)) is True
+    assert (row.region, row.zone, row.woreda, row.kebele) == ("Oromia", "East Shewa", "East Shewa", "Dire Arerti")
+    assert row.region_id == "ET04"
+
+
+def test_a_broken_chain_keeps_the_names_the_row_holds(monkeypatch):
+    # The woreda's parent name matches two zones: the walk stops below the
+    # region, and no partial document clears the names already on the row.
+    index = {key: dict(node) for key, node in INDEX.items()}
+    index["ET0402"] = dict(index["ET0401"], level_value_id="ET0402")
+    monkeypatch.setattr(lists, "_client", lambda: FakeClient(_name_keyed(index)))
+    row = make_row(geo_lowest_level_value_id="ET04010101", region="Oromia", zone="East Shewa",
+                   woreda="Adama", kebele="Dire Arerti")
+    run(sync.sync_admin_area(row))
+    assert row.geo_code_hierarchy_json is None
+    assert (row.region, row.zone, row.woreda, row.kebele) == ("Oromia", "East Shewa", "Adama", "Dire Arerti")
 
 
 def test_unknown_code_changes_nothing():
@@ -124,12 +158,12 @@ def test_unknown_code_changes_nothing():
     assert row.geo_code_hierarchy_json is None
 
 
-def test_master_data_failure_changes_nothing():
+def test_master_data_failure_changes_nothing(monkeypatch):
     class Broken:
         async def _load_geo_index(self):
             raise RuntimeError("down")
 
-    lists._client = lambda: Broken()
+    monkeypatch.setattr(lists, "_client", lambda: Broken())
     row = make_row(geo_lowest_level_value_id="ET04010101")
     assert run(sync.sync_admin_area(row)) is False
     assert row.region is None
