@@ -23,11 +23,12 @@ cropsown-regsitry `d0cd4f9`, which carries the Farmer-reference receiver changes
 envelope, Ed25519 registry-payload signing, mapped-payload validation). That build also creates crop's four ODK
 pipelines in any connector database it starts against (`default_pipelines.py`, run at every API start),
 which put four failing "Crop Sown" connectors into the livestock connector database on 29 Oct.
-`docker/connector-service/` is the livestock-owned image: the same pinned build with that module replaced
-by one that creates nothing. Jenkins builds it with the other images (`openg2p/livestock-registry/connector-service`);
-the values pin names it (develop build 116, `sha256:c8edf177…`), and `upgrade-livestock-connector.sh` step 6 removes the four
-rows through the admin API, by id and only while they carry the seeded name. Moving connector
-releases into oan-helm, built from OpenG2P/registry-connector, replaces both later.
+The stop-gap image that removed them (`docker/connector-service/`, ECR
+`openg2p/livestock-registry/connector-service`, develop build 116, `sha256:c8edf177…`) is what the
+values pin and what runs today; its source is retired. Plan W21 replaces this whole directory: the
+connector becomes the `registryConnector` subchart of the openg2p-registry chart (rc.601+), running
+the image built from `docker/registry-connector/` (OpenG2P's published connector plus the registry
+signature and WebSub content extension).
 
 Connector definitions, checkpoints and webhook secrets live in the connector database, not here.
 The Farmer-reference definition for livestock is documented in
