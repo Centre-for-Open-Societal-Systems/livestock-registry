@@ -17,9 +17,9 @@ BEGIN
    ELSIF node->>'widget-data-path' = '997676d3-7008-59f9-b23e-613ad79bbb08.farmer_name' THEN
      result := (result - 'widget-data-validation') || '{"widget":"display","widget-type":"display","widget-readonly":true,"widget-required":false,"widget-label":"Farmer name (from the Farmer Registry)"}'::jsonb;
    ELSIF node->>'widget-data-path' = '997676d3-7008-59f9-b23e-613ad79bbb08.fayda_fan_id' THEN
-     result := (result - 'widget-data-options') || '{"widget-required":false,"widget-label":"Fayda FAN (16 digits)","widget-data-placeholder":"Or enter the 16-digit FAN"}'::jsonb;
+     result := (result - 'widget-data-options') || '{"widget-required":false,"widget-label":"Fayda FAN ID","widget-data-placeholder":"Or enter the 16-digit FAN"}'::jsonb;
    ELSIF node->>'widget-data-path' = '997676d3-7008-59f9-b23e-613ad79bbb08.fayda_fin' THEN
-     result := result || jsonb_build_object('widget-required',false,'widget-label','Fayda FIN (12 digits)','widget-data-placeholder','Or enter the 12-digit FIN');
+     result := result || jsonb_build_object('widget-required',false,'widget-label','Fayda FIN','widget-data-placeholder','Or enter the 12-digit FIN');
    ELSIF node->>'widget-data-path' = 'f9c6a359-9563-5a43-b0fe-6c7e452037a3.fayda_fan_id' THEN
      result := result || '{"widget-required":false}'::jsonb;
    END IF;
