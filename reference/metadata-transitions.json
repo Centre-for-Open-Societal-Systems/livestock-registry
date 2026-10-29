@@ -58,5 +58,16 @@
       "mechanism": "geo_hierarchy_derived",
       "reason": "The Location section uses the native geo-hierarchy widget (Master Data geo unit ids); the per-level id is filled from geo_code_hierarchy_json on save"
     }
+  ],
+  "retired_registers": [
+    {
+      "register_id": "0fd11be9-83d7-5d2e-9dea-e0653add7059",
+      "register_mnemonic": "ImportBatch",
+      "section_ids": [
+        "livestock_import_batch_details_section_01"
+      ],
+      "patch": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/zz-oan/40_retire_import_batch_register.sql",
+      "reason": "Custom import-batch register that nothing wrote to; bulk import runs on the platform import queue (docs/file-import.md)"
+    }
   ]
 }
