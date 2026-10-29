@@ -20,7 +20,7 @@ Additions to the vendored chart:
 
 The connector image is `openg2p/livestock-registry/registry-connector` (built from `docker/registry-connector/`:
 OpenG2P's published connector plus the OAN extension for registry-payload signing, the WebSub content
-envelope and admin-role access to the API). The values pin names develop build 145 (commit `785f58c`,
+envelope and admin-role access to the API) and `registry-connector-ui` (signs in with the staff token the admin-only API requires). The values pin names develop build 145 (commit `785f58c`,
 `sha256:b911446c…`), the first build after the admin-role change; `check-chart.sh` asserts the same digest.
 It replaces the stop-gap `connector-service` image (build 116, `sha256:c8edf177…`), which created no crop
 pipelines but had no admin-role check. Plan W21 moves the connector into the `registryConnector` subchart of

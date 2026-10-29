@@ -9,7 +9,8 @@ helm lint chart -f livestock-connector.values.yaml > /dev/null
 helm template livestock-connector chart -n livestock -f livestock-connector.values.yaml > "$out"
 digest=sha256:b911446ce1b289faab7280c7cbf51001cd7350117069a28447b786c32c7f3866
 test "$(grep -c "image: \"379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector@$digest\"" "$out")" -eq 3
-grep -q 'image: "379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/connector-ui:live-20260930-0452"' "$out"
+ui_digest=sha256:31d9c997d570da43750e7d0b029a0275d7735ffa8f65248b5de2e5acfb54858a
+grep -q "image: \"379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector-ui@$ui_digest\"" "$out"
 for name in CONNECTOR_VALIDATE_MAPPED_PAYLOAD CONNECTOR_SIGNING_KID CONNECTOR_SIGNING_KEY_PEM; do
   # api, worker and beat each render it in the container and in the postgres-checker init container.
   test "$(grep -c "name: $name\$" "$out")" -eq 6

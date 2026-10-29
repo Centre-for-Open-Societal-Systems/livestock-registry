@@ -63,8 +63,9 @@ beat:
     pullPolicy: IfNotPresent
 ui:
   image:
-    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/connector-ui
-    tag: live-20260930-0452
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector-ui
+    tag: 785f58c6b877
+    digest: sha256:31d9c997d570da43750e7d0b029a0275d7735ffa8f65248b5de2e5acfb54858a
     pullPolicy: IfNotPresent
 
 istio:
