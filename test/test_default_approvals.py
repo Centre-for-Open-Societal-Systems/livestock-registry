@@ -28,7 +28,7 @@ def test_seeds_match_the_declared_policies_and_move_older_databases_in_place():
     seeds = package / "awe_meta_data"
     assert sorted(p.name for p in seeds.iterdir() if p.is_file()) == [
         "10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql",
-        "40_callback_secret.sql.tpl", "50_either_officer_or_admin.sql"]
+        "40_callback_secret.sql.tpl", "50_either_officer_or_admin.sql", "60_verified_update_skips_review.sql"]
     stage_sql = (seeds / "20_approval_stage.sql").read_text()
     rule_sql = (seeds / "30_approver_rule.sql").read_text()
     assert "'all'" not in stage_sql and stage_sql.count("'any-n',1,") == 1
@@ -59,7 +59,12 @@ def test_default_bindings_do_not_request_geographic_candidates_or_install_overri
         sql = (package / "meta_data/register-metadata" / filename).read_text()
         assert "geo_woreda" not in sql
         assert "farmer_reference_approver_ids" not in sql
-        assert "context_field_names=NULL" in sql
+        if filename == "zzz_default_approval_awe.sql":
+            assert "context_field_names=NULL" in sql
+        else:
+            # The Farmer-reference binding sends change_type and source for the
+            # policy to test; test_verified_update_policy.py covers it.
+            assert "context_field_names=EXCLUDED.context_field_names" in sql
         assert "ON CONFLICT (awe_policy_config_id) DO UPDATE" in sql
         assert "DELETE FROM" not in sql
     assert "install_geo_approval" not in (package / "app.py").read_text()

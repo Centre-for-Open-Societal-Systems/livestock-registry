@@ -1,0 +1,100 @@
+{
+  "policy_key": "registry.change_request.livestock-farmer.verified-update-skips-review",
+  "name": "Farmer reference change request - verified updates skip review",
+  "description": "Default two human stages; an UPDATE from the verified Farmer registry skips both",
+  "artifact_type": "registry.change_request",
+  "forbid_self_approval": false,
+  "forbid_repeat_approvers": false,
+  "stages": [
+    {
+      "name": "Stage 1 Officers",
+      "stage_order": 1,
+      "mode": "any-n",
+      "on_empty": "block",
+      "rules": [
+        {
+          "rule_type": "user",
+          "rule_value": {
+            "user_id": "alex.carter"
+          },
+          "kind": "approver",
+          "required": false
+        },
+        {
+          "rule_type": "user",
+          "rule_value": {
+            "user_id": "admin"
+          },
+          "kind": "approver",
+          "required": false
+        }
+      ],
+      "mode_value": 1,
+      "skip_if": {
+        "and": [
+          {
+            "==": [
+              {
+                "var": "change_type"
+              },
+              "UPDATE"
+            ]
+          },
+          {
+            "==": [
+              {
+                "var": "source"
+              },
+              "farmer-registry"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Stage 2 Officers",
+      "stage_order": 2,
+      "mode": "any-n",
+      "on_empty": "block",
+      "rules": [
+        {
+          "rule_type": "user",
+          "rule_value": {
+            "user_id": "nina.patel"
+          },
+          "kind": "approver",
+          "required": false
+        },
+        {
+          "rule_type": "user",
+          "rule_value": {
+            "user_id": "admin"
+          },
+          "kind": "approver",
+          "required": false
+        }
+      ],
+      "mode_value": 1,
+      "skip_if": {
+        "and": [
+          {
+            "==": [
+              {
+                "var": "change_type"
+              },
+              "UPDATE"
+            ]
+          },
+          {
+            "==": [
+              {
+                "var": "source"
+              },
+              "farmer-registry"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
