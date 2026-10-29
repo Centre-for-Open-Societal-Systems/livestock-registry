@@ -25,6 +25,8 @@ class Initializer(BaseInitializer):
         install_scoped_awe_tasks()
         from .register_domain.services.identity_verification import install_identity_verification
         install_identity_verification()
+        from .history_change_request_source import install as install_history_change_request_source
+        install_history_change_request_source()
 
     async def fastapi_app_startup(self, app):
         await super().fastapi_app_startup(app)
