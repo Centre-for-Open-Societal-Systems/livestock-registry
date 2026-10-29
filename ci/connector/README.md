@@ -18,17 +18,13 @@ Additions to the vendored chart:
 2. `image.digest` per component (`openg2p-connector.image` helper). When set, the image is pulled
    as `repository@digest`.
 
-The connector service image is pinned to the crop build of the vendored connector at
-cropsown-regsitry `d0cd4f9`, which carries the Farmer-reference receiver changes (WebSub content
-envelope, Ed25519 registry-payload signing, mapped-payload validation). That build also creates crop's four ODK
-pipelines in any connector database it starts against (`default_pipelines.py`, run at every API start),
-which put four failing "Crop Sown" connectors into the livestock connector database on 29 Oct.
-The stop-gap image that removed them (`docker/connector-service/`, ECR
-`openg2p/livestock-registry/connector-service`, develop build 116, `sha256:c8edf177â€¦`) is what the
-values pin and what runs today; its source is retired. Plan W21 replaces this whole directory: the
-connector becomes the `registryConnector` subchart of the openg2p-registry chart (rc.601+), running
-the image built from `docker/registry-connector/` (OpenG2P's published connector plus the registry
-signature and WebSub content extension).
+The connector image is `openg2p/livestock-registry/registry-connector` (built from `docker/registry-connector/`:
+OpenG2P's published connector plus the OAN extension for registry-payload signing, the WebSub content
+envelope and admin-role access to the API) and `registry-connector-ui` (signs in with the staff token the admin-only API requires). The values pin names develop build 145 (commit `785f58c`,
+`sha256:b911446c…`), the first build after the admin-role change; `check-chart.sh` asserts the same digest.
+It replaces the stop-gap `connector-service` image (build 116, `sha256:c8edf177…`), which created no crop
+pipelines but had no admin-role check. Plan W21 moves the connector into the `registryConnector` subchart of
+the openg2p-registry chart (rc.601+).
 
 Connector definitions, checkpoints and webhook secrets live in the connector database, not here.
 The Farmer-reference definition for livestock is documented in
