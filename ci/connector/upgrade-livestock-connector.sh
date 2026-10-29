@@ -46,9 +46,10 @@ remote() {
 }
 
 # 1. The release must exist, be deployed, and come from the same chart.
-status=$(helm status "$RELEASE" -n "$NAMESPACE" -o json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["info"]["status"], d["chart"]["metadata"]["name"], d["chart"]["metadata"]["version"])')
+# helm list, not helm status: the deploy node's helm prints no chart in status JSON.
+status=$(helm list -n "$NAMESPACE" --filter "^${RELEASE}\$" -o json | python3 -c 'import json,sys; r=json.load(sys.stdin); print(" ".join((r[0]["status"], r[0]["chart"])) if r else "missing")')
 echo "Current release: $RELEASE ($status)"
-test "$status" = "deployed openg2p-connector 0.1.0"
+test "$status" = "deployed openg2p-connector-0.1.0"
 helm history "$RELEASE" -n "$NAMESPACE" --max 5
 kubectl get secret -n "$NAMESPACE" commons-postgresql -o name > /dev/null
 
