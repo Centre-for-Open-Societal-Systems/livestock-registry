@@ -23,7 +23,7 @@ pipeline {
         AWS_REGION       = 'ap-south-1'
         ECR_PATH         = 'openg2p/livestock-registry'
         DASHBOARD_UI_ECR = 'oan/livestock-registry/dashboard-ui'
-        RP_VERSION       = '1.2.2-rc.557' // Same native platform as the immutable central profile
+        RP_VERSION       = '1.2.2-rc.614' // Same native platform as the immutable central profile
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
         // Chart ownership: immutable COSS oan-helm profile in ci/deploy/oan-chart.json.
@@ -60,7 +60,7 @@ pipeline {
 
         stage('Validate refactor contracts') {
             steps {
-                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/refactor/check_port.py . livestock'
+                sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/refactor/check_port.py . livestock'
                 sh 'docker build --quiet -f ci/refactor/profile-tests.Dockerfile -t oan/livestock-reference-tests:rc557 .'
                 sh 'docker run --rm --memory=768m --network none --entrypoint bash -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src oan/livestock-reference-tests:rc557 ci/validate.sh --native'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_oan_chart.py -v'
@@ -209,7 +209,7 @@ pipeline {
             // verified central chart archive, not a checkout of its own: it
             // deploys offline, without GitHub access.
             steps {
-                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.557 ci/deploy/oan_chart.py prefetch registry'
+                sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/deploy/oan_chart.py prefetch registry'
                 stash name: 'deploy', includes: 'ci/**,scripts/**,.central-charts/**'
             }
         }

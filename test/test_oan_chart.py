@@ -23,10 +23,10 @@ class CentralChartTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name)/"package.tgz"
         self.pin = {"repository":"https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/"+"a"*40+"/repository/",
-            "name":"openg2p-example-registry","version":"1.0.0-dev.8","platformVersion":"1.2.2-rc.557",
+            "name":"openg2p-example-registry","version":"1.0.0-dev.8","platformVersion":"1.2.2-rc.614",
             "promotionReady":False,"environment":"dev"}
 
-    def package(self, *, child_version="1.2.2-rc.557", name=None, gate=True):
+    def package(self, *, child_version="1.2.2-rc.614", name=None, gate=True):
         info={"name":name or self.pin["name"],"version":self.pin["version"],"appVersion":self.pin["platformVersion"],
             "dependencies":[{"name":"openg2p-registry","alias":"registry","repository":"https://openg2p.github.io/openg2p-helm","version":self.pin["platformVersion"]}]}
         files={"Chart.yaml":yaml.safe_dump(info),"charts/openg2p-registry/Chart.yaml":yaml.safe_dump({"name":"openg2p-registry","version":child_version})}

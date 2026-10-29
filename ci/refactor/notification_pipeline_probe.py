@@ -76,7 +76,7 @@ with Session(engine) as session:
     session.delete(session.get(models.G2PRegisterFarmer,local_id))
     session.commit()
 engine.dispose()
-result={'registry':domain,'result':'PASS','installed_platform':'1.2.2-rc.557',
+result={'registry':domain,'result':'PASS','installed_platform':'1.2.2-rc.614',
     'native_helpers':['two-pass classification','unreferenced ADD rejection','native enricher factory','native TemplateHelper Jinja environment',
                       'native UPDATE transform validation','native asynchronous CR payload builder'],
     'worker_replaced':False,'existing_environment_modified':False,
