@@ -2,19 +2,45 @@
 registry sends it: a Farmer ID with the FAN or, for a FIN-only farmer, the FIN."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
-
-jsonschema = pytest.importorskip("jsonschema")
 
 SCHEMA = json.loads((Path(__file__).resolve().parents[2] / "integrations/farmer-reference/notification.schema.json")
                     .read_text(encoding="utf-8"))
 
 
+def valid(message, schema=SCHEMA):
+    """The JSON Schema keywords this schema uses, checked as the connector's validator checks them."""
+    if schema.get("type") == "object":
+        if not isinstance(message, dict) or not set(schema.get("required", [])) <= set(message):
+            return False
+        if schema.get("additionalProperties") is False and set(message) - set(schema["properties"]):
+            return False
+        if "anyOf" in schema and not any(valid(message, branch) for branch in schema["anyOf"]):
+            return False
+        return all(valid(value, schema["properties"][key]) for key, value in message.items()
+                   if key in schema.get("properties", {}))
+    if "required" in schema:  # an anyOf branch
+        return set(schema["required"]) <= set(message)
+    if "enum" in schema:
+        return message in schema["enum"]
+    if not isinstance(message, str):
+        return False
+    return (schema.get("minLength", 0) <= len(message) <= schema.get("maxLength", len(message))
+            and re.search(schema.get("pattern", ""), message) is not None)
+
+
 def notice(**fields):
     return {"event_id": "4d2c:2026-10-29T10:19:00", "event_type": "farmer_reference.changed.v1",
             "farmer_id": "FR-297590870792", **fields}
+
+
+def test_the_schema_only_uses_the_keywords_checked_here():
+    assert set(SCHEMA) == {"type", "required", "anyOf", "additionalProperties", "properties"}
+    for field in SCHEMA["properties"].values():
+        assert set(field) <= {"type", "minLength", "maxLength", "pattern", "enum"}
 
 
 @pytest.mark.parametrize("message", [
@@ -23,7 +49,7 @@ def notice(**fields):
     notice(fayda_fin="123456789012", event_type="farmer-registry.farmer.changed.v1"),
 ])
 def test_accepted(message):
-    jsonschema.validate(message, SCHEMA)
+    assert valid(message)
 
 
 @pytest.mark.parametrize("message", [
@@ -34,5 +60,4 @@ def test_accepted(message):
     notice(fayda_fin="123456789012", first_name="Abebe"),  # demographics never travel in the notice
 ])
 def test_rejected(message):
-    with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(message, SCHEMA)
+    assert not valid(message)
