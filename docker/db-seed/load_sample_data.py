@@ -28,9 +28,50 @@ login form, then IAM's callback), with the sample users' password the chart
 passes (global.aweApproverUserPassword). The loader never uses the password
 grant and never changes Keycloak.
 
+The staff IAM address is STAFF_IAM_URL when set. The platform's db-seed job
+(registry chart 1.2.2-rc.614) passes the staff API, the Keycloak token URL and
+the sample users, but no IAM address, so without it the loader takes IAM's
+public host from the Keycloak host the job does pass: keycloak.<domain> gives
+staff-iam.<domain>, the platform's own host names. It must be the public host:
+Keycloak returns the sign-in to IAM's public callback, and IAM's cookies are
+issued for that domain.
+
 Idempotent: a person whose Livestock intake is already approved is skipped; a
 finalized intake still waiting for approval is approved rather than entered
-again.
+again. A draft intake a failed run left behind (it is linked to
+the farmer reference as soon as it exists) is completed rather than entered
+again: saving a section replaces that section's rows.
+
+A sample farmer whose intake fails (after the network retries) is logged and
+counted, and the others still load. A failure before any farmer (a setting,
+the database, a sign-in) is logged and the loader ends without sample data:
+sample data never fails the upgrade it rides on. The next seed run tries again.
+
+Only the loader's own intakes are ever resumed: the root record of each intake
+it enters has an id only the loader makes (uuid5 of the sample person, the form
+and the year), and the platform keeps that id from the first saved section on.
+An intake somebody else entered for a sample person (a tester's draft or
+pending intake) is never completed or approved by the loader.
+
+Approvals are restart-safe: the loader looks up the intake's open or claimed
+task at whichever stage it has reached, so a stage approved by an earlier run
+is not looked for again; a claim or a decision is sent once and, when its
+answer is lost, the task is read again instead of resending it.
+
+Within the seed job's time (the deploy waits 15 minutes for the hook): the
+clock starts with the loader. After INTAKE_SEED_TIME_BUDGET seconds (default
+420) no further intake starts, and after INTAKE_SEED_HARD_LIMIT (default 660)
+no request starts and no wait goes on (each try's timeout is cut to the time
+left); what is left is counted and the next upgrade's seed continues it, so
+the loader ends within about 11 minutes. INTAKE_SEED_APPROVE_TIMEOUT and
+INTAKE_SEED_INGEST_TIMEOUT (default 180 s each) bound the waits of one intake.
+
+Network: requests cross the public ingress (staff IAM, Keycloak) and the
+staff API; a connection error, a timeout or a gateway status (502, 503, 504)
+is retried with backoff. INTAKE_SEED_VERIFY_TLS=false (what the chart sets)
+skips certificate checks. The chart's INTAKE_SEED_MAX_HOUSEHOLDS and KEYCLOAK_*
+settings are not used: the pack decides what is loaded and Keycloak is never
+called directly.
 """
 
 from __future__ import annotations
@@ -40,6 +81,7 @@ import http.cookiejar
 import json
 import os
 import re
+import ssl
 import sys
 import time
 import urllib.error
@@ -49,10 +91,17 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-import psycopg2
-from psycopg2.extras import Json
-
 INTAKE_ARTIFACT = "registry.intake_form"
+TRANSIENT_HTTP = (502, 503, 504)  # the gateway's answer when the service behind it is away
+NETWORK_ATTEMPTS = 4
+REQUEST_TIMEOUT = 30  # seconds per try
+STARTED = time.time()  # the time budget counts from here
+# No request starts after STARTED + HARD_LIMIT seconds (INTAKE_SEED_HARD_LIMIT, default 660).
+HARD_LIMIT = int(os.environ.get("INTAKE_SEED_HARD_LIMIT", "").strip() or 660)
+# The root record of every intake the loader enters has an id only the loader makes (uuid5 of the sample
+# person, the form and the year): a rerun resumes only its own intakes, never one somebody else entered.
+SEED_RECORDS = uuid.UUID("5d3f0f8e-6c1a-4b7e-9a51-3c2f8e0d7a41")
+TASK_PAGE_SIZE, TASK_PAGES = 100, 20
 PACK = os.environ.get("SAMPLE_PACK", "ETH-OAN")
 OPENG2P_DATA_DIR = Path(os.environ.get("OPENG2P_DATA_DIR", "/openg2p-data"))
 SOURCE_SYSTEM = os.environ.get("FARMER_REFERENCE_SOURCE_SYSTEM", "farmer-registry")
@@ -160,7 +209,7 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], p
         for form, personnel_section, lists in STAGES:
             if not sample.get(lists[0][1]):
                 raise RuntimeError(f"{who} has no animals; a Livestock record needs at least one")
-            root = new_id()
+            root = seed_record_id("livestock-sample", who, form)
             sections = {
                 LOOKUP: [{"internal_record_id": root, "farmer_id": farmer_ids[who],
                           "fayda_id": person["national_id"]}],
@@ -181,6 +230,58 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], p
     return planned
 
 
+def tls_context() -> ssl.SSLContext:
+    """Certificates are checked unless INTAKE_SEED_VERIFY_TLS is false."""
+    context = ssl.create_default_context()
+    if os.environ.get("INTAKE_SEED_VERIFY_TLS", "true").strip().lower() == "false":
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    return context
+
+
+class OutOfTime(RuntimeError):
+    """The loader's time is used: what is left waits for the next seed run."""
+
+
+def time_left() -> float:
+    return STARTED + HARD_LIMIT - time.time()
+
+
+def seed_record_id(*parts) -> str:
+    """The id of a record only the loader enters: the same for the same sample on every run."""
+    return str(uuid.uuid5(SEED_RECORDS, "/".join(str(p) for p in parts)))
+
+
+def fetch(opener, request, timeout: int = REQUEST_TIMEOUT,
+          attempts: int = NETWORK_ATTEMPTS) -> tuple[int, object, bytes]:
+    """Status, headers and body; network errors and gateway statuses are retried with backoff.
+
+    A request that must not be applied twice is sent with attempts=1. No try starts after the hard limit,
+    and none waits longer than the time left. The query is left out of what is logged: IAM's callback
+    carries a one-time code there.
+    """
+    where = f"{request.get_method()} {request.full_url.split('?', 1)[0]}"
+    for attempt in range(1, attempts + 1):
+        left = time_left()
+        if left <= 0:
+            raise OutOfTime(f"{where}: not sent, the loader's {HARD_LIMIT}s are used")
+        try:
+            with opener.open(request, timeout=min(timeout, left)) as response:
+                status, headers, body = response.status, response.headers, response.read()
+        except urllib.error.HTTPError as exc:
+            status, headers, body = exc.code, exc.headers, exc.read()
+        except (urllib.error.URLError, OSError) as exc:
+            if attempt == attempts:
+                raise RuntimeError(f"{where}: {exc}") from exc
+            status, headers, body = None, None, str(exc)
+        if status is not None and (status not in TRANSIENT_HTTP or attempt == attempts):
+            return status, headers, body
+        wait = min(2 ** attempt, max(0, time_left()))
+        log(f"{where}: {status or body}; again in {wait:.0f}s")
+        time.sleep(wait)
+    raise AssertionError("unreachable")
+
+
 class StaffSession:
     """One staff user signed in like the staff portal: IAM, the Keycloak login form, IAM's callback."""
 
@@ -188,16 +289,13 @@ class StaffSession:
         self.iam_url, self.api_url = iam_url.rstrip("/"), api_url.rstrip("/")
         self.username, self._password = username, password
         self._token = None
+        self._api = urllib.request.build_opener(urllib.request.HTTPSHandler(context=tls_context()))
         self.sign_in()
 
     @staticmethod
     def _open(opener, request) -> tuple[int, object, bytes]:
         """Status, headers (looked up case-insensitively) and body, without following redirects."""
-        try:
-            with opener.open(request, timeout=60) as response:
-                return response.status, response.headers, response.read()
-        except urllib.error.HTTPError as exc:
-            return exc.code, exc.headers, exc.read()
+        return fetch(opener, request)
 
     def sign_in(self) -> None:
         class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -205,7 +303,8 @@ class StaffSession:
                 return None
 
         jar = http.cookiejar.CookieJar()
-        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), NoRedirect)
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), NoRedirect,
+                                             urllib.request.HTTPSHandler(context=tls_context()))
         status, _, body = self._open(opener, urllib.request.Request(
             f"{self.iam_url}/auth/start_authentication_transaction?id=1&redirect_uri=/en", data=b"", method="POST"))
         if status != 200:
@@ -221,7 +320,9 @@ class StaffSession:
         callback = headers.get("Location") or ""
         if not callback.startswith(f"{self.iam_url}/auth/callback"):
             said = " ".join(re.findall(r'kc-feedback-text[^>]*>([^<]+)', body.decode("utf-8", "replace")))
-            raise RuntimeError(f"Keycloak refused the sign-in of {self.username} ({status}): {said.strip()[:200]}")
+            raise RuntimeError(f"Keycloak refused the sign-in of {self.username} ({status}): {said.strip()[:200]} "
+                               "(INTAKE_SEED_PASSWORD is the chart value global.aweApproverUserPassword; "
+                               "it must be the sample users' Keycloak password)")
         status, _, _ = self._open(opener, urllib.request.Request(callback))
         token = next((c.value for c in jar if c.name == "X-Access-Token"), None)
         if status not in (302, 303, 307) or not token:
@@ -229,17 +330,13 @@ class StaffSession:
         self._token = token
         log(f"signed in as {self.username}")
 
-    def _send(self, path: str, data: bytes, content_type: str) -> tuple[int, dict]:
+    def _send(self, path: str, data: bytes, content_type: str, attempts: int) -> tuple[int, dict]:
         for attempt in (1, 2):
             csrf = uuid.uuid4().hex
             request = urllib.request.Request(f"{self.api_url}{path}", data=data, method="POST", headers={
                 "Authorization": f"Bearer {self._token}", "X-CSRF-Token": csrf, "Cookie": f"X-CSRF-Token={csrf}",
                 "Content-Type": content_type})
-            try:
-                with urllib.request.urlopen(request, timeout=120) as response:
-                    status, body = response.status, response.read()
-            except urllib.error.HTTPError as exc:
-                status, body = exc.code, exc.read()
+            status, _, body = fetch(self._api, request, attempts=attempts)
             try:
                 reply = json.loads(body or b"{}")
             except ValueError:
@@ -251,14 +348,16 @@ class StaffSession:
             return status, reply
         return status, reply
 
-    def post(self, path: str, payload: dict) -> dict:
+    def post(self, path: str, payload: dict, once: bool = False) -> dict:
+        """The response payload; `once` for a request that must not be applied twice (no network retry)."""
         envelope = {
             "request_header": {"sender_app_mnemonic": "livestock-db-seed", "sender_app_url": "http://db-seed",
                                "request_id": str(uuid.uuid4()),
                                "request_timestamp": datetime.now(timezone.utc).isoformat()},
             "request_body": {"request_payload": payload, "pagination_request": {"current_page": 1, "page_size": 100}},
         }
-        status, reply = self._send(path, json.dumps(envelope).encode(), "application/json")
+        status, reply = self._send(path, json.dumps(envelope).encode(), "application/json",
+                                   1 if once else NETWORK_ATTEMPTS)
         header = reply.get("response_header") or {}
         if status != 200 or header.get("response_status") != "SUCCESS":
             raise RuntimeError(f"{path} as {self.username}: {status} {header.get('response_error_code')} "
@@ -270,6 +369,8 @@ class Registry:
     """The registry database: form metadata, the farmer references this loader seeds, intake progress."""
 
     def __init__(self):
+        import psycopg2  # only where the database is used; the tests run without it
+
         self.conn = psycopg2.connect(host=env("PGHOST"), port=os.environ.get("PGPORT", "5432"),
                                      dbname=env("PGDATABASE"), user=env("PGUSER"), password=env("PGPASSWORD"))
         self.conn.autocommit = True
@@ -351,6 +452,8 @@ class Registry:
 
     @staticmethod
     def _insert_farmer(cur, farmer: dict, local_id: str, created_by: str, approved_by: str) -> None:
+        from psycopg2.extras import Json
+
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         columns = {"internal_record_id": local_id, "created_by": created_by, "created_at": now,
                    "last_approved_at": now, "last_approved_by": approved_by, "record_status": "ACTIVE", **farmer}
@@ -364,12 +467,13 @@ class Registry:
         self.rows("INSERT INTO coss_farmer_submission_dependencies (submission_id, reference_id)"
                   " VALUES (%s, %s) ON CONFLICT (submission_id) DO NOTHING RETURNING 1", (submission_id, reference_id))
 
-    def stage_intakes(self, form_id: str, fin: str) -> list[tuple[str, str, str, str]]:
-        """This person's intakes on the form: (submission, draft, approval, root record)."""
+    def stage_intakes(self, form_id: str, fin: str, root: str) -> list[tuple[str, str, str, str]]:
+        """This person's intakes on the form, and the loader's own one by its root record id:
+        (submission, draft, approval, root record)."""
         return [(str(sid), draft, approval, str(rid)) for sid, draft, approval, rid in self.rows(
             "SELECT s.submission_id, s.draft_status, s.approval_status, l.internal_record_id"
             " FROM g2p_intake_form_submissions s JOIN g2p_intake_form_livestocks l ON l.submission_id = s.submission_id"
-            " WHERE s.form_id = %s AND l.fayda_fin = %s", (form_id, fin))]
+            " WHERE s.form_id = %s AND (l.internal_record_id = %s OR l.fayda_fin = %s)", (form_id, root, fin))]
 
     def approval_status(self, submission_id: str) -> str | None:
         found = self.rows("SELECT approval_status FROM g2p_intake_form_submissions WHERE submission_id = %s",
@@ -391,90 +495,157 @@ class Registry:
                            + (f" (latest unprocessed intake: {stuck[0]})" if stuck else ""))
 
 
+# What a run reports: per sample farmer, then per stage intake.
+COUNTERS = ("farmers seeded", "farmers restored", "farmers referenced", "farmers failed", "farmers out of time",
+            "intakes submitted", "drafts completed", "intakes resumed at approval",
+            "intakes approved and in the register", "intakes already approved", "intakes left for the next run")
+
+
 class Loader:
+    time_budget = 420  # seconds from the loader's start; INTAKE_SEED_TIME_BUDGET overrides
+
     def __init__(self, registry: Registry, submitter: StaffSession, approvers: list[StaffSession],
                  approve_timeout: int, ingest_timeout: int):
         self.registry, self.submitter, self.approvers = registry, submitter, approvers
+        self.time_budget = int(os.environ.get("INTAKE_SEED_TIME_BUDGET", "").strip() or self.time_budget)
         self.approve_timeout, self.ingest_timeout = approve_timeout, ingest_timeout
         self.forms = registry.forms()
 
-    def submit(self, stage: dict, reference_id: str) -> str:
+    def submit(self, stage: dict, reference_id: str, submission_id: str | None = None) -> str:
+        """Save every section (into the given draft, or a new one), then finalize.
+
+        The submission is linked to the farmer reference as soon as it exists, so a draft a failed run
+        leaves behind is found and completed by the next run; saving a section replaces its rows.
+        """
         form_id, register_id, registers = self.forms[stage["form"]]
-        submission_id = None
+        if submission_id:
+            self.registry.link(submission_id, reference_id)
         for section, rows in stage["sections"].items():
+            # The save that creates the submission is sent once: a lost answer must not create a second
+            # draft (the next run completes the first one, found by its own root record id).
             saved = self.submitter.post("/intake-form-data/save_intake_form_submission", {
                 "submission_id": submission_id, "section_id": section, "section_payload": rows,
                 "section_register_id": registers[section], "form_id": form_id, "register_id": register_id,
                 "created_by": self.submitter.username, "documents": [],
-            })
-            submission_id = submission_id or saved.get("submission_id")
+            }, once=not submission_id)
             if not submission_id:
-                raise RuntimeError(f"saving {section} on {stage['form']} returned no submission")
-        self.registry.link(submission_id, reference_id)
+                submission_id = saved.get("submission_id")
+                if not submission_id:
+                    raise RuntimeError(f"saving {section} on {stage['form']} returned no submission")
+                self.registry.link(submission_id, reference_id)
         self.submitter.post("/intake-form-data/finalize_intake_form_submission", {
-            "submission_id": submission_id, "register_id": register_id, "form_id": form_id})
+            "submission_id": submission_id, "register_id": register_id, "form_id": form_id}, once=True)
         return submission_id
 
     def approve(self, submission_id: str) -> None:
-        """Stage 1 as the first approver, then stage 2 as the second, each once its task opens."""
-        deadline = time.time() + self.approve_timeout
-        for stage, approver in enumerate(self.approvers, 1):
-            while True:
-                if self.registry.approval_status(submission_id) == "APPROVED":
-                    return
-                tasks = approver.post("/awe/list_my_tasks", {"status": "open", "artifact_type": INTAKE_ARTIFACT,
-                                                             "page": 1, "page_size": 100})
-                task = next((t for t in (tasks.get("data") or {}).get("items") or []
-                             if t.get("artifact_id") == submission_id and int(t.get("stage_order") or 0) == stage),
-                            None)
-                if task:
-                    break
-                if time.time() > deadline:
-                    raise RuntimeError(f"no stage {stage} task for {approver.username} on intake {submission_id} "
-                                       f"within {self.approve_timeout}s")
-                time.sleep(3)
-            approver.post("/awe/claim_task", {"task_id": task["id"]})
-            approver.post("/awe/submit_task_decision", {
-                "task_id": task["id"], "action": "approve", "comment": "Sample data (db-seed)",
-                "artifact_id": submission_id, "artifact_type": INTAKE_ARTIFACT, "current_stage": stage})
-            log(f"      stage {stage} approved as {approver.username}")
+        """Approve the intake at whichever stage it has reached: stage 1 as the first approver, stage 2 as the
+        second. A claim or decision whose answer is lost is not sent again; the task is read again."""
+        deadline = min(time.time() + self.approve_timeout, STARTED + HARD_LIMIT)
         while self.registry.approval_status(submission_id) != "APPROVED":
             if time.time() > deadline:
-                raise RuntimeError(f"intake {submission_id} is not approved after both stages")
-            time.sleep(3)
+                raise RuntimeError(f"intake {submission_id} is not approved within {self.approve_timeout}s")
+            decided = False
+            for stage, approver in enumerate(self.approvers, 1):
+                task = self.open_task(approver, submission_id, stage)
+                if task:
+                    decided = self.decide(approver, task, submission_id, stage)
+                    break
+            if not decided:  # no task yet (AWE moves the intake on in the background), or the answer was lost
+                time.sleep(3)
+
+    @staticmethod
+    def decide(approver: StaffSession, task: dict, submission_id: str, stage: int) -> bool:
+        """True when the decision was accepted; a lost or refused one is logged and the task read again."""
+        try:
+            if task.get("status", "open") == "open":
+                approver.post("/awe/claim_task", {"task_id": task["id"]}, once=True)
+            approver.post("/awe/submit_task_decision", {
+                "task_id": task["id"], "action": "approve", "comment": "Sample data (db-seed)",
+                "artifact_id": submission_id, "artifact_type": INTAKE_ARTIFACT, "current_stage": stage}, once=True)
+            log(f"      stage {stage} approved as {approver.username}")
+            return True
+        except OutOfTime:
+            raise
+        except RuntimeError as exc:
+            log(f"      stage {stage} as {approver.username}: {exc}; reading the task again")
+            return False
+
+    @staticmethod
+    def open_task(approver: StaffSession, submission_id: str, stage: int) -> dict | None:
+        """The approver's open or claimed task for this intake and stage, looked up page by page."""
+        for status in ("open", "claimed"):
+            for page in range(1, TASK_PAGES + 1):
+                tasks = approver.post("/awe/list_my_tasks", {"status": status, "artifact_type": INTAKE_ARTIFACT,
+                                                             "page": page, "page_size": TASK_PAGE_SIZE})
+                items = (tasks.get("data") or {}).get("items") or []
+                task = next((t for t in items if t.get("artifact_id") == submission_id
+                             and int(t.get("stage_order") or 0) == stage), None)
+                if task:
+                    return {"status": status, **task}
+                if len(items) < TASK_PAGE_SIZE:
+                    break
+        return None
 
     def run(self, planned: list[dict]) -> dict:
-        done = {"farmers seeded": 0, "farmers restored": 0, "farmers referenced": 0, "intakes approved": 0,
-                "resumed": 0, "skipped": 0}
+        done = dict.fromkeys(COUNTERS, 0)
+        stop_at = STARTED + self.time_budget
         approved_by = self.approvers[-1].username
         for person in planned:
-            who = f"{person['individual_id']} {person['farmer']['farmer_name']}"
-            reference = self.registry.ensure_farmer(person["farmer"], self.submitter.username, approved_by,
-                                                    person["individual_id"])
-            done[f"farmers {reference['seeded']}"] += 1
-            log(f"  {who}: farmer {reference['farmer_id']} {reference['seeded']}")
-            for stage in person["stages"]:
-                form_id = self.forms[stage["form"]][0]
-                stage = self._with_farmer_id(stage, reference["farmer_id"])
-                previous = self.registry.stage_intakes(form_id, person["foundational_id"])
-                if any(approval == "APPROVED" for _, _, approval, _ in previous):
-                    done["skipped"] += 1
-                    log(f"    {stage['form']}: already approved")
-                    continue
-                waiting = next(((sid, rid) for sid, draft, approval, rid in previous
-                                if draft == "FINAL" and approval == "PENDING"), None)
-                if waiting:
-                    submission_id, root = waiting
-                    log(f"    {stage['form']}: intake {submission_id} waits for approval; approving it")
-                    done["resumed"] += 1
+            try:
+                who = f"{person['individual_id']} {person['farmer']['farmer_name']}"
+                reference = self.registry.ensure_farmer(person["farmer"], self.submitter.username, approved_by,
+                                                        person["individual_id"])
+                done[f"farmers {reference['seeded']}"] += 1
+                log(f"  {who}: farmer {reference['farmer_id']} {reference['seeded']}")
+                for stage in person["stages"]:
+                    if time.time() > stop_at:
+                        done["intakes left for the next run"] += 1
+                        continue
+                    form_id = self.forms[stage["form"]][0]
+                    stage = self._with_farmer_id(stage, reference["farmer_id"])
+                    previous = self.registry.stage_intakes(form_id, person["foundational_id"], stage["root"])
+                    if any(approval == "APPROVED" for _, _, approval, _ in previous):
+                        done["intakes already approved"] += 1
+                        log(f"    {stage['form']}: already approved")
+                        continue
+                    # Only the loader's own intakes (its root record id) are resumed or completed.
+                    own = [(sid, status, approval) for sid, status, approval, rid in previous
+                           if rid == stage["root"]]
+                    waiting = next((sid for sid, status, approval in own
+                                    if status == "FINAL" and approval == "PENDING"), None)
+                    draft = next((sid for sid, status, _ in own if status == "DRAFT"), None)
+                    if waiting:
+                        submission_id = waiting
+                        log(f"    {stage['form']}: intake {submission_id} waits for approval; approving it")
+                        done["intakes resumed at approval"] += 1
+                    elif draft:
+                        submission_id = self.submit(stage, reference["reference_id"], draft)
+                        log(f"    {stage['form']}: draft intake {submission_id} completed and submitted")
+                        done["drafts completed"] += 1
+                    else:
+                        submission_id = self.submit(stage, reference["reference_id"])
+                        log(f"    {stage['form']}: intake {submission_id} submitted")
+                        done["intakes submitted"] += 1
+                    self.approve(submission_id)
+                    self.registry.wait_for("g2p_register_livestocks", stage["root"],
+                                           self.wait_time(self.ingest_timeout))
+                    done["intakes approved and in the register"] += 1
+                    log(f"    {stage['form']}: in the register")
+            except Exception as exc:  # sample data must not fail the upgrade; the next run retries
+                if isinstance(exc, OutOfTime) or time_left() <= 0:
+                    done["farmers out of time"] += 1
+                    log(f"  {person['individual_id']}: out of time, left for the next run: {exc}")
                 else:
-                    submission_id, root = self.submit(stage, reference["reference_id"]), stage["root"]
-                    log(f"    {stage['form']}: intake {submission_id} submitted")
-                    done["intakes approved"] += 1
-                self.approve(submission_id)
-                self.registry.wait_for("g2p_register_livestocks", root, self.ingest_timeout)
-                log(f"    {stage['form']}: in the register")
+                    done["farmers failed"] += 1
+                    log(f"  {person['individual_id']}: FAILED, left for the next run: {exc!r}")
+        if done["intakes left for the next run"]:
+            log(f"time budget of {self.time_budget}s used: {done['intakes left for the next run']} stage intakes "
+                "are left for the next seed run")
         return done
+
+    def wait_time(self, timeout: int) -> int:
+        """`timeout`, cut to what is left before the hard limit."""
+        return max(1, min(timeout, int(time_left())))
 
     @staticmethod
     def _with_farmer_id(stage: dict, farmer_id: str) -> dict:
@@ -490,6 +661,18 @@ def env(name: str, default: str | None = None) -> str:
     return value
 
 
+def staff_iam_url() -> str:
+    """STAFF_IAM_URL, or IAM's public host next to Keycloak's (keycloak.<domain> -> staff-iam.<domain>)."""
+    if os.environ.get("STAFF_IAM_URL", "").strip():
+        return env("STAFF_IAM_URL")
+    token_url = urllib.parse.urlsplit(env("STAFF_TOKEN_URL"))
+    label, _, domain = token_url.netloc.partition(".")
+    if label != "keycloak" or not domain:
+        raise RuntimeError(f"STAFF_IAM_URL is not set and the Keycloak host {token_url.netloc} "
+                           "is not keycloak.<domain>")
+    return f"{token_url.scheme}://staff-iam.{domain}"
+
+
 def main() -> None:
     pack = Pack(OPENG2P_DATA_DIR / "packs" / PACK)
     herds = pack.read("livestock.json")
@@ -502,7 +685,8 @@ def main() -> None:
     animals = sum(len(s["sections"].get(STAGES[0][2][0][0], [])) for p in planned for s in p["stages"])
     log(f"{len(planned)} sample farmers with livestock, {animals} animal rows, from {pack.root}")
 
-    iam, api, password = env("STAFF_IAM_URL"), env("STAFF_API_URL"), env("INTAKE_SEED_PASSWORD")
+    iam, api, password = staff_iam_url(), env("STAFF_API_URL"), env("INTAKE_SEED_PASSWORD")
+    log(f"staff IAM {iam}")
     sessions: dict[str, StaffSession] = {}
 
     def session(user: str) -> StaffSession:
@@ -516,7 +700,7 @@ def main() -> None:
             registry, session(env("INTAKE_SEED_SUBMIT_USER", "alex.carter")),
             [session(env("INTAKE_SEED_APPROVER_1", "alex.carter")),
              session(env("INTAKE_SEED_APPROVER_2", "nina.patel"))],
-            int(env("INTAKE_SEED_APPROVE_TIMEOUT", "300")), int(env("INTAKE_SEED_INGEST_TIMEOUT", "300")))
+            int(env("INTAKE_SEED_APPROVE_TIMEOUT", "180")), int(env("INTAKE_SEED_INGEST_TIMEOUT", "180")))
         done = loader.run(planned)
     finally:
         registry.conn.close()
@@ -526,6 +710,5 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except Exception as exc:
-        print(f"[load-sample-data] FAILED: {exc}", file=sys.stderr)
-        raise
+    except Exception as exc:  # a setting, the database or a sign-in: logged; the upgrade goes on
+        print(f"[load-sample-data] FAILED before loading sample data, none loaded: {exc!r}", file=sys.stderr)

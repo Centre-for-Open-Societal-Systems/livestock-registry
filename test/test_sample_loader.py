@@ -153,7 +153,7 @@ class FakeRegistry:
         return {"reference_id": f"ref-{source_record_id}", "farmer_id": farmer["farmer_id"],
                 "local_farmer_id": "local", "seeded": "seeded"}
 
-    def stage_intakes(self, form_id, fin):
+    def stage_intakes(self, form_id, fin, root):
         return self.previous.get(fin, [])
 
     def approval_status(self, submission_id):
@@ -169,13 +169,20 @@ class FakeApprover:
     def __init__(self, name, stage, registry, calls):
         self.username, self.stage, self.registry, self.calls = name, stage, registry, calls
 
-    def post(self, path, payload):
+    def post(self, path, payload, once=False):
         self.calls.append((self.username, path))
+        decided = getattr(self.registry, "decided", set())
+        self.registry.decided = decided
         if path == "/awe/list_my_tasks":
+            if payload["status"] != "open":
+                return {"data": {"items": []}}
             return {"data": {"items": [{"id": f"task-{sid}-{self.stage}", "artifact_id": sid,
-                                        "stage_order": self.stage} for sid in self.registry.pending]}}
+                                        "stage_order": self.stage} for sid in self.registry.pending
+                                       if (sid, self.stage) not in decided
+                                       and (self.stage == 1 or (sid, 1) in decided)]}}
         if path == "/awe/submit_task_decision":
             assert payload["current_stage"] == self.stage and payload["action"] == "approve"
+            decided.add((payload["artifact_id"], self.stage))
             if self.stage == 2:
                 self.registry.status[payload["artifact_id"]] = "APPROVED"
         return {}
@@ -189,7 +196,11 @@ def run(loader, registry):
     runner.approvers = [FakeApprover("alex.carter", 1, registry, calls), FakeApprover("nina.patel", 2, registry, calls)]
     runner.forms = {form: ("form-livestock", "register", {}) for form, _, _ in loader.STAGES}
 
-    def submit(stage, reference_id):
+    def submit(stage, reference_id, draft=None):
+        if draft:
+            submitted.append(("draft", draft))
+            registry.pending.append(draft)
+            return draft
         sid = f"sub-{len(submitted) + 1}"
         submitted.append((reference_id, stage["sections"]["livestock_farmer_lookup"][0]["farmer_id"]))
         registry.pending.append(sid)
@@ -202,8 +213,8 @@ def run(loader, registry):
 def test_farmers_are_seeded_and_every_intake_approved_at_stage_1_then_stage_2(loader):
     registry = FakeRegistry()
     done, submitted, calls = run(loader, registry)
-    assert done == {"farmers seeded": 2, "farmers restored": 0, "farmers referenced": 0, "intakes approved": 2,
-                    "resumed": 0, "skipped": 0}
+    assert done == {**dict.fromkeys(loader.COUNTERS, 0), "farmers seeded": 2, "intakes submitted": 2,
+                    "intakes approved and in the register": 2}
     assert registry.seeded[0] == ("FR-100000000001", "alex.carter", "nina.patel", "ETH-IND-0001")
     assert submitted == [("ref-ETH-IND-0001", "FR-100000000001"), ("ref-ETH-IND-0002", "FR-100000000002")]
     decisions = [c for c in calls if c[1] == "/awe/submit_task_decision"]
@@ -220,15 +231,16 @@ def test_a_farmer_already_referenced_keeps_its_farmer_id(loader, how):
 
 
 def test_a_rerun_skips_approved_intakes_and_resumes_waiting_ones(loader):
+    second = plan(loader)[1]["stages"][0]["root"]
     registry = FakeRegistry(previous={
         "502628318720": [("sub-old", "FINAL", "APPROVED", "root-old")],
-        "721996394985": [("sub-draft", "DRAFT", None, "x"), ("sub-wait", "FINAL", "PENDING", "root-wait")],
+        "721996394985": [("sub-wait", "FINAL", "PENDING", second)],
     })
     registry.pending = ["sub-wait"]
     done, submitted, _ = run(loader, registry)
-    assert done == {"farmers seeded": 2, "farmers restored": 0, "farmers referenced": 0, "intakes approved": 0,
-                    "resumed": 1, "skipped": 1}
-    assert submitted == [] and ("g2p_register_livestocks", "root-wait") in registry.waited
+    assert done == {**dict.fromkeys(loader.COUNTERS, 0), "farmers seeded": 2, "intakes resumed at approval": 1,
+                    "intakes already approved": 1, "intakes approved and in the register": 1}
+    assert submitted == [] and ("g2p_register_livestocks", second) in registry.waited
 
 
 class FakeCursor:
@@ -269,3 +281,273 @@ def test_a_reference_whose_copy_was_deleted_gets_its_copy_back_under_its_own_ids
     got = loader.Registry._ensure_farmer(cur, plan(loader)[0]["farmer"], "alex.carter", "nina.patel", "ETH-IND-0001")
     assert got["seeded"] == "restored" and got["farmer_id"] == "FR-245216494759"
     assert inserts(cur) == ['INSERT INTO "public"."g2p_register_farmers"']
+
+
+KEYCLOAK_TOKEN = "https://keycloak.example.org/realms/staff/protocol/openid-connect/token"
+
+
+@pytest.mark.parametrize("environ, expected", [
+    ({"STAFF_IAM_URL": "https://iam.example.org", "STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://iam.example.org"),
+    ({"STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://staff-iam.example.org"),
+    ({"STAFF_TOKEN_URL": "https://keycloak.registry.example.org/realms/staff/protocol/openid-connect/token"},
+     "https://staff-iam.registry.example.org"),
+])
+def test_staff_iam_is_the_public_host_next_to_keycloak(loader, monkeypatch, environ, expected):
+    for name in ("STAFF_IAM_URL", "STAFF_TOKEN_URL"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in environ.items():
+        monkeypatch.setenv(name, value)
+    assert loader.staff_iam_url() == expected
+
+
+@pytest.mark.parametrize("token_url", [None, "https://auth.example.org/realms/staff/protocol/openid-connect/token"])
+def test_staff_iam_needs_the_address_when_keycloak_is_not_keycloak_domain(loader, monkeypatch, token_url):
+    monkeypatch.delenv("STAFF_IAM_URL", raising=False)
+    monkeypatch.delenv("STAFF_TOKEN_URL", raising=False)
+    if token_url:
+        monkeypatch.setenv("STAFF_TOKEN_URL", token_url)
+    with pytest.raises(RuntimeError):
+        loader.staff_iam_url()
+
+
+class FlakyOpener:
+    """Answers with the given outcomes in turn: an exception to raise, or a status code."""
+
+    def __init__(self, *outcomes):
+        self.outcomes, self.calls = list(outcomes), 0
+
+    def open(self, request, timeout):
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        if outcome >= 400:
+            raise __import__("urllib.error").error.HTTPError(request.full_url, outcome, "x", {}, __import__("io").BytesIO(b"{}"))
+        response = __import__("io").BytesIO(b"{}")
+        response.status, response.headers = outcome, {}
+        response.__enter__ = lambda: response
+        return __import__("contextlib").nullcontext(response)
+
+
+def test_network_errors_and_gateway_statuses_are_retried(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    request = __import__("urllib.request").request.Request("https://staff-iam.example.org/x")
+    opener = FlakyOpener(__import__("urllib.error").error.URLError("connection reset"), TimeoutError("timed out"), 503, 200)
+    status, _, _ = loader.fetch(opener, request)
+    assert status == 200 and opener.calls == 4
+
+
+def test_other_statuses_are_returned_and_lasting_failures_raise(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    request = __import__("urllib.request").request.Request("https://staff-iam.example.org/x")
+    opener = FlakyOpener(401)
+    assert loader.fetch(opener, request)[0] == 401 and opener.calls == 1
+    opener = FlakyOpener(*[OSError("unreachable")] * loader.NETWORK_ATTEMPTS)
+    with pytest.raises(RuntimeError, match="unreachable"):
+        loader.fetch(opener, request)
+
+
+def test_tls_checks_follow_the_chart_setting(loader, monkeypatch):
+    import ssl
+    monkeypatch.setenv("INTAKE_SEED_VERIFY_TLS", "false")
+    assert loader.tls_context().verify_mode == ssl.CERT_NONE
+    monkeypatch.delenv("INTAKE_SEED_VERIFY_TLS")
+    assert loader.tls_context().verify_mode == ssl.CERT_REQUIRED
+
+
+def test_the_task_is_found_on_a_later_page(loader):
+    class Pages:
+        username = "nina.patel"
+
+        def __init__(self):
+            self.pages = []
+
+        def post(self, path, payload):
+            self.pages.append(payload["page"])
+            if payload["page"] == 1:
+                return {"data": {"items": [{"id": f"t{i}", "artifact_id": "other", "stage_order": 2}
+                                           for i in range(loader.TASK_PAGE_SIZE)]}}
+            return {"data": {"items": [{"id": "mine", "artifact_id": "sub-1", "stage_order": 2}]}}
+
+    approver = Pages()
+    assert loader.Loader.open_task(approver, "sub-1", 2)["id"] == "mine" and approver.pages == [1, 2]
+
+
+def test_a_draft_left_by_a_failed_run_is_completed_not_entered_again(loader):
+    first = plan(loader)[0]["stages"][0]["root"]
+    registry = FakeRegistry(previous={"502628318720": [("sub-draft", "DRAFT", None, first)]})
+    done, submitted, _ = run(loader, registry)
+    assert submitted[0] == ("draft", "sub-draft") and done["drafts completed"] == 1
+
+
+def test_no_intake_starts_once_the_time_budget_is_used(loader):
+    registry = FakeRegistry()
+    loader.Loader.time_budget, saved = -1, loader.Loader.time_budget
+    try:
+        done, submitted, _ = run(loader, registry)
+    finally:
+        loader.Loader.time_budget = saved
+    assert submitted == [] and done["intakes left for the next run"] == sum(len(p["stages"]) for p in plan(loader))
+
+
+def test_one_failing_farmer_does_not_stop_the_others(loader):
+    registry = FakeRegistry()
+    real = registry.ensure_farmer
+
+    def ensure_farmer(farmer, *args):
+        if farmer["fayda_fin"] == "502628318720":
+            raise RuntimeError("this registry already holds another farmer")
+        return real(farmer, *args)
+
+    registry.ensure_farmer = ensure_farmer
+    done, submitted, _ = run(loader, registry)
+    assert done["farmers failed"] == 1 and done["farmers seeded"] == 1 and submitted
+
+
+def test_a_request_sent_once_is_not_retried(loader):
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request("https://crop.example.org/awe/submit_task_decision")
+    opener = FlakyOpener(urllib.error.URLError("connection reset"), 200)
+    with pytest.raises(RuntimeError, match="connection reset"):
+        loader.fetch(opener, request, attempts=1)
+    assert opener.calls == 1
+
+
+def test_the_retry_log_leaves_out_the_query(loader, monkeypatch):
+    logged = []
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(loader, "log", logged.append)
+    request = __import__("urllib.request").request.Request("https://staff-iam.example.org/auth/callback?code=secret")
+    loader.fetch(FlakyOpener(503, 200), request)
+    assert logged and all("secret" not in line for line in logged)
+
+
+class StageTwoApprover:
+    """Stage 1 was approved by an earlier run; the stage 2 task waits, claimed or open."""
+
+    def __init__(self, stage, claimed, registry, calls):
+        self.username, self.stage, self.claimed, self.registry, self.calls = f"u{stage}", stage, claimed, registry, calls
+
+    def post(self, path, payload, once=False):
+        self.calls.append((self.username, path, once))
+        if path == "/awe/list_my_tasks":
+            wanted = "claimed" if self.claimed else "open"
+            if self.stage == 2 and payload["status"] == wanted and self.registry.get("sub-1") != "APPROVED":
+                return {"data": {"items": [{"id": "t2", "artifact_id": "sub-1", "stage_order": 2}]}}
+            return {"data": {"items": []}}
+        if path == "/awe/submit_task_decision":
+            self.registry["sub-1"] = "APPROVED"
+        return {}
+
+
+@pytest.mark.parametrize("claimed", [False, True])
+def test_approval_resumes_at_the_stage_reached(loader, claimed):
+    status, calls = {}, []
+    runner = loader.Loader.__new__(loader.Loader)
+    runner.registry = types.SimpleNamespace(approval_status=status.get)
+    runner.approve_timeout = 5
+    runner.approvers = [StageTwoApprover(1, claimed, status, calls), StageTwoApprover(2, claimed, status, calls)]
+    runner.approve("sub-1")
+    sent = [(user, path) for user, path, once in calls if path != "/awe/list_my_tasks"]
+    assert sent == ([] if claimed else [("u2", "/awe/claim_task")]) + [("u2", "/awe/submit_task_decision")]
+    assert all(once for _, path, once in calls if path != "/awe/list_my_tasks")
+
+
+def test_a_lost_decision_is_read_again_not_resent(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    status, calls = {}, []
+
+    class LostAnswer(StageTwoApprover):
+        def post(self, path, payload, once=False):
+            reply = super().post(path, payload, once)
+            if path == "/awe/submit_task_decision":
+                raise RuntimeError("POST /awe/submit_task_decision: timed out")
+            return reply
+
+    runner = loader.Loader.__new__(loader.Loader)
+    runner.registry = types.SimpleNamespace(approval_status=status.get)
+    runner.approve_timeout = 5
+    runner.approvers = [LostAnswer(1, True, status, calls), LostAnswer(2, True, status, calls)]
+    runner.approve("sub-1")
+    assert [path for _, path, _ in calls].count("/awe/submit_task_decision") == 1
+
+
+@pytest.mark.parametrize("status", ["DRAFT", "PENDING"])
+def test_an_intake_somebody_else_entered_is_never_completed_or_approved(loader, status):
+    draft, approval = ("DRAFT", None) if status == "DRAFT" else ("FINAL", "PENDING")
+    registry = FakeRegistry(previous={"502628318720": [("sub-tester", draft, approval, "a-testers-record")]})
+    registry.pending = ["sub-tester"]
+    done, submitted, _ = run(loader, registry)
+    assert ("draft", "sub-tester") not in submitted and submitted[0][0] == "ref-ETH-IND-0001"
+    assert done["intakes resumed at approval"] == 0 and done["drafts completed"] == 0
+    assert registry.status.get("sub-tester") is None or registry.status["sub-tester"] != "APPROVED" \
+        or ("g2p_register_livestocks", "a-testers-record") not in registry.waited
+    assert not any(c for c in registry.decided if c[0] == "sub-tester")
+
+
+def test_no_request_starts_after_the_hard_limit(loader, monkeypatch):
+    monkeypatch.setattr(loader, "HARD_LIMIT", -1)
+    opener = FlakyOpener(200)
+    with pytest.raises(loader.OutOfTime):
+        loader.fetch(opener, __import__("urllib.request").request.Request("https://staff-iam.example.org/x"))
+    assert opener.calls == 0
+
+
+def test_a_try_never_waits_past_the_hard_limit(loader, monkeypatch):
+    timeouts = []
+
+    class Recording(FlakyOpener):
+        def open(self, request, timeout):
+            timeouts.append(timeout)
+            return super().open(request, timeout)
+
+    monkeypatch.setattr(loader, "HARD_LIMIT", loader.time.time() - loader.STARTED + 5)
+    loader.fetch(Recording(200), __import__("urllib.request").request.Request("https://staff-iam.example.org/x"))
+    assert 0 < timeouts[0] <= 5
+
+
+def test_out_of_time_counts_the_farmer_as_left_not_failed(loader):
+    registry = FakeRegistry()
+
+    def ensure_farmer(farmer, *args):
+        raise loader.OutOfTime("POST /x: not sent")
+
+    registry.ensure_farmer = ensure_farmer
+    done, _, _ = run(loader, registry)
+    assert done["farmers out of time"] == 2 and done["farmers failed"] == 0
+
+
+def test_a_refused_decision_waits_before_the_task_is_read_again(loader, monkeypatch):
+    slept, status, calls = [], {}, []
+    monkeypatch.setattr(loader.time, "sleep", slept.append)
+
+    class RefusedOnce(StageTwoApprover):
+        refused = False
+
+        def post(self, path, payload, once=False):
+            if path == "/awe/submit_task_decision" and not RefusedOnce.refused:
+                RefusedOnce.refused = True
+                raise RuntimeError("/awe/submit_task_decision: 409 conflict")
+            return super().post(path, payload, once)
+
+    runner = loader.Loader.__new__(loader.Loader)
+    runner.registry = types.SimpleNamespace(approval_status=status.get)
+    runner.approve_timeout = 5
+    runner.approvers = [RefusedOnce(1, True, status, calls), RefusedOnce(2, True, status, calls)]
+    runner.approve("sub-1")
+    assert slept == [3] and status["sub-1"] == "APPROVED"
+
+
+def test_the_loaders_own_intake_is_looked_up_by_its_root_record(loader):
+    asked = []
+    registry = loader.Registry.__new__(loader.Registry)
+    registry.rows = lambda sql, params=(): asked.append(params) or []
+    registry.stage_intakes("form-1", "502628318720", "root-1")
+    assert "root-1" in asked[0]
+
+
+def test_root_records_are_the_loaders_own_and_stable_across_runs(loader):
+    assert [p["stages"][0]["root"] for p in plan(loader)] == [p["stages"][0]["root"] for p in plan(loader)]
+    assert len({p["stages"][0]["root"] for p in plan(loader)}) == 2
