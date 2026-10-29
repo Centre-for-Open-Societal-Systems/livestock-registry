@@ -8,6 +8,7 @@ permissions:
 jobs:
   contracts:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -28,7 +29,10 @@ jobs:
           python ci/refactor/compare_new_dev.py livestock
       - name: Signed HTTP and native workflow dependency gate (19 executions, zero skips)
         run: |
-          npm install --global --prefix "$RUNNER_TEMP/postman-cli" postman-cli@1.73.0
+          # npm has no overall time limit: a stalled download of the CLI
+          # (dl-cli.pstmn.io) otherwise holds the job until GitHub's 6 h limit.
+          install() { timeout 300 npm install --global --prefix "$RUNNER_TEMP/postman-cli" postman-cli@1.73.0; }
+          install || { echo "postman-cli install failed or timed out; retrying once" >&2; install; }
           export PATH="$RUNNER_TEMP/postman-cli/bin:$PATH"
           COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/verify_onboarding.py livestock --http-only
       - uses: actions/upload-artifact@v4
