@@ -222,7 +222,7 @@ _geo_label_cache: dict[str, str] = {}
 
 
 async def geo_label(level_value_id: str | None) -> Optional[str]:
-    """The display name of a geo unit id (``ET010101101001`` -> ``Kitinbille``),
+    """The display name of a geo unit id (``ET01010101`` -> ``Adi Hageray``),
     None when Master Data does not know it."""
     if not level_value_id:
         return None

@@ -23,7 +23,7 @@ def test_odk_one_identifier_is_split_without_importing_farmer_profile(identifier
         template='csr_odk_transform.j2';section='crop_farmer_lookup'
     else:
         data={'farmer':identity,'location':{'location_source':'mds','region_code':'ET01',
-              'zone_code':'ET0101','woreda_code':'ET010101','kebele_code':'ET010101101001'},
+              'zone_code':'ET0101','woreda_code':'ET010101','kebele_code':'ET01010101'},
               'livestock':[{'species_id':'cattle','breed':'local','gender':'female',
                             'primary_identifier':'ANIMAL-001','date_of_birth':'2020-01-01'}]}
         template='odk_to_livestock_intake.j2';section='livestock_farmer_lookup'

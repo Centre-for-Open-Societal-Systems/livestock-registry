@@ -32,7 +32,7 @@
 {% if 'longitude' in number and (number['longitude'] < -180 or number['longitude'] > 180) %}{{ fail('column longitude must be between -180 and 180, got ' ~ cell.get('longitude')) }}{% endif %}
 {% if ('latitude' in number) != ('longitude' in number) %}{{ fail('columns latitude and longitude must be given together') }}{% endif %}
 
-{#- The administrative units are Master Data geo unit ids (P-codes: ET04, ET0404, ET040404, ET040404888003),
+{#- The administrative units are Master Data geo unit ids (P-codes: ET04, ET0404, ET040404, ET04040404),
     as the staff portal's geo-hierarchy widget writes them; geo_code_hierarchy_json carries the chain and
     the registry fills the names from Master Data on save. A level needs the level above it. -#}
 {% set geo = {} %}

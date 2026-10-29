@@ -21,10 +21,11 @@
     "supervisor_mobile_number": "0912345678"
    },
    "location": {
-    "region_id": "oromia",
-    "zone_id": "ET0404",
-    "woreda_id": "ET040404",
-    "kebele_id": "40404888003"
+    "region_code": "ET04",
+    "zone_code": "ET0401",
+    "woreda_code": "ET040101",
+    "kebele_code": "ET04010138",
+    "location_source": "mds"
    },
    "meta": {
     "instanceID": "uuid:1089b216-756f-44d7-9aa1-acc3bf5fecfd"
@@ -146,10 +147,11 @@
     "supervisor_mobile_number": "0912345678"
    },
    "location": {
-    "region_id": "somali",
-    "zone_id": "ET0504",
-    "woreda_id": "ET050407",
-    "kebele_id": "50407888006"
+    "region_code": "ET05",
+    "zone_code": "ET0501",
+    "woreda_code": "ET050105",
+    "kebele_code": "ET05010508",
+    "location_source": "mds"
    },
    "meta": {
     "instanceID": "uuid:72296f07-5727-4ee8-8f3b-a10b94a367de"
@@ -271,10 +273,11 @@
     "supervisor_mobile_number": "0912345678"
    },
    "location": {
-    "region_id": "oromia",
-    "zone_id": "ET0407",
-    "woreda_id": "ET040706",
-    "kebele_id": "40706888019"
+    "region_code": "ET04",
+    "zone_code": "ET0401",
+    "woreda_code": "ET040103",
+    "kebele_code": "ET04010325",
+    "location_source": "mds"
    },
    "meta": {
     "instanceID": "uuid:48916010-ac14-4520-9e0c-339b67af91f0"
@@ -396,10 +399,11 @@
     "supervisor_mobile_number": "0944557788"
    },
    "location": {
-    "region_id": "somali",
-    "zone_id": "ET0503",
-    "woreda_id": "ET050306",
-    "kebele_id": "50308888003"
+    "region_code": "ET05",
+    "zone_code": "ET0502",
+    "woreda_code": "ET050202",
+    "kebele_code": "ET05020207",
+    "location_source": "mds"
    },
    "meta": {
     "instanceID": "uuid:035acf18-c913-4bba-aa41-46a0e0248c1f"
@@ -544,10 +548,11 @@
     "supervisor_mobile_number": "0912345678"
    },
    "location": {
-    "region_id": "oromia",
-    "zone_id": "ET0407",
-    "woreda_id": "ET040706",
-    "kebele_id": "40706888019"
+    "region_code": "ET04",
+    "zone_code": "ET0401",
+    "woreda_code": "ET040106",
+    "kebele_code": "ET04010612",
+    "location_source": "mds"
    },
    "meta": {
     "instanceID": "uuid:7b618784-e74c-450e-8ec9-9cb4694cad39"

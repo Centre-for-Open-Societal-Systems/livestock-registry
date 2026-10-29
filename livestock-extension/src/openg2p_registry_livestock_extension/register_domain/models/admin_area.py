@@ -29,7 +29,7 @@ class G2PAdminArea:
     kebele: Mapped[str] = mapped_column(String, nullable=True)
 
     # The Master Data geo unit ids behind the names (P-codes: ET04, ET0404,
-    # ET040404, ET040404888003). The Location sections' geo-hierarchy widget
+    # ET040404, ET04040404). The Location sections' geo-hierarchy widget
     # writes the register's geo_lowest_level_value_id / geo_code_hierarchy_json;
     # these are filled from that document on save (admin_area_sync), the names
     # above from Master Data, and the names stay what approver routing, alerts,
