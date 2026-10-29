@@ -1,6 +1,6 @@
 {
   "registry": {
-    "repository": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/88dad56bb77177e7dd388f2aa0dda1515a585cbe/repository/",
+    "repository": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/a691b7853fac93a6756307f98254a2aafd870321/repository/",
     "name": "openg2p-livestock-registry",
     "version": "1.0.0-dev.19",
     "sha256": "2fa7d255cb7af7dc4068ca41db44bbbc6795a8e97d50c6d66d5497f39219d401",
@@ -10,8 +10,8 @@
     "promotionReady": true,
     "values": {
       "path": "environments/dev/values/livestock.yaml",
-      "sha256": "984d6dd0c15c62eb9ab274be150055564741ef66aae1634826965cfde3405f0f",
-      "url": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/88dad56bb77177e7dd388f2aa0dda1515a585cbe/environments/dev/values/livestock.yaml"
+      "sha256": "6c66236e4bfe06649ee369126cda63bb0072cc289579b258ba8df0c632f79280",
+      "url": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/a691b7853fac93a6756307f98254a2aafd870321/environments/dev/values/livestock.yaml"
     },
     "platformVersion": "1.2.2-rc.614"
   },
