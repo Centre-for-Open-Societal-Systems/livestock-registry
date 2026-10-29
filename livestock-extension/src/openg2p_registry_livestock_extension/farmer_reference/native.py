@@ -283,15 +283,19 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalCl
         if cached is not _NO_ANSWER:
             return cached
         answer = await self._lookup_answer(client, declared, declared_ids)
-        _remember_answer(key, answer)
+        # An outage is not remembered: the next click looks up again once it is over.
+        if answer is None or answer[0] != "LOOKUP_UNAVAILABLE":
+            _remember_answer(key, answer)
         return answer
 
     async def _lookup_answer(self, client, declared, declared_ids):
         from .messages import explain
 
         try:
-            # The HTTP timeout applies to each phase; this bounds the whole lookup.
-            async with asyncio.timeout(getattr(getattr(client, "config", None), "timeout_seconds", None) or _VALIDATE_DEADLINE_SECONDS):
+            # The HTTP timeout applies to each phase (connect, then the streamed
+            # answer); the whole lookup gets two of them.
+            phase = getattr(getattr(client, "config", None), "timeout_seconds", None) or _VALIDATE_DEADLINE_SECONDS
+            async with asyncio.timeout(2 * phase):
                 if declared.get("fayda_fin"):
                     source = await client.lookup(declared["farmer_id"], declared.get("fayda_fan_id"), fin=declared["fayda_fin"])
                 else:

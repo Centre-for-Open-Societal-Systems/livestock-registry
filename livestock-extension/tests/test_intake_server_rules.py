@@ -460,6 +460,19 @@ def test_repeated_validate_clicks_call_the_farmer_registry_once(monkeypatch):
     assert lookup.await_count == 2
 
 
+def test_an_outage_is_not_remembered(monkeypatch):
+    native = _native()
+    profile = importlib.import_module(PACKAGE + ".farmer_reference.profile")
+    monkeypatch.setattr(native, "_answers", {})
+    found = SimpleNamespace(profile={"farmer_id": "FR-123456789012", "fayda_fan_id": "1234567890123456"})
+    lookup = AsyncMock(side_effect=[profile.FarmerReferenceError("FARMER_REFERENCE_LOOKUP_UNAVAILABLE"), found])
+    service = _lookup_service(monkeypatch, lookup)
+    assert run(service._farmer_problem("s", _farmer_session(_row())))[0] == "LOOKUP_UNAVAILABLE"
+    # The Farmer registry is back: the next click asks it again and gets the answer.
+    assert run(service._farmer_problem("s", _farmer_session(_row()))) is None
+    assert lookup.await_count == 2
+
+
 def test_a_changed_id_or_an_expired_answer_asks_the_farmer_registry_again(monkeypatch):
     native = _native()
     monkeypatch.setattr(native, "_answers", {})
