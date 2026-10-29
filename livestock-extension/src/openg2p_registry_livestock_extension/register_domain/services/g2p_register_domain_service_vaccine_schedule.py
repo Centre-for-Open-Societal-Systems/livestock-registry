@@ -4,7 +4,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 
 from .audit_snapshot import AuditSnapshotMixin
 
-from .domain_validation_utils import as_int, is_blank, validation_error
+from .domain_validation_utils import field_label, as_int, is_blank, validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -34,7 +34,7 @@ class G2PRegisterDomainServiceVaccineSchedule(AuditSnapshotMixin, G2PRegisterDom
     def _validate_positive(self, record: dict, field: str) -> None:
         value = as_int(record.get(field))
         if value is not None and value <= 0:
-            validation_error(f"{field} must be greater than zero")
+            validation_error(f"{field_label(field)} must be greater than zero.")
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for vaccine schedule record")
