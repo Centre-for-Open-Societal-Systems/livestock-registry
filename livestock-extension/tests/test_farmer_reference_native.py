@@ -119,8 +119,11 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
                 submission_source="STAFF_PORTAL", register_ingest_process_status="NOT_APPLICABLE",
                 number_of_verifications_required=0, number_of_verifications_done=0))
         with patch.object(native, "get_async_session_maker", return_value=self.sessions):
-            with self.assertRaisesRegex(Error, "AWE_APPROVAL_REQUIRED"):
+            # The DirectApprovalClosed guard refuses with the platform's own
+            # exception type, not FarmerReferenceError, before any lookup.
+            with self.assertRaises(Exception) as refused:
                 await native.G2PIntakeFormDataService.get_component().approve_submission(submission_id, "manual-user")
+            self.assertEqual(getattr(refused.exception, "code", None), "AWE_APPROVAL_REQUIRED")
         async with self.sessions() as session:
             submission = await session.get(G2PIntakeFormSubmission, submission_id)
             self.assertEqual(submission.approval_status, "PENDING")
