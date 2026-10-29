@@ -129,16 +129,9 @@ async def guard_farmer_approval(change_request, session):
 
 
 class ReferenceIntakeService(DirectApprovalClosed, G2PIntakeFormDataService):
-    async def approve_submission(self, submission_id, approved_by):
-        # The legacy staff endpoint does not call the session-aware AWE hook.
-        # These registries require business decisions through their own AWE
-        # policy, otherwise a manual call could enqueue an unresolved dependency.
-        async with get_async_session_maker()() as session:
-            submission = await self._get_submission_or_error(submission_id, session)
-            definition = await self._get_register_definition(submission.register_id, session)
-            if definition.register_mnemonic in {"CropSown", "Livestock", "Farmer"}:
-                raise FarmerReferenceError("FARMER_REFERENCE_AWE_APPROVAL_REQUIRED")
-        return await super().approve_submission(submission_id, approved_by)
+    # No approve_submission here: the DirectApprovalClosed guard answers a
+    # direct approval first, for every register, before any lookup, so a
+    # made-up id and a real one get the same AWE_APPROVAL_REQUIRED.
 
     async def approve_submission_with_session(self, submission_id, session, approved_by=None):
         dependency = await session.get(FarmerSubmissionDependency, submission_id)
