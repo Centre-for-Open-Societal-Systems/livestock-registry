@@ -156,7 +156,7 @@ pipeline {
                             docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     '''
                     script {
-                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'registry-connector']
+                        def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'registry-connector', 'registry-connector-ui']
                         components.each { name ->
                             def image = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:${env.IMAGE_TAG}"
                             sh """
