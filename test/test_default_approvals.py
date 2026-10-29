@@ -31,6 +31,7 @@ def test_seeds_match_the_declared_policies_and_move_older_databases_in_place():
         "40_callback_secret.sql.tpl", "50_either_officer_or_admin.sql", "60_verified_update_skips_review.sql"]
     stage_sql = (seeds / "20_approval_stage.sql").read_text()
     rule_sql = (seeds / "30_approver_rule.sql").read_text()
+    assert "Officers" not in stage_sql and stage_sql.count("'Stage 1 officers'") == stage_sql.count("'Stage 2 officers'") == 3
     assert "'all'" not in stage_sql and stage_sql.count("'any-n',1,") == 1
     seeded_stage_ids = re.findall(r"\('([0-9a-f-]{36})','registry\.", stage_sql)
     assert len(seeded_stage_ids) == 6
@@ -43,7 +44,11 @@ def test_seeds_match_the_declared_policies_and_move_older_databases_in_place():
     assert update.count("UPDATE public.approval_stage SET mode='any-n', mode_value=1") == 1
     for stage_id in seeded_stage_ids:
         assert stage_id in update
-    assert "DELETE FROM" not in update and "approver_rule" not in update and "approval_policy" not in update
+    seeded_part, legacy_part = update.split("-- Stages created on long-lived databases", 1)
+    assert "DELETE FROM" not in update and "approver_rule" not in update and "approval_policy" not in seeded_part
+    # Stages that exist only on long-lived databases are renamed by policy key and exact old name: display text only.
+    assert legacy_part.count("UPDATE public.approval_stage s SET name=v.new_name") == 1
+    assert "mode" not in legacy_part and "stage_order" not in legacy_part and "policy_id=" in legacy_part
     # The platform's callback_secret template, carried unchanged (the seed image
     # replaces awe_meta_data and would otherwise drop it).
     template = (seeds / "40_callback_secret.sql.tpl").read_text()

@@ -5,7 +5,7 @@ The native AWE integration is used, without registering the geographic service
 upstream Farmer 1.2 example under this registry's own `.default` keys: two
 sequential stages, `on_empty=block`. Since 28 October 2026 each stage completes
 on one decision (`mode=any-n`, `mode_value=1`) from either the named officer or
-`admin`: Stage 1 Officers lists `alex.carter` and `admin`, Stage 2 Officers
+`admin`: Stage 1 officers lists `alex.carter` and `admin`, Stage 2 officers
 lists `nina.patel` and `admin`. Self/repeat approval restrictions stay `false`,
 so `admin` may decide both stages. The Farmer registry seeds the same shape, so
 every registry approves the same way. These are example reviewer IDs; this
