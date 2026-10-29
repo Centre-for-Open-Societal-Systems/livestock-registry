@@ -45,6 +45,10 @@ def validate_pin(pin):
         raise ValueError("Invalid central chart identity/version")
     if pin["version"].startswith("0.0.0"):
         raise ValueError("Placeholder chart version is forbidden")
+    # Values are fetched from the chart commit; a separate url that names another commit is never read.
+    values = pin.get("values") or {}
+    if values.get("url") and values["url"] != pin["repository"].removesuffix("repository/") + values.get("path", ""):
+        raise ValueError("Central public-values url must be the file at the pinned chart commit")
     return pin
 
 def url(pin):
