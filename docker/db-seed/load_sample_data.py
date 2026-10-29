@@ -28,6 +28,14 @@ login form, then IAM's callback), with the sample users' password the chart
 passes (global.aweApproverUserPassword). The loader never uses the password
 grant and never changes Keycloak.
 
+The staff IAM address is STAFF_IAM_URL when set. The platform's db-seed job
+(registry chart 1.2.2-rc.614) passes the staff API, the Keycloak token URL and
+the sample users, but no IAM address, so without it the loader takes IAM's
+public host from the Keycloak host the job does pass: keycloak.<domain> gives
+staff-iam.<domain>, the platform's own host names. It must be the public host:
+Keycloak returns the sign-in to IAM's public callback, and IAM's cookies are
+issued for that domain.
+
 Idempotent: a person whose Livestock intake is already approved is skipped; a
 finalized intake still waiting for approval is approved rather than entered
 again.
@@ -490,6 +498,18 @@ def env(name: str, default: str | None = None) -> str:
     return value
 
 
+def staff_iam_url() -> str:
+    """STAFF_IAM_URL, or IAM's public host next to Keycloak's (keycloak.<domain> -> staff-iam.<domain>)."""
+    if os.environ.get("STAFF_IAM_URL", "").strip():
+        return env("STAFF_IAM_URL")
+    token_url = urllib.parse.urlsplit(env("STAFF_TOKEN_URL"))
+    label, _, domain = token_url.netloc.partition(".")
+    if label != "keycloak" or not domain:
+        raise RuntimeError(f"STAFF_IAM_URL is not set and the Keycloak host {token_url.netloc} "
+                           "is not keycloak.<domain>")
+    return f"{token_url.scheme}://staff-iam.{domain}"
+
+
 def main() -> None:
     pack = Pack(OPENG2P_DATA_DIR / "packs" / PACK)
     herds = pack.read("livestock.json")
@@ -502,7 +522,8 @@ def main() -> None:
     animals = sum(len(s["sections"].get(STAGES[0][2][0][0], [])) for p in planned for s in p["stages"])
     log(f"{len(planned)} sample farmers with livestock, {animals} animal rows, from {pack.root}")
 
-    iam, api, password = env("STAFF_IAM_URL"), env("STAFF_API_URL"), env("INTAKE_SEED_PASSWORD")
+    iam, api, password = staff_iam_url(), env("STAFF_API_URL"), env("INTAKE_SEED_PASSWORD")
+    log(f"staff IAM {iam}")
     sessions: dict[str, StaffSession] = {}
 
     def session(user: str) -> StaffSession:
