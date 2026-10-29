@@ -189,7 +189,11 @@ def run(loader, registry):
     runner.approvers = [FakeApprover("alex.carter", 1, registry, calls), FakeApprover("nina.patel", 2, registry, calls)]
     runner.forms = {form: ("form-livestock", "register", {}) for form, _, _ in loader.STAGES}
 
-    def submit(stage, reference_id):
+    def submit(stage, reference_id, draft=None):
+        if draft:
+            submitted.append(("draft", draft))
+            registry.pending.append(draft)
+            return draft
         sid = f"sub-{len(submitted) + 1}"
         submitted.append((reference_id, stage["sections"]["livestock_farmer_lookup"][0]["farmer_id"]))
         registry.pending.append(sid)
@@ -203,7 +207,7 @@ def test_farmers_are_seeded_and_every_intake_approved_at_stage_1_then_stage_2(lo
     registry = FakeRegistry()
     done, submitted, calls = run(loader, registry)
     assert done == {"farmers seeded": 2, "farmers restored": 0, "farmers referenced": 0, "intakes approved": 2,
-                    "resumed": 0, "skipped": 0}
+                    "resumed": 0, "drafts completed": 0, "skipped": 0, "left for the next run": 0, "failed": 0}
     assert registry.seeded[0] == ("FR-100000000001", "alex.carter", "nina.patel", "ETH-IND-0001")
     assert submitted == [("ref-ETH-IND-0001", "FR-100000000001"), ("ref-ETH-IND-0002", "FR-100000000002")]
     decisions = [c for c in calls if c[1] == "/awe/submit_task_decision"]
@@ -227,7 +231,7 @@ def test_a_rerun_skips_approved_intakes_and_resumes_waiting_ones(loader):
     registry.pending = ["sub-wait"]
     done, submitted, _ = run(loader, registry)
     assert done == {"farmers seeded": 2, "farmers restored": 0, "farmers referenced": 0, "intakes approved": 0,
-                    "resumed": 1, "skipped": 1}
+                    "resumed": 1, "drafts completed": 0, "skipped": 1, "left for the next run": 0, "failed": 0}
     assert submitted == [] and ("g2p_register_livestocks", "root-wait") in registry.waited
 
 
@@ -271,12 +275,12 @@ def test_a_reference_whose_copy_was_deleted_gets_its_copy_back_under_its_own_ids
     assert inserts(cur) == ['INSERT INTO "public"."g2p_register_farmers"']
 
 
-KEYCLOAK_TOKEN = "https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token"
+KEYCLOAK_TOKEN = "https://keycloak.example.org/realms/staff/protocol/openid-connect/token"
 
 
 @pytest.mark.parametrize("environ, expected", [
     ({"STAFF_IAM_URL": "https://iam.example.org", "STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://iam.example.org"),
-    ({"STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://staff-iam.development.oanstaging.com"),
+    ({"STAFF_TOKEN_URL": KEYCLOAK_TOKEN}, "https://staff-iam.example.org"),
     ({"STAFF_TOKEN_URL": "https://keycloak.farmer.openg2p.org/realms/staff/protocol/openid-connect/token"},
      "https://staff-iam.farmer.openg2p.org"),
 ])
@@ -296,3 +300,96 @@ def test_staff_iam_needs_the_address_when_keycloak_is_not_keycloak_domain(loader
         monkeypatch.setenv("STAFF_TOKEN_URL", token_url)
     with pytest.raises(RuntimeError):
         loader.staff_iam_url()
+
+
+class FlakyOpener:
+    """Answers with the given outcomes in turn: an exception to raise, or a status code."""
+
+    def __init__(self, *outcomes):
+        self.outcomes, self.calls = list(outcomes), 0
+
+    def open(self, request, timeout):
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        if outcome >= 400:
+            raise __import__("urllib.error").error.HTTPError(request.full_url, outcome, "x", {}, __import__("io").BytesIO(b"{}"))
+        response = __import__("io").BytesIO(b"{}")
+        response.status, response.headers = outcome, {}
+        response.__enter__ = lambda: response
+        return __import__("contextlib").nullcontext(response)
+
+
+def test_network_errors_and_gateway_statuses_are_retried(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    request = __import__("urllib.request").request.Request("https://staff-iam.example.org/x")
+    opener = FlakyOpener(__import__("urllib.error").error.URLError("connection reset"), TimeoutError("timed out"), 503, 200)
+    status, _, _ = loader.fetch(opener, request)
+    assert status == 200 and opener.calls == 4
+
+
+def test_other_statuses_are_returned_and_lasting_failures_raise(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    request = __import__("urllib.request").request.Request("https://staff-iam.example.org/x")
+    opener = FlakyOpener(401)
+    assert loader.fetch(opener, request)[0] == 401 and opener.calls == 1
+    opener = FlakyOpener(*[OSError("unreachable")] * loader.NETWORK_ATTEMPTS)
+    with pytest.raises(RuntimeError, match="unreachable"):
+        loader.fetch(opener, request)
+
+
+def test_tls_checks_follow_the_chart_setting(loader, monkeypatch):
+    import ssl
+    monkeypatch.setenv("INTAKE_SEED_VERIFY_TLS", "false")
+    assert loader.tls_context().verify_mode == ssl.CERT_NONE
+    monkeypatch.delenv("INTAKE_SEED_VERIFY_TLS")
+    assert loader.tls_context().verify_mode == ssl.CERT_REQUIRED
+
+
+def test_the_task_is_found_on_a_later_page(loader):
+    class Pages:
+        username = "nina.patel"
+
+        def __init__(self):
+            self.pages = []
+
+        def post(self, path, payload):
+            self.pages.append(payload["page"])
+            if payload["page"] == 1:
+                return {"data": {"items": [{"id": f"t{i}", "artifact_id": "other", "stage_order": 2}
+                                           for i in range(loader.TASK_PAGE_SIZE)]}}
+            return {"data": {"items": [{"id": "mine", "artifact_id": "sub-1", "stage_order": 2}]}}
+
+    approver = Pages()
+    assert loader.Loader.open_task(approver, "sub-1", 2)["id"] == "mine" and approver.pages == [1, 2]
+
+
+def test_a_draft_left_by_a_failed_run_is_completed_not_entered_again(loader):
+    registry = FakeRegistry(previous={"502628318720": [("sub-draft", "DRAFT", None, "x")]})
+    done, submitted, _ = run(loader, registry)
+    assert submitted[0] == ("draft", "sub-draft") and done["drafts completed"] == 1
+
+
+def test_no_intake_starts_once_the_time_budget_is_used(loader):
+    registry = FakeRegistry()
+    loader.Loader.time_budget, saved = -1, loader.Loader.time_budget
+    try:
+        done, submitted, _ = run(loader, registry)
+    finally:
+        loader.Loader.time_budget = saved
+    assert submitted == [] and done["left for the next run"] == sum(len(p["stages"]) for p in plan(loader))
+
+
+def test_one_failing_farmer_does_not_stop_the_others(loader):
+    registry = FakeRegistry()
+    real = registry.ensure_farmer
+
+    def ensure_farmer(farmer, *args):
+        if farmer["fayda_fin"] == "502628318720":
+            raise RuntimeError("this registry already holds another farmer")
+        return real(farmer, *args)
+
+    registry.ensure_farmer = ensure_farmer
+    done, submitted, _ = run(loader, registry)
+    assert done["failed"] == 1 and done["farmers seeded"] == 1 and submitted
