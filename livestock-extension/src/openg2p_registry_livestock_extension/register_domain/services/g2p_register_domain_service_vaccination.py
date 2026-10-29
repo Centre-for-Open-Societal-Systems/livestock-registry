@@ -72,7 +72,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             # Vaccine is a plain (unfiltered) list in the dialog; keep a goat vaccine
             # off a cattle animal here, server-side.
             await validate_known_code(record, "vaccine_type", "VACCINE_TYPE", "Vaccine")
-            await validate_belongs_to_species(record.get("vaccine_type"), record.get("species"), "Vaccine")
+            await validate_belongs_to_species(record.get("vaccine_type"), record.get("species"), "Vaccine", "VACCINE_TYPE")
             await validate_species_matches(record)
             self._validate_not_in_future(record, "vaccination_date")
             await self._validate_not_before_birth(record)
@@ -130,9 +130,9 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         Looks up the APPROVED Vaccine Schedule register, not intake drafts —
         that's the operational, administrator-tuned schedule the overdue
         sweep (vaccination_status_service.py) and reminder task already
-        trust. No schedule configured yet for this vaccine/species pair (or
-        one not yet approved) leaves next_due_date untouched rather than
-        blocking the save — a vaccination is still valid without one.
+        trust. Without an approved row the vaccine's interval_days attribute
+        in Master Data is the default. Neither leaves next_due_date untouched
+        rather than blocking the save — a vaccination is still valid without one.
         """
         vaccination_date = parse_date(record.get("vaccination_date"))
         vaccine_type = record.get("vaccine_type")
@@ -150,14 +150,13 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         ).G2PRegisterVaccineSchedule
 
         # The schedule seed is keyed by bare codes (vaccine_name "ANTHRAX_CATTLE",
-        # species "CATTLE") while the form saves attribute value ids
-        # ("VACCINE_TYPE_ANTHRAX_CATTLE", "LIVESTOCK_SPECIES_CATTLE"). Compare
-        # both sides with the catalogue prefixes stripped so either spelling
-        # matches — without this the lookup never matched a real entry and
+        # species "CATTLE") while the form saves the Master Data vaccine value id
+        # ("VACCINE_TYPE_ANTHRAX_CATTLE"). Compare both sides with the
+        # catalogue prefix stripped so either spelling matches — without this the lookup never matched a real entry and
         # next_due_date stayed NULL (no overdue flip, no due-soon/overdue mail).
         def norm(value) -> str:
             text = str(value or "").strip().upper()
-            for prefix in ("VACCINE_TYPE_", "LIVESTOCK_SPECIES_", "LIVESTOCK_VACCINE_"):
+            for prefix in ("VACCINE_TYPE_", "LIVESTOCK_VACCINE_"):
                 if text.startswith(prefix):
                     text = text[len(prefix):]
             return text
@@ -183,6 +182,14 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             if days is not None and norm(name) == norm(vaccine_type) and norm(schedule_species) == norm(species):
                 interval_days = int(days)
                 break
+        if interval_days is None:
+            # No approved schedule row: the vaccine's default interval from
+            # Master Data (VACCINE_TYPE interval_days in the country pack).
+            from ... import master_data_lists
+
+            days = (await master_data_lists.value_attributes("VACCINE_TYPE", str(vaccine_type))).get("interval_days")
+            if isinstance(days, int) and not isinstance(days, bool) and days > 0:
+                interval_days = days
         if interval_days is None:
             return
 

@@ -4,13 +4,15 @@ per-value configuration from.
 Until registry-platform 1.1 the overlay took this from the attribute values
 themselves: the livestock patches added ``requires_ear_tag`` /
 ``is_flock_species`` to a species value and ``interval_days`` to a vaccine
-value. 1.2 reads the code lists from Master Data, which knows a value's code,
-label, parent and order only, so the two livestock-specific facts come from
-here instead:
+value. 1.2 reads the code lists from Master Data through the legacy
+attributes API, which returns a value's code, label, parent and order only, so
+the two livestock-specific facts come from here instead:
 
-- species config, the registry's own table (register_domain/models/species_config.py)
+- species config, the LIVESTOCK_SPECIES value attributes in Master Data
+  (requires_ear_tag / is_flock_species, set by the country pack)
 - vaccine intervals, the approved Vaccine Schedule register (the same rows the
-  server uses to fill next_due_date on save)
+  server uses to fill next_due_date on save), else the VACCINE_TYPE value's
+  interval_days attribute in Master Data
 
 The portal reaches it through its own /api/attributes/values route
 (docker/staff-ui/assets/patch-form-config-route.js adds the switch
@@ -42,7 +44,7 @@ from openg2p_fastapi_common.controller import BaseController
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from ..models.species_config import G2PLivestockSpeciesConfig
+from ... import master_data_lists
 from ..models.vaccine_schedule import G2PRegisterVaccineSchedule
 
 _logger = logging.getLogger("g2p-livestock-form-config")
@@ -62,15 +64,15 @@ class G2PLivestockFormConfigController(BaseController):
     async def form_config(self, request: Request) -> dict:
         species: dict[str, dict] = {}
         intervals: dict[str, int] = {}
+        for value_id, value in (await master_data_lists.get_list("LIVESTOCK_SPECIES") or {}).items():
+            attributes = value.get("attributes") or {}
+            species[value_id] = {
+                "requires_ear_tag": attributes.get("requires_ear_tag"),
+                "is_flock_species": attributes.get("is_flock_species"),
+            }
+
         session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
         async with session_maker() as session:
-            rows = (await session.execute(select(G2PLivestockSpeciesConfig))).scalars().all()
-            for row in rows:
-                species[row.value_id] = {
-                    "requires_ear_tag": row.requires_ear_tag,
-                    "is_flock_species": row.is_flock_species,
-                }
-
             schedules = (
                 await session.execute(
                     select(
@@ -92,6 +94,10 @@ class G2PLivestockFormConfigController(BaseController):
             key = _norm(name)
             for candidate in (key, key.replace("VACCINE_TYPE_", "", 1), f"VACCINE_TYPE_{key.replace('VACCINE_TYPE_', '', 1)}"):
                 intervals.setdefault(candidate, int(days))
+        for value_id, value in (await master_data_lists.get_list("VACCINE_TYPE") or {}).items():
+            days = (value.get("attributes") or {}).get("interval_days")
+            if isinstance(days, int) and not isinstance(days, bool) and days > 0:
+                intervals.setdefault(value_id, days)
 
         rows: list[dict] = [
             {"attribute_id": "LIVESTOCK_SPECIES_CONFIG", "value_id": value_id, **cfg}

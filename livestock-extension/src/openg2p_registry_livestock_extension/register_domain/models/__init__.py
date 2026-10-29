@@ -11,7 +11,6 @@ from .vaccine_schedule import (
 )
 from .import_batch import G2PRegisterImportBatch, G2PRegisterHistoryImportBatch, G2PIntakeFormImportBatch
 from .audit_log import G2PRegisterAuditLog, G2PRegisterHistoryAuditLog, G2PIntakeFormAuditLog
-from .species_config import G2PLivestockSpeciesConfig
 from .enums import (
     LivestockStateEnum,
     SourceSystemEnum,

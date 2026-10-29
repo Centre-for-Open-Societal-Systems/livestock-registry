@@ -43,7 +43,7 @@ def test_odk_one_identifier_is_split_without_importing_farmer_profile(identifier
     if not IS_CROP:
         assert result['ls_livestock_location'][0]['woreda_id']=='ET010101'
         assert len(result['ls_animal_details'])==1
-        assert result['ls_animal_details'][0]['species']=='LIVESTOCK_SPECIES_CATTLE'
+        assert result['ls_animal_details'][0]['species']=='CATTLE'
         assert result['ls_animal_details'][0]['gender']=='FEMALE'
         assert result['ls_animal_details'][0]['date_of_birth']=='2020-01-01'
 

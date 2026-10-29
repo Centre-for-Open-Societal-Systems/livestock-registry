@@ -63,6 +63,7 @@ def invalidate() -> None:
     _values_by_attribute = {}
     _values_expire_at = 0.0
     _values_loaded = False
+    _catalogue_lists.clear()
 
 
 async def _load_values() -> None:
@@ -156,6 +157,65 @@ async def parent(value_id: str | None) -> Optional[str]:
     """parent_value_id of a value (a breed's species), None when unknown or none."""
     entry = await get_value(value_id)
     return (entry or {}).get("parent_value_id") or None
+
+
+_catalogue_lists: dict[str, tuple[float, dict[str, dict[str, Any]]]] = {}
+
+
+async def get_list(list_code: str) -> dict[str, dict[str, Any]] | None:
+    """The ACTIVE values of the published version of one Master Data list,
+    keyed by value_id, each with its ``attributes`` (the typed per-value data
+    a country pack declares in the list's ``attribute_schema``, e.g. a
+    species' ``requires_ear_tag``). Read from the catalogue API
+    (``/catalogue/get_list_values``), which, unlike the legacy
+    ``/attributes`` API above, returns those attributes. None when Master
+    Data is not configured or not reachable."""
+    now = time.monotonic()
+    cached = _catalogue_lists.get(list_code)
+    if cached and now < cached[0]:
+        return cached[1]
+    try:
+        client = _client()
+        if not client.is_configured(client._settings()):
+            return None
+        values: dict[str, dict[str, Any]] = {}
+        for page in range(1, _ATTRIBUTE_MAX_PAGES + 1):
+            payload = await client._post(
+                "/catalogue/get_list_values",
+                payload={"list_code": list_code},
+                pagination={"current_page": page, "page_size": _ATTRIBUTE_PAGE_SIZE},
+            )
+            rows = (payload or {}).get("values") if isinstance(payload, dict) else payload
+            rows = rows if isinstance(rows, list) else []
+            for row in rows:
+                if not isinstance(row, dict) or not row.get("value_id"):
+                    continue
+                if str(row.get("status") or "ACTIVE").upper() != "ACTIVE":
+                    continue
+                values[row["value_id"]] = {
+                    "value_id": row["value_id"],
+                    "value_code": row.get("value_code"),
+                    "display": row.get("display"),
+                    "parent_code": row.get("parent_code") or None,
+                    "attributes": row.get("attributes") or {},
+                }
+            if len(rows) < _ATTRIBUTE_PAGE_SIZE:
+                break
+    except Exception as exc:
+        _logger.warning("Master Data list %s unavailable: %s", list_code, exc)
+        return cached[1] if cached else None
+    ttl = _ttl(client)
+    _catalogue_lists[list_code] = (now + (ttl if ttl > 0 else 300.0), values)
+    return values
+
+
+async def value_attributes(list_code: str, value_id: str | None) -> dict[str, Any]:
+    """``attributes`` of one value of a Master Data list; empty when the value
+    or the list is unknown."""
+    if not value_id:
+        return {}
+    values = await get_list(list_code) or {}
+    return dict((values.get(str(value_id).strip()) or {}).get("attributes") or {})
 
 
 _geo_label_cache: dict[str, str] = {}
