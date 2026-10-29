@@ -42,3 +42,18 @@ and retains the canonical binding ID for duplicate scopes. Retired metadata IDs
 and complete row values remain in the archive for restoration through native
 administration. Existing AWE policy/task rows are unchanged. No geographic IAM
 or data-policy assignment is removed.
+
+## No approval outside a task
+
+Core also exposes two staff calls that apply a change on one user's say-so,
+without an approval task: `/intake-form-data/approve_intake_form_submission`
+(`intakeSubmission:approve`, held by Intake Validator and Technical
+Administrator) and `/change-requests/approve_change_request` plus
+`/change-requests/approve_change_request_for_core_data`
+(`changeRequest:approve`, held by Technical Administrator). The role catalog
+is registered by the platform chart and is not changed here, so
+`direct_approval.py` refuses both service calls for every caller, `admin`
+included. Decisions made in an approval task are unaffected: the workflow
+engine's signed decision reaches `approve_submission_with_session` and
+`approve_change_request_from_awe_webhook`, which the guard does not touch.
+`reject` calls and the verification calls stay available.
