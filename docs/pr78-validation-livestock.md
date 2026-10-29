@@ -1,6 +1,6 @@
 # Livestock Registry – validation of the native refactor (PR #78)
 
-Yash Sontakke · 26–29 October 2026
+Yash Sontakke · 26–29 October 2026 · findings checked against COSS `develop` @ cb8b9cf (29 Oct, 11:30)
 
 This is the "what we had / what is broken or missing / what comes next" list asked for on 27 October. It is updated as items are fixed.
 
@@ -8,7 +8,7 @@ This is the "what we had / what is broken or missing / what comes next" list ask
 
 | Area | State |
 |---|---|
-| Approval chain (finalize → signed farmer lookup → Farmer ADD CR → AWE 2 stages → farmer + livestock in the register) | **Works** via API, after the Farmer flag fix by hand (B1) |
+| Approval chain (finalize → signed farmer lookup → Farmer ADD CR → AWE 2 stages → farmer + livestock in the register) | **Works** via API (on 3f2deb6 with the Farmer flag set by hand; #95 fixes the seed) |
 | Web intake form in the browser, end to end | **Blocked.** Farmer Identity, Survey and Location save; Livestock Details cannot be saved (B11), so no event section can be filled and Submit is refused |
 | ODK | **Blocked** (B3, B4) |
 | File import | **Missing** |
@@ -48,7 +48,7 @@ No registry code was modified in either run.
 
 | # | Finding | Where | Impact | State on develop head |
 |---|---|---|---|---|
-| B1 | Farmer register seeded with `functional_id_generation_required=TRUE`; `farmer_reference` requires FALSE, so the final Farmer CR webhook returns 500 `FARMER_REFERENCE_EXTERNAL_IDENTIFIER_CONFIGURATION_REQUIRED` | `g2p_register_definitions.sql` | Farmer ADD CR never applies; the livestock record stays held | **Open.** Reproduced; after setting FALSE by hand AWE's retry completed the chain |
+| B1 | Farmer register seeded with `functional_id_generation_required=TRUE`; `farmer_reference` requires FALSE, so the final Farmer CR webhook returns 500 `FARMER_REFERENCE_EXTERNAL_IDENTIFIER_CONFIGURATION_REQUIRED` | `g2p_register_definitions.sql` | Farmer ADD CR never applies; the livestock record stays held | **Fixed by #95** (29 Oct). Reproduced on 3f2deb6; after setting FALSE by hand AWE's retry completed the chain |
 | B2 | Hooks `post_intake_upsert`, `pre_finalize`, `post_approval_stage` came from our removed core patch; the platform only calls `validate_domain_attributes`, `pre_approve`, `post_approve`, `post_ingest`. The methods remain as dead code | all domain services | Lost: calves and offspring ear tags on BIRTH, location names, intake-side duplicate mortality/disease checks, ear-tag-belongs-to-submission check, section re-save fix, livestock state ladder | **Open** |
 | B3 | ODK: raw submission to `/partner/ingest_data` is rejected (signed envelope required); with an envelope the transform fails `Template not found` (template not registered in `incoming_templates`) | ODK path, seeds | No ODK record reaches the registry | Open (not re-run) |
 | B4 | partner-api returns 500 `Object of type datetime is not JSON serializable` on every ingest | platform rc.557 | Connector retries forever | Open (platform) |
@@ -69,7 +69,7 @@ No registry code was modified in either run.
 - File import: no import configuration or template ("Import from file: No options available").
 - DCI search by Farmer ID and ear tag (only FID; FAN as UIN rejected).
 - Animals finder with bulk status update.
-- Dashboard reporting views (`lr_rpt_*`), the repository's own local compose stack, the vendored ODK connector.
+- The repository's own local compose stack and the vendored ODK connector. Reporting views were restored by #90 (29 Oct, not re-tested).
 
 ## 5. Dependencies and environment
 
@@ -95,7 +95,7 @@ Found while running Asmit's `openg2p-developer` on a laptop; worth fixing in tha
 ## 8. Next (order = priority; one PR each)
 
 1. **B11 + B14**: move the extension to the pack codes (species config, breed, vaccine schedule defaults); PR to openg2p-data with breed names, vaccine and disease lists. This unblocks the browser intake.
-2. **B1, B5**: Farmer flag FALSE in the seed; vaccine schedule seed keyed by pack codes.
+2. **B5**: vaccine schedule seed keyed by pack codes (B1 done in #95).
 3. **B12** and the rest of **B2**: call the geo sync from `post_ingest`; move calves on BIRTH, duplicate checks and the state ladder to `post_approve` / `post_ingest` or a registered intake-service subclass.
 4. **B13, B7**: register the livestock beat schedule after beat is configured; document the beat database settings.
 5. **ODK (B3)**: transform template seed and the signed envelope path; report B4 and B9 to OpenG2P.
