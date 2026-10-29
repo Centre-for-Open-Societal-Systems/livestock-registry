@@ -259,6 +259,40 @@ async def geo_label_by_suffix(code: str) -> Optional[str]:
     return None
 
 
+async def geo_chain(level_value_id: str | None) -> list[dict[str, Any]]:
+    """The geo unit and its parents, most general first, as hierarchy entries
+    (``level_mnemonic``, ``level_value_id``, ``level_value_mnemonic``); [] when
+    Master Data does not know the id. A parent is followed by id or, for a
+    Master Data whose values point at their parent by name, by that name."""
+    if not level_value_id or not str(level_value_id).strip():
+        return []
+    try:
+        index = await _client()._load_geo_index()
+    except Exception as exc:
+        _logger.warning("Master Data geo index unavailable: %s", exc)
+        return []
+    index = index or {}
+    chain: list[dict[str, Any]] = []
+    current = str(level_value_id).strip()
+    seen: set[str] = set()
+    while current and current not in seen:
+        seen.add(current)
+        node = index.get(current)
+        if node is None and chain:
+            named = [n for n in index.values() if n.get("level_value_mnemonic") == current]
+            node = named[0] if len(named) == 1 else None
+        if node is None:
+            break
+        chain.append({
+            "level_mnemonic": node.get("level_mnemonic"),
+            "level_value_id": node.get("level_value_id"),
+            "level_value_mnemonic": node.get("level_value_mnemonic"),
+        })
+        current = node.get("parent_level_value_id")
+    chain.reverse()
+    return chain
+
+
 async def geo_id_for(level: str, name: str | None, parent_id: str | None = None,
                      parent_name: str | None = None) -> Optional[str]:
     """The geo value id of ``name`` at ``level`` (region / zone / woreda /
