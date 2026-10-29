@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from openg2p_registry_core.models import G2PIntakeFormSubmission, G2PRegisterDefinition
 from sqlalchemy import select
 
+from . import messages
 from .configuration import configured_lookup
 from .models import FarmerPendingLookup
 from .profile import FarmerReferenceError, intake_identity, matches_declared_identity
@@ -105,16 +106,11 @@ async def resolve_or_wait(session, submission, row, *, lookup=None, interactive=
     for field in ("fayda_fin", "fayda_fan_id"):
         if source.profile.get(field):
             setattr(row, field, source.profile[field])
-    if submission.approval_status == "APPROVED":
-        from .messages import approved_intake_status
-
-        row.farmer_reference_status = approved_intake_status(reference.state)
-    else:
-        row.farmer_reference_status = (
-            "Farmer reference linked"
-            if reference.state == "APPROVED"
-            else "Farmer reference awaiting approval; the record will be added after that approval"
-        )
+    row.farmer_reference_status = (
+        messages.FARMER_REFERENCE_LINKED
+        if reference.state == "APPROVED"
+        else messages.FARMER_REFERENCE_AWAITING
+    )
     await session.flush()
     return reference
 
