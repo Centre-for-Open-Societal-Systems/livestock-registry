@@ -10,6 +10,9 @@
 # definitions, checkpoints and webhook secrets are not touched: they live in the
 # connector database, which an upgrade does not migrate away.
 #
+# After the upgrade it removes, through the connector admin API, the four Crop Sown ODK
+# pipelines that the crop connector build seeded into this database (step 6).
+#
 # PLAN_ONLY=1 (Jenkins connector-plan) stops after step 3: it changes nothing,
 # needs no backup key, and prints the manifest diff and the dry-run result.
 #
@@ -166,5 +169,33 @@ done
 API_POD=$(kubectl get pod -n "$NAMESPACE" -l app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component=api -o name | head -n 1)
 kubectl exec -n "$NAMESPACE" "${API_POD#pod/}" -- python -c 'import json,urllib.request; print(json.load(urllib.request.urlopen("http://127.0.0.1:8050/connectors/meta", timeout=10))["webhook_verifiers"])'
 kubectl exec -n "$NAMESPACE" "${API_POD#pod/}" -- sh -c 'grep -rl "websub_content_envelope" "$(python -c "import openg2p_connector_service,os; print(os.path.dirname(openg2p_connector_service.__file__))")" | head -3'
+# 6. Remove the four Crop Sown ODK pipelines that the crop connector build (develop-116)
+# seeded at every start. Only now, with the livestock image running, does a removal last.
+# Through the connector's own admin API, by id, and only if the row still carries the
+# seeded name; a missing row is already gone.
+kubectl exec -i -n "$NAMESPACE" "${API_POD#pod/}" -- python - <<'PY'
+import json, urllib.error, urllib.request
+BASE = "http://127.0.0.1:8050/connectors/"
+SEEDED = ("533b074b13544a8eb0a8fbd10c6f52ed", "24b12b2f3aac4ccdb5b876a604eb54aa",
+          "54e73482cf304614a1f3db4982d907c5", "2e6c255ec645430e8f8a8c5d3d94f707")
+for cid in SEEDED:
+    try:
+        row = json.load(urllib.request.urlopen(BASE + cid, timeout=10))
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            raise
+        print(f"{cid}: already removed")
+        continue
+    if not str(row.get("name", "")).startswith("Crop Sown"):
+        raise SystemExit(f"{cid} is named {row.get('name')!r}, not a seeded Crop Sown pipeline; not removed")
+    urllib.request.urlopen(urllib.request.Request(BASE + cid, method="DELETE"), timeout=10)
+    print(f"{cid}: removed {row['name']!r}")
+rows = json.load(urllib.request.urlopen(BASE.rstrip("/"), timeout=10))
+rows = rows if isinstance(rows, list) else rows.get("items") or rows.get("data") or []
+left = [c["name"] for c in rows if str(c.get("name", "")).startswith("Crop Sown")]
+if left:
+    raise SystemExit(f"Crop Sown pipelines still present: {left}")
+print("No Crop Sown pipelines in the livestock connector.")
+PY
 helm history "$RELEASE" -n "$NAMESPACE" --max 3
 echo "Upgraded $RELEASE in $NAMESPACE to git (archive: $BACKUP_HOST:$BACKUP_DIR/$STAMP-connector-*)"
