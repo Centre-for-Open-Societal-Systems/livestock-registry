@@ -16,8 +16,8 @@ ON CONFLICT (policy_key,version) DO NOTHING;
 INSERT INTO public.approval_stage (id,policy_id,stage_order,name,mode,mode_value,sla_hours,parallel_group,skip_if,on_empty,on_breach,escalation_rules_json,created_at,updated_at)
 SELECT v.id,p.id,v.stage_order,v.name,'any-n',1,CAST(NULL AS integer),CAST(NULL AS integer),CAST('{"and": [{"==": [{"var": "change_type"}, "UPDATE"]}, {"==": [{"var": "source"}, "farmer-registry"]}]}' AS json),'block',CAST(NULL AS integer),'null',NOW(),NOW()
 FROM (VALUES
-('d2d6c2ea-3e4d-51e5-8e97-78a273e26ecc','registry.change_request.livestock-farmer.verified-update-skips-review',1,'Stage 1 officers'),
-('96243f6c-b4d1-5bca-8f08-aaefad9d04ca','registry.change_request.livestock-farmer.verified-update-skips-review',2,'Stage 2 officers')) AS v(id,policy_key,stage_order,name)
+('d2d6c2ea-3e4d-51e5-8e97-78a273e26ecc','registry.change_request.livestock-farmer.verified-update-skips-review',1,'First approval'),
+('96243f6c-b4d1-5bca-8f08-aaefad9d04ca','registry.change_request.livestock-farmer.verified-update-skips-review',2,'Second approval')) AS v(id,policy_key,stage_order,name)
 JOIN public.approval_policy p ON p.policy_key=v.policy_key AND p.version=1
 WHERE NOT EXISTS (SELECT 1 FROM public.approval_stage s WHERE s.policy_id=p.id AND s.stage_order=v.stage_order)
 ON CONFLICT (id) DO NOTHING;

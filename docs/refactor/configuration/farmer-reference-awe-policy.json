@@ -7,7 +7,7 @@
   "forbid_repeat_approvers": false,
   "stages": [
     {
-      "name": "Stage 1 officers",
+      "name": "First approval",
       "stage_order": 1,
       "mode": "any-n",
       "on_empty": "block",
@@ -32,7 +32,7 @@
       "mode_value": 1
     },
     {
-      "name": "Stage 2 officers",
+      "name": "Second approval",
       "stage_order": 2,
       "mode": "any-n",
       "on_empty": "block",
