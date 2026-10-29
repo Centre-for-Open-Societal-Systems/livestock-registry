@@ -1,4 +1,4 @@
-"""Render ls_odk_transform.j2 against real-shaped ODK submissions and check the
+"""Render odk_to_livestock_intake.j2 against real-shaped ODK submissions and check the
 values the registry depends on. Needs only jinja2:
 
     python odk/test_transform.py
@@ -19,7 +19,7 @@ import jinja2
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(
     HERE, "..", "livestock-extension", "src", "openg2p_registry_livestock_extension",
-    "templates", "ls_odk_transform.j2",
+    "templates", "odk_to_livestock_intake.j2",
 )
 SAMPLE = os.path.join(HERE, "sample_submissions.json")
 

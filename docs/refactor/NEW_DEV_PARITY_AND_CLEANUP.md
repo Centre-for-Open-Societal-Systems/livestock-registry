@@ -73,7 +73,8 @@ preservation remain promotion requirements. Live Crop's additional
 FARMER_REFERENCE_CHANGED_V1 configuration/template is captured in pipeline-metadata
 and still needs a verified native configuration port; it must not be treated as
 already delivered by the notification enricher. The generic Livestock
-MY_DATA_MODEL example is intentionally retired.
+MY_DATA_MODEL example and LIVESTOCK_ODK_MODEL are retired and replaced by
+ODK_TO_LIVESTOCK_INTAKE (seeded with its own incoming template).
 
 No live registry records, documents, approvals, grants, environment settings,
 connector checkpoints or deployments were changed by this work.

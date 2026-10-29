@@ -2,7 +2,7 @@
 
 Current new dev configuration and validation:
 [Livestock ODK on new dev](../docs/odk-new-dev.md) (`livestock` namespace, project
-6, `LIVESTOCK_ODK_MODEL`, active PM partner `PARTNER_LIVESTOCK`). The environment
+6, `ODK_TO_LIVESTOCK_INTAKE`, active PM partner `PARTNER_LIVESTOCK`). The environment
 table below describes the earlier project 14 deployment.
 
 Field officers collect a livestock holding (farmer, location, animals and the
@@ -10,7 +10,7 @@ animals' health, vaccination, vital and breeding events) with ODK Collect or
 Central's web form. The path to the registry is the same as the farmer
 registry's: ODK Central → connector service (polls Central's OData API) →
 `POST /partner/ingest_data` → the registry's ingestion workers (classify,
-transform with `ls_odk_transform.j2`, save as an intake submission) → AWE
+transform with `odk_to_livestock_intake.j2`, save as an intake submission) → AWE
 approval → register.
 
 ## Files

@@ -530,8 +530,8 @@
     },
     {
       "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/patch_livestock_odk_ingestion.sql",
-      "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "decision": "retired",
+      "reason": "Replaced by meta_data/zz-oan/20_odk_to_livestock_intake.sql (ODK_TO_LIVESTOCK_INTAKE)"
     },
     {
       "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",
@@ -911,7 +911,7 @@
     {
       "source": "livestock-extension/src/openg2p_registry_livestock_extension/templates/ls_odk_transform.j2",
       "decision": "ported",
-      "reason": "Preserve domain contract; compatibility acceptance pending"
+      "reason": "Renamed templates/odk_to_livestock_intake.j2; compatibility acceptance pending"
     },
     {
       "source": "livestock-extension/src/openg2p_registry_livestock_extension/templates/openg2p_livestock_to_dci.json.j2",
