@@ -38,29 +38,28 @@ extraEnvFrom:
       key: private-key.pem
       optional: false
 
-# Connector service image: docker/connector-service, built by livestock Jenkins
-# (develop build 116, commit 025f37f). It is the crop build of the vendored
-# connector at cropsown-regsitry d0cd4f9 (WebSub content envelope, Ed25519
-# registry-payload signing, mapped-payload validation) with its startup seed of
-# crop's four ODK pipelines replaced by one that creates nothing. The
-# connector-as-config work in oan-helm replaces it.
+# Connector image: docker/registry-connector, built by livestock Jenkins (develop
+# build 145, commit 785f58c, the first build after the connector admin-role change).
+# It is OpenG2P's published registry connector plus the OAN extension (registry
+# payload signing, WebSub content envelope, admin-role access to the API). The
+# earlier stop-gap docker/connector-service image is retired.
 api:
   image:
-    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/connector-service
-    tag: 025f37fb6418
-    digest: sha256:c8edf1772ef710438e71d59f0422bb3f51aaf186f5085780732027306894e084
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector
+    tag: 785f58c6b877
+    digest: sha256:b911446ce1b289faab7280c7cbf51001cd7350117069a28447b786c32c7f3866
     pullPolicy: IfNotPresent
 worker:
   image:
-    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/connector-service
-    tag: 025f37fb6418
-    digest: sha256:c8edf1772ef710438e71d59f0422bb3f51aaf186f5085780732027306894e084
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector
+    tag: 785f58c6b877
+    digest: sha256:b911446ce1b289faab7280c7cbf51001cd7350117069a28447b786c32c7f3866
     pullPolicy: IfNotPresent
 beat:
   image:
-    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/connector-service
-    tag: 025f37fb6418
-    digest: sha256:c8edf1772ef710438e71d59f0422bb3f51aaf186f5085780732027306894e084
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector
+    tag: 785f58c6b877
+    digest: sha256:b911446ce1b289faab7280c7cbf51001cd7350117069a28447b786c32c7f3866
     pullPolicy: IfNotPresent
 ui:
   image:
