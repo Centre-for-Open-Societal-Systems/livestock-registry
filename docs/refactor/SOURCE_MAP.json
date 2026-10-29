@@ -319,17 +319,17 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_colour_column.sql",
+      "source": "docker/db-seed/migrations/0001_animal_colour_column.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_ear_tag_optional.sql",
+      "source": "docker/db-seed/migrations/0002_animal_ear_tag_optional.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_animal_quantity_column.sql",
+      "source": "docker/db-seed/migrations/0003_animal_quantity_column.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
@@ -359,7 +359,7 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_farmer_name_backfill.sql",
+      "source": "docker/db-seed/migrations/0007_farmer_name_backfill.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
@@ -369,7 +369,7 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_fayda_fan_prefix.sql",
+      "source": "docker/db-seed/migrations/0008_fayda_fan_prefix.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
@@ -429,7 +429,7 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_ls_event_tables_age_column.sql",
+      "source": "docker/db-seed/migrations/0004_ls_event_tables_age_column.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
@@ -464,17 +464,17 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_total_animals_backfill.sql",
+      "source": "docker/db-seed/migrations/0009_total_animals_backfill.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_ear_tags.sql",
+      "source": "docker/db-seed/migrations/0005_vital_events_offspring_ear_tags.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/patch_vital_events_offspring_gender.sql",
+      "source": "docker/db-seed/migrations/0006_vital_events_offspring_gender.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },

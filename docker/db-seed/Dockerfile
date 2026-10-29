@@ -11,6 +11,11 @@ COPY livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/
 COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 COPY docker/db-seed/reporting-geo-sync.sh /seed/reporting-geo-sync.sh
 RUN chmod +x /seed/reporting-geo-sync.sh
+# Schema and data migrations for databases created before the models gained
+# a column (never seed configuration). The chart's lr-schema-migrations hook
+# runs apply-migrations.sh, which applies each file once.
+COPY docker/db-seed/migrations/ /seed/migrations/
+COPY --chmod=755 docker/db-seed/apply-migrations.sh /seed/apply-migrations.sh
 # openg2p-data: the COSS repository at a pinned commit, checked out at
 # /openg2p-data in place of the platform's copy. It is the only source of seed
 # data in this image: the ETH-OAN pack's sample farmers and their livestock

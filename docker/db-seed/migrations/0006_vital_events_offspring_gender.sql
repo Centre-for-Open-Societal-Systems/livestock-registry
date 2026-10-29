@@ -11,7 +11,7 @@
 -- offspring_gender: the sex of a Birth event's newborn(s) — see the model's
 -- own comment for why nothing else can supply this for
 -- G2PRegisterDomainServiceVitalEvent.post_approve to pass on to the new
--- Animal row(s) it creates (G2PRegisterAnimal.gender is G2R-135 mandatory).
+-- Animal row(s) it creates (G2PRegisterAnimal.gender is mandatory).
 -- offspring_generated: guards that same post_approve step against creating
 -- the offspring Animal rows twice.
 
