@@ -17,8 +17,8 @@ BEGIN
     END IF;
     IF left(t, 13) = 'VACCINE_TYPE_' THEN
         t := substr(t, 14);
-    ELSIF left(t, 17) = 'LIVESTOCK_DISEASE_' THEN
-        t := substr(t, 18);
+    ELSIF left(t, 18) = 'LIVESTOCK_DISEASE_' THEN
+        t := substr(t, 19);
     ELSIF left(t, 6) = 'BREED_' THEN
         t := substr(t, 7);
     END IF;
