@@ -68,7 +68,8 @@ establish the original cause of those historical failures.
    pipeline, PATCH only `{"data_model_mnemonic":"ODK_TO_LIVESTOCK_INTAKE"}` through
    the connector API. Do not rerun the local seed against dev: its connector ID
    and project 14 configuration describe a separate local pipeline.
-3. Trigger `POST /connectors/{connector_id}/poll` or wait for the scheduled poll.
+3. Trigger `POST /connectors/{connector_id}/poll` or wait for the scheduled poll
+   (about every 5 minutes on New Dev, so a new submission can take that long to arrive).
    Check the completed poll status and error, rather than treating the queue's
    HTTP 202 as success. An idle poll may legitimately fetch zero records.
 4. For a new submission, require a successful connector run with a nonempty
