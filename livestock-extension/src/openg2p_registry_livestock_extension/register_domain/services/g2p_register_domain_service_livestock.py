@@ -50,6 +50,13 @@ def _stage_order_to_state():
 
 # Farmer Registry IDs use FR- followed by exactly 12 digits.
 _FARMER_ID_PATTERN = re.compile(r"^FR-\d{12}$")
+
+
+def _label(field: str) -> str:
+    """Field name as the officer sees it: mobile_number -> Mobile Number."""
+    return field.replace("_", " ").title()
+
+
 # Ethiopian mobile numbers only, matching _check_mobile_numbers in gen1's
 # g2p_crop_registry/model/crop_registry.py: +251 or a leading 0, followed by
 # 7 or 9 (the only leading digits Ethiopian mobile numbers use) and 8 more
@@ -117,7 +124,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
             return
         if not _FARMER_ID_PATTERN.match(str(value).strip().upper()):
             validation_error(
-                "farmer_id must be FR- followed by exactly 12 digits, e.g. FR-123456789012"
+                "Farmer ID: enter FR- followed by exactly 12 digits, for example FR-123456789012"
             )
 
     def _validate_fayda_fan_id(self, record: dict) -> None:
@@ -135,14 +142,14 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
             return
         if not _MOBILE_NUMBER_PATTERN.match(str(value).strip()):
             validation_error(
-                f"{field} must be a valid Ethiopian mobile number, "
-                "e.g. +251911223344 or 0911223344"
+                f"{_label(field)}: enter an Ethiopian mobile number, "
+                "for example +251911223344 or 0911223344"
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
         if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+            validation_error(f"{_label(field)}: the date cannot be in the future")
 
     async def post_intake_upsert(self, rows: list, session) -> None:
         """Right after a Livestock-register section (Survey Personnel, Location)
