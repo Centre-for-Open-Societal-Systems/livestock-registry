@@ -95,12 +95,6 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
     async def validate_domain_attributes(self, records: list[dict]):
         from .field_rules import validate_record_fields
         await validate_record_fields(records)
-        from .identity_verification import OANRegistrantAuthenticationService
-        verifier = OANRegistrantAuthenticationService.get_component()
-        if verifier:
-            problems = await verifier.verify_records(records, {}, "Livestock")
-            if problems:
-                validation_error("; ".join(problems))
         for record in records:
             record.pop("farmer_reference_status", None)
             # NOT required here, unlike the Farmer register's own copy of
@@ -256,6 +250,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         """
         if register_id != LIVESTOCK_REGISTER_ID:
             return
+        await sync_admin_area(register_row)
         await self._sync_farmer_identity(register_row, session)
         from .domain_validation_utils import refresh_total_animals
 

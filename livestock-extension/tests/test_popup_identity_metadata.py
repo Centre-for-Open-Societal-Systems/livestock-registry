@@ -7,7 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 
 PRODUCT = "livestock"
-IDS = {"farmer_id", "fayda_fin", "fayda_fan_id", "identity_verification", "farmer_reference_status"}
+IDS = {"farmer_id", "fayda_fin", "fayda_fan_id", "farmer_reference_status"}
 
 
 def widgets(node):

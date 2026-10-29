@@ -23,21 +23,12 @@ class Initializer(BaseInitializer):
         install()
         from .awe_proxy import install as install_scoped_awe_tasks
         install_scoped_awe_tasks()
-        from .register_domain.services.identity_verification import install_identity_verification
-        install_identity_verification()
         from .history_change_request_source import install as install_history_change_request_source
         install_history_change_request_source()
         from .history_without_change_request import install as install_history_without_change_request
         install_history_without_change_request()
         from .register_domain.services.attribute_messages import install_attribute_messages
         install_attribute_messages()
-
-    async def fastapi_app_startup(self, app):
-        await super().fastapi_app_startup(app)
-        from importlib.util import find_spec
-        if find_spec("openg2p_registry_staff_api"):
-            from .controllers import OANIdentityVerificationController
-            OANIdentityVerificationController().post_init()
 
     def migrate_database(self, args):
         async def migrate():

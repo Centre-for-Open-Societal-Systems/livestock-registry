@@ -45,7 +45,7 @@ def _mirror(domain_row, farmer):
     if hasattr(domain_row, "farmer_reference_status"):
         proposed["farmer_reference_status"] = "Farmer reference linked"
     fin = getattr(farmer, "fayda_fin", None)
-    if fin and getattr(domain_row, "last_authentication_status", None) != "SUCCESS":
+    if fin:
         proposed["fayda_fin"] = fin
     changed = any(getattr(domain_row, key) != value for key, value in proposed.items())
     for key, value in proposed.items():
