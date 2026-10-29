@@ -34,3 +34,15 @@ def test_held_worker_diagnostic_says_the_intake_was_saved():
     text = messages.explain("FARMER_REFERENCE_LOOKUP_UNAVAILABLE", held=True)
     assert "This intake is saved and held" in text
     assert "Nothing was submitted" not in text
+
+
+def test_approved_intake_status_follows_the_farmer_reference():
+    assert messages.approved_intake_status("PENDING") == "Approved, waiting for Farmer approval"
+    assert messages.approved_intake_status("APPROVED") == "Farmer reference linked"
+    assert messages.approved_intake_status("REJECTED") == "Approved, but the Farmer record was rejected"
+
+
+def test_approved_intake_status_is_readable_text():
+    for state in ("PENDING", "APPROVED", "REJECTED", None):
+        text = messages.approved_intake_status(state)
+        assert "_" not in text and text == text.strip()

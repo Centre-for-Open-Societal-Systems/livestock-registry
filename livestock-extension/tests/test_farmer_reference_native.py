@@ -533,6 +533,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             await native.G2PIntakeFormDataService.get_component().approve_submission_with_session(submission_id,session,approved_by="business-reviewer")
             self.assertEqual(submission.approval_status,"APPROVED")
             self.assertEqual(submission.register_ingest_process_status,"NOT_APPLICABLE")
+            self.assertEqual(root.farmer_reference_status,"Approved, waiting for Farmer approval")
             self.assertEqual(len((await session.execute(select(native.domain_models().G2PRegisterFarmer))).scalars().all()),0)
             available=SimpleNamespace(lookup=AsyncMock(return_value=snapshot))
             reference=await pending.resolve_or_wait(session,submission,root,lookup=available)
@@ -547,6 +548,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(submission.approved_by,"business-reviewer")
             self.assertEqual(submission.register_ingest_process_attempts,0)
             self.assertEqual(root.farmer_uuid,reference.local_farmer_id)
+            self.assertEqual(root.farmer_reference_status,"Farmer reference linked")
 
 
     async def test_fin_alias_reuses_approved_fan_reference_without_rewriting_profile(self):

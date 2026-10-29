@@ -96,3 +96,19 @@ def explain(code: str, identity: Mapping | None = None, *, held=False) -> str:
         # must not say otherwise in the durable worker diagnostic.
         text = text.replace("Nothing was submitted.", "This intake is saved and held.")
     return text
+
+
+# What the intake's Farmer lookup section shows once the intake itself is approved.
+# The same wording is used by the other registries that link to a Farmer.
+LINKED_TEXT = "Farmer reference linked"
+WAITING_TEXT = "Approved, waiting for Farmer approval"
+REJECTED_TEXT = "Approved, but the Farmer record was rejected"
+
+
+def approved_intake_status(reference_state):
+    """Text for an approved intake, given the state of its Farmer reference."""
+    if reference_state == "APPROVED":
+        return LINKED_TEXT
+    if reference_state == "REJECTED":
+        return REJECTED_TEXT
+    return WAITING_TEXT
