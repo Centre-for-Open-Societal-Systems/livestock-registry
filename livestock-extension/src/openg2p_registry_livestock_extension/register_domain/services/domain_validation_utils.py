@@ -1,9 +1,11 @@
 import re
 from contextvars import ContextVar
 from datetime import date, datetime
+from typing import NamedTuple
 
 from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
 
+from .local_date import local_today
 from .plain_text import plain_code_text
 
 
@@ -254,16 +256,16 @@ async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = No
     async with session_maker() as session:
         return await _found(session)
 
-async def ear_tag_used_by_other_animal(
+async def ear_tag_clash(
     ear_tag_id: str,
     species,
     breed,
     exclude_internal_record_ids: set[str] | None = None,
     exclude_submission_ids: set[str] | None = None,
     search: tuple[str, ...] = ("register", "intake"),
-) -> bool:
-    """True if `ear_tag_id`, with this same species and breed, already
-    belongs to a DIFFERENT animal — either already approved into the
+) -> "TableMatch | None":
+    """Where `ear_tag_id`, with this same species and breed, already
+    belongs to a DIFFERENT animal (None when nowhere) — either already approved into the
     register, or drafted under some other in-progress intake submission.
     Mirrors the Old System's duplicate check ("same tag + same species +
     same breed already used"), which Gen2's Livestock Details section was
@@ -288,7 +290,7 @@ async def ear_tag_used_by_other_animal(
     post_intake_upsert, where the submission being saved is known.
     """
     if is_blank(ear_tag_id):
-        return False
+        return None
 
     from sqlalchemy import and_
 
@@ -303,7 +305,11 @@ async def ear_tag_used_by_other_animal(
         exclude_own_rows(model, conditions, exclude_internal_record_ids, exclude_submission_ids)
         return and_(*conditions)
 
-    return await exists_in_tables(G2PRegisterAnimal, G2PIntakeFormAnimal, _same_animal_key, search)
+    return await find_in_tables(G2PRegisterAnimal, G2PIntakeFormAnimal, _same_animal_key, search)
+
+
+async def ear_tag_used_by_other_animal(*args, **kwargs) -> bool:
+    return await ear_tag_clash(*args, **kwargs) is not None
 
 async def secondary_identifier_used_by_other_animal(
     secondary_identifier: str,
@@ -346,7 +352,7 @@ def format_age(birth_date: date | None) -> str | None:
     copy the animal's age, so the two can never drift apart."""
     if birth_date is None:
         return None
-    today = date.today()
+    today = local_today()
     years = today.year - birth_date.year
     months = today.month - birth_date.month
     if today.day < birth_date.day:
@@ -591,9 +597,17 @@ def exclude_own_rows(model, conditions: list, exclude_internal_record_ids, exclu
         conditions.append(model.submission_id.not_in(exclude_submission_ids))
 
 
-async def exists_in_tables(register_model, intake_model, condition_of, search=("register", "intake")) -> bool:
-    """True if `condition_of(model)` matches a row in any of the tables named
-    by `search` ("register" and/or "intake"), checked in that order.
+class TableMatch(NamedTuple):
+    """Where a duplicate search found its row: "register" or "intake", and for
+    an intake row the reference of the submission it belongs to."""
+
+    table: str
+    application_reference: str | None = None
+
+
+async def find_in_tables(register_model, intake_model, condition_of, search=("register", "intake")) -> TableMatch | None:
+    """The first table named by `search` ("register" and/or "intake", checked
+    in that order) that has a row matching `condition_of(model)`, or None.
 
     Which tables to search depends on where the caller runs:
     - validate_domain_attributes gets the request rows with NO submission
@@ -604,17 +618,26 @@ async def exists_in_tables(register_model, intake_model, condition_of, search=("
       submission_id, so the intake half runs there for every row.
     """
     from openg2p_fastapi_common.context import dbengine
-    from sqlalchemy import exists, select
+    from sqlalchemy import select
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     models = {"register": register_model, "intake": intake_model}
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
         for table in search:
-            found = (await session.execute(select(exists().where(condition_of(models[table]))))).scalar()
-            if found:
-                return True
-    return False
+            model = models[table]
+            reference = getattr(model, "application_reference", None)
+            column = reference if reference is not None else model.internal_record_id
+            rows = (await session.execute(select(column).where(condition_of(model)).limit(1))).all()
+            if rows:
+                return TableMatch(table, str(rows[0][0]) if reference is not None and rows[0][0] else None)
+    return None
+
+
+async def exists_in_tables(register_model, intake_model, condition_of, search=("register", "intake")) -> bool:
+    """True if `condition_of(model)` matches a row in any table named by
+    `search`; see find_in_tables."""
+    return await find_in_tables(register_model, intake_model, condition_of, search) is not None
 
 
 def intake_rows_as_records(rows: list) -> list[dict]:
@@ -712,7 +735,7 @@ def resolve_today_default(record: dict, field: str) -> None:
     """
     value = record.get(field)
     if isinstance(value, str) and value.strip().lower() == "today":
-        record[field] = date.today().isoformat()
+        record[field] = local_today().isoformat()
 
 
 def live_rows(records: list[dict]) -> list[dict]:

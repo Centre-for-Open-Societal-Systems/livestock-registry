@@ -9,6 +9,8 @@ import unicodedata
 from dataclasses import dataclass, replace
 from datetime import date
 
+from ...required_fields import join_sentences
+from .local_date import local_today
 from ...farmer_reference.profile import (
     FarmerReferenceError,
     normalize_farmer_id,
@@ -153,7 +155,7 @@ def clean_records(records):
                     problems.append(Issue(field, error_key))
             elif field in DATE_FIELDS:
                 parsed = (
-                    date.today()
+                    local_today()
                     if field == "registration_date" and value == "today"
                     else parse_date(value)
                 )
@@ -161,7 +163,7 @@ def clean_records(records):
                     problems.append(Issue(field, "coss_field_date_format"))
                 elif parsed < date(1900, 1, 1):
                     problems.append(Issue(field, "coss_field_date_min"))
-                elif field in PAST_ONLY and parsed > date.today():
+                elif field in PAST_ONLY and parsed > local_today():
                     problems.append(Issue(field, "coss_field_date_future"))
                 else:
                     record[key] = parsed.isoformat()
@@ -258,4 +260,4 @@ async def validate_record_fields(records, *, table=False):
         from .domain_validation_utils import validation_error
 
         messages = await _translations()
-        validation_error("; ".join(explain(problem, messages) for problem in problems))
+        validation_error(join_sentences(explain(problem, messages) for problem in problems))

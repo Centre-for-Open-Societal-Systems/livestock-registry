@@ -21,6 +21,8 @@ never asked of anyone.
 This module has no database or framework imports, so it can be tested alone.
 """
 
+import re
+
 MESSAGES = {
     "required_fill_in": "{section}: fill in {fields}",
     "required_fill_in_row": "{section}, row {row}: fill in {fields}",
@@ -40,6 +42,35 @@ TABLES = ("table", "dialog-table")
 OWN_VALIDATION = frozenset(
     {"farmer_id", "fayda_id", "fayda_fin", "fayda_fan_id", "farmer_reference_status", "identity_verification"}
 )
+
+
+KEY_LIKE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def sentence_case(text: str) -> str:
+    """"Livestock Details" -> "Livestock details". Words in capitals (DA, FAN)
+    keep their case."""
+    words = str(text).split()
+    return " ".join(
+        word if index == 0 or word.isupper() else word.lower() for index, word in enumerate(words)
+    )
+
+
+def join_words(items: list[str]) -> str:
+    """["Species", "Sex"] -> "Species and Sex"; three or more: "A, B and C"."""
+    if len(items) < 2:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def join_sentences(messages) -> str:
+    """One sentence per message: each ends with a full stop, separated by a
+    space, so a message that already ends in one is not followed by ".;"."""
+    sentences = []
+    for message in dict.fromkeys(str(m).strip(" ;") for m in messages):
+        if message:
+            sentences.append(message if message[-1] in ".!?" else message + ".")
+    return " ".join(sentences)
 
 
 def humanize(key) -> str:
@@ -167,14 +198,17 @@ class Words:
 
     def title(self, schema: dict) -> str:
         key = (schema or {}).get("section-title")
-        return self._translated(key) or humanize(key) or "Section"
+        return sentence_case(self._translated(key) or humanize(key) or "Section")
 
     def label(self, widget: dict, field: str) -> str:
-        for candidate in (widget.get("widget-label"), field):
-            found = self._translated(candidate)
-            if found:
-                return found
-        return humanize(widget.get("widget-label") or field)
+        """The label the form shows. A widget-label that is text (not a
+        translation key) is the label as written; the field name is asked
+        only when the widget has no label of its own, so a column labelled
+        Sex is not reported as Gender."""
+        written = widget.get("widget-label")
+        if isinstance(written, str) and written.strip():
+            return self._translated(written) or (humanize(written) if KEY_LIKE.match(written) else written.strip())
+        return self._translated(field) or humanize(field)
 
     def text(self, key: str, **params) -> str:
         template = self._translated(key) or MESSAGES[key]
@@ -262,12 +296,12 @@ def section_problems(
         for number, row in enumerate(records, start=1):
             fill = missing_in_record(columns, row, {**values, **row}, words)
             if fill:
-                problems.append(words.text("required_fill_in_row", section=title, row=number, fields=", ".join(fill)))
+                problems.append(words.text("required_fill_in_row", section=title, row=number, fields=join_words(fill)))
         return problems
     record = records[0] if records else {}
     # A condition names its field as "<register id>.<field>" or by the bare field name.
     fill = missing_in_record(widgets_of(schema), record, {**record, **values}, words)
-    return [words.text("required_fill_in", section=title, fields=", ".join(fill))] if fill else []
+    return [words.text("required_fill_in", section=title, fields=join_words(fill))] if fill else []
 
 
 def identity_problems(records: list[dict], messages: dict | None = None) -> list[str]:

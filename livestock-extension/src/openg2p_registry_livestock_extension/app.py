@@ -29,6 +29,8 @@ class Initializer(BaseInitializer):
         install_history_change_request_source()
         from .history_without_change_request import install as install_history_without_change_request
         install_history_without_change_request()
+        from .register_domain.services.attribute_messages import install_attribute_messages
+        install_attribute_messages()
 
     async def fastapi_app_startup(self, app):
         await super().fastapi_app_startup(app)

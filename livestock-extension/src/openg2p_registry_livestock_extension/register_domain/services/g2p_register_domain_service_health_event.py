@@ -1,10 +1,10 @@
 import logging
-from datetime import date
 
 from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import select
 
+from .local_date import local_today
 from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -128,14 +128,13 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             return
         if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
-                f"'{str(value).strip()}' does not match any registered or drafted animal's "
-                "ear tag or secondary identifier. Add it under Livestock Details first, "
-                "or check for a typo."
+                f"No animal with ear tag {str(value).strip()} in this form or the register. "
+                "Add it under Livestock details first, or check for a typo."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
+        if value is not None and value > local_today():
             validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_date_order(self, record: dict, earlier: str, later: str) -> None:

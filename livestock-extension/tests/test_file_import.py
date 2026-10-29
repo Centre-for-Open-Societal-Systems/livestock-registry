@@ -209,7 +209,7 @@ def test_the_rendered_intake_passes_the_finalize_rule_that_refuses_an_intake_wit
     required_fields = importlib.import_module(PACKAGE + '.required_fields')
     schema = animal_section_schema()
     messages = required_fields.MESSAGES
-    assert required_fields.section_problems(schema, True, [], {}, messages) == ['Livestock Details: add at least one row']
+    assert required_fields.section_problems(schema, True, [], {}, messages) == ['Livestock details: add at least one row']
     records = render(BASE)['ls_animal_details']
     assert required_fields.section_problems(schema, True, records, {}, messages) == []
     for column in sorted(ANIMAL_REQUIRED):
