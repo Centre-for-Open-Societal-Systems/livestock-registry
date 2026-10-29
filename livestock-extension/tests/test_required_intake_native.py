@@ -95,7 +95,7 @@ class RequiredIntakeNativeTests(unittest.IsolatedAsyncioTestCase):
         async with self.fixture.sessions.begin() as session:
             with self.assertRaises(G2PRegistryException) as refused:
                 await self.save(session, "survey", [{"supervisor_name": "Almaz"}])
-            self.assertIn("Survey Personnel: fill in Surveyor Name", refused.exception.message)
+            self.assertIn("Survey personnel: fill in Surveyor Name.", refused.exception.message)
             submission_id = await self.save(session, "survey", [{"surveyor_name": "Abebe", "supervisor_name": "Almaz"}])
             self.assertTrue(submission_id)
 
@@ -107,7 +107,7 @@ class RequiredIntakeNativeTests(unittest.IsolatedAsyncioTestCase):
             await self.save(session, "survey", [{"supervisor_name": "Almaz"}], submission_id)
             with self.assertRaises(G2PRegistryException) as refused:
                 await self.save(session, "survey", [{"surveyor_name": ""}], submission_id)
-            self.assertIn("Survey Personnel: fill in Surveyor Name", refused.exception.message)
+            self.assertIn("Survey personnel: fill in Surveyor Name.", refused.exception.message)
 
     async def test_rows_are_checked_for_their_required_columns(self):
         from openg2p_registry_core.errors import G2PRegistryException
@@ -116,7 +116,7 @@ class RequiredIntakeNativeTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(G2PRegistryException) as refused:
                 await self.save(session, "animals", [{"species": "CATTLE", "breed": "BORAN"}, {"species": "GOAT"}],
                                 submission_id)
-            self.assertEqual(refused.exception.message, "Livestock Details, row 2: fill in Breed")
+            self.assertEqual(refused.exception.message, "Livestock details, row 2: fill in Breed.")
             await self.save(session, "animals", [{"species": "CATTLE", "breed": "BORAN"}], submission_id)
 
     async def _worker_finalize(self, session, submission_id):
@@ -143,7 +143,7 @@ class RequiredIntakeNativeTests(unittest.IsolatedAsyncioTestCase):
             await self.save(session, "animals", [{"species": "CATTLE", "breed": "BORAN"}], submission_id)
             with self.assertRaises(G2PRegistryException) as refused:
                 await self._worker_finalize(session, submission_id)
-            self.assertIn("Survey Personnel: fill in Surveyor Name", refused.exception.message)
+            self.assertIn("Survey personnel: fill in Surveyor Name.", refused.exception.message)
             self.lookup.assert_not_awaited()
             submission = await session.get(G2PIntakeFormSubmission, submission_id)
             self.assertEqual(submission.draft_status, "DRAFT")
@@ -159,6 +159,6 @@ class RequiredIntakeNativeTests(unittest.IsolatedAsyncioTestCase):
             await session.flush()
             with self.assertRaises(G2PRegistryException) as refused:
                 await self._worker_finalize(session, submission_id)
-            self.assertIn("Livestock Details, row 1: fill in Breed", refused.exception.message)
+            self.assertIn("Livestock details, row 1: fill in Breed.", refused.exception.message)
             self.assertEqual(await session.scalar(select(func.count()).select_from(
                 importlib.import_module("openg2p_registry_extensions.farmer_reference.models").FarmerPendingLookup)), 0)
