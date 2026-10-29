@@ -13,6 +13,7 @@ import { getTasksListPath } from '@/features/approval/utils/taskNavigation';
 
 import { useRegister } from '@/context/RegisterContext';
 import { useRuntimeConfig } from '@/context/RuntimeConfigContext';
+import { useFetch } from '@/shared/hooks/useFetch';
 
 import {
     REGISTER_ACTIONS,
@@ -67,6 +68,22 @@ export default function Home() {
             label: t(r.register_subject),
         }));
 
+    // OAN: only registers with an intake form take form submissions. The Farmers
+    // register here is filled by the farmer reference lookup, not by a form, so it
+    // is left out of the Form Submissions choices. Until the forms load, all show.
+    const { data: intakeFormData } = useFetch<any>({
+        url: '/api/intake-form/get-all-intake-forms',
+        options: { method: 'POST', body: JSON.stringify({ page_size: 100 }) },
+    });
+    const intakeRegisterIds = new Set<string>(
+        (intakeFormData?.intake_forms ?? []).map((f: { register_id: string }) => f.register_id),
+    );
+    const intakeRegisterList = intakeFormData
+        ? registers
+            .filter(r => intakeRegisterIds.has(r.register_id))
+            .map(r => ({ value: r.register_mnemonic.toLowerCase(), label: t(r.register_subject) }))
+        : registerList;
+
     const taskArtifactOptions = TASK_ARTIFACT_FILTER_OPTIONS.map((opt) => ({
         value: opt.value,
         label:
@@ -88,10 +105,12 @@ export default function Home() {
         register?: string,
     ): string | null => {
         if (card === 'registers' || card === 'form-submissions') {
+            const choices = card === 'form-submissions' ? intakeRegisterList : registerList;
+            const isChoice = (value?: string) => !!value && choices.some(r => r.value === value);
             const selected =
-                (register && register !== 'select' && register)
-                || (selectedRegister !== 'select' && selectedRegister)
-                || registerList[0]?.value;
+                (isChoice(register) && register)
+                || (isChoice(selectedRegister) && selectedRegister)
+                || choices[0]?.value;
 
             if (!selected) return null;
 
@@ -226,10 +245,19 @@ export default function Home() {
                     >
                         <div className="relative border border-primary-second flex h-14 w-4/5 items-center rounded-[10px] bg-neutral-second overflow-visible">
 
-                            {(activeStatsCard === 'registers' || activeStatsCard === 'form-submissions') &&
+                            {activeStatsCard === 'registers' &&
                                 registerList?.length > 0 && (
                                     <SearchBarDropdown
                                         options={registerList}
+                                        selected={selectedRegister}
+                                        onChange={setSelectedRegister}
+                                    />
+                                )}
+
+                            {activeStatsCard === 'form-submissions' &&
+                                intakeRegisterList?.length > 0 && (
+                                    <SearchBarDropdown
+                                        options={intakeRegisterList}
                                         selected={selectedRegister}
                                         onChange={setSelectedRegister}
                                     />
