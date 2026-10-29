@@ -26,7 +26,7 @@ def test_odk_one_identifier_is_split_without_importing_farmer_profile(identifier
               'zone_code':'ET0101','woreda_code':'ET010101','kebele_code':'ET010101101001'},
               'livestock':[{'species_id':'cattle','breed':'local','gender':'female',
                             'primary_identifier':'ANIMAL-001','date_of_birth':'2020-01-01'}]}
-        template='ls_odk_transform.j2';section='livestock_farmer_lookup'
+        template='odk_to_livestock_intake.j2';section='livestock_farmer_lookup'
     result=json.loads(Environment().from_string((ROOT/'templates'/template).read_text(encoding='utf-8')).render(expanded=data))
     root=result[section][0]
     assert root['farmer_id']=='FR-000000000001'

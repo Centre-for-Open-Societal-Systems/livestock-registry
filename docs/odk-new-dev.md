@@ -14,10 +14,26 @@ the earlier `live` / project 14 topology in the historical runbook.
 | Connector name | `Livestock ODK Central` |
 | ODK Central | `https://odk-central-development.oanstaging.com` |
 | ODK project / form / version | `6` / `livestock_registry` / `v4` |
-| Connector data model | `LIVESTOCK_ODK_MODEL` |
+| Connector data model | `ODK_TO_LIVESTOCK_INTAKE` (verified on 2026-10-19 as `LIVESTOCK_ODK_MODEL`; see the next section) |
 | Envelope sender / register mnemonic | `Livestock` / `Livestock` |
 | Active PM partner | `PARTNER_LIVESTOCK` |
 | Registry ingestion target | `http://livestock-registry-partner-api.livestock.svc.cluster.local/partner/ingest_data` |
+
+## Data model rename
+
+The data model is named after its flow, `ODK_TO_LIVESTOCK_INTAKE` (id
+`odk_to_livestock_intake`). It replaces both `LIVESTOCK_ODK_MODEL` and the
+generic `MY_DATA_MODEL`. Its key path, semantic pattern, incoming template
+(`odk_to_livestock_intake_template`, rendering `odk_to_livestock_intake.j2`)
+and the response template are all seeded by
+`meta_data/zz-oan/20_odk_to_livestock_intake.sql`, which also moves the
+ingested history (`incoming_raw_data`, `incoming_classified_data`) to the new
+model and deletes the two retired models and their rows by explicit id. The
+seed fails if any row still references a retired model. Switch the connector
+(PATCH `{"data_model_mnemonic":"ODK_TO_LIVESTOCK_INTAKE"}`) when this seed is
+deployed; the retired mnemonics stop resolving at that point.
+
+## Configuration verified on 2026-10-19
 
 The connector previously selected the generic `MY_DATA_MODEL`. Following the
 Farmer connector's explicit `FARMER_ODK_MODEL` configuration, only livestock's
@@ -49,7 +65,7 @@ establish the original cause of those historical failures.
    `GET /keys/PARTNER_LIVESTOCK` on the configured PM partner API. Both must
    return 200, and the administrative response must report `active`.
 2. Read the existing connector and confirm the table above. To align an older
-   pipeline, PATCH only `{"data_model_mnemonic":"LIVESTOCK_ODK_MODEL"}` through
+   pipeline, PATCH only `{"data_model_mnemonic":"ODK_TO_LIVESTOCK_INTAKE"}` through
    the connector API. Do not rerun the local seed against dev: its connector ID
    and project 14 configuration describe a separate local pipeline.
 3. Trigger `POST /connectors/{connector_id}/poll` or wait for the scheduled poll.
@@ -63,9 +79,10 @@ establish the original cause of those historical failures.
    exists, and a finalized intake has an AWE request. Approval and register
    promotion remain separate checks.
 
-Rollback of the model-only runtime change is a PATCH of
-`{"data_model_mnemonic":"MY_DATA_MODEL"}` to the same connector. It does not
-require resetting the checkpoint or changing partner registration.
+The model-only change does not require resetting the checkpoint or changing
+partner registration. The retired models are deleted by the seed, so there is no
+PATCH back to `MY_DATA_MODEL` or `LIVESTOCK_ODK_MODEL`; roll back by deploying
+the previous release, which seeds them again.
 
 ## Validation evidence
 

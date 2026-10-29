@@ -159,7 +159,7 @@ def main(domain):
         "This verifies effective application metadata against native rc.557 ORM/DDL and seed results. Physical New Dev database columns, portal rendering, business-rule parity, restored-data upgrade and full live integration are not certified.","",
         "The Farmer identity pair is captured on the domain root. The retired sibling Farmer intake mapping is intentionally replaced by the separately approved reference dependency. All Farmer register sections and field names remain.","",
         "Crop's legacy registry-database lookup SQL is preserved as a Master Data administration prerequisite in the central Helm repository; it is not executed against a registry. Existing shared values are not changed.","",
-        "The live Crop FARMER_REFERENCE_CHANGED_V1 pipeline configuration requires an explicit port and remains a promotion blocker. Livestock MY_DATA_MODEL is upstream example content and is intentionally not added to the domain extension.","",
+        "The live Crop FARMER_REFERENCE_CHANGED_V1 pipeline configuration requires an explicit port and remains a promotion blocker. Livestock MY_DATA_MODEL and LIVESTOCK_ODK_MODEL are retired and replaced by ODK_TO_LIVESTOCK_INTAKE.","",
         "No records, approvals, identity grants, environment settings or runtime workloads were modified."]
     (folder / "VERIFICATION.md").write_bytes(("\n".join(lines)+"\n").encode("utf-8"))
     print(json.dumps({"registry":domain,"fields":report["field_count"],"all_live_register_fields_present":report["all_live_register_fields_present"],

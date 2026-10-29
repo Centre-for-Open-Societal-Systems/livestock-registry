@@ -18,7 +18,7 @@ deploy works end to end. Written for the deployment war room of 12 Oct 2026.
 | AWE (approvals) | `commons-services-awe` in `live` (`https://awe.live.openg2p.test`) | shared commons; certificate from the box's local CA |
 | Master Data (geo + code lists) | commons master-data (1.1 or later) | geo and the livestock code lists (species, breed, disease, vaccine, ...) loaded by our db-seed |
 | ODK Central | `https://odk-central-development.oanstaging.com`, project 14, form `livestock_registry` (v4) | form + media in `odk/` |
-| ODK connector | namespace `common` | pipeline polls project 14 and posts to our partner API with data model `LIVESTOCK_ODK_MODEL` |
+| ODK connector | namespace `common` | pipeline polls project 14 and posts to our partner API with data model `ODK_TO_LIVESTOCK_INTAKE` |
 
 Platform base: registry-platform `1.2.2-rc.544` (chart dependency in
 `helm/openg2p-livestock-registry/Chart.yaml`). From 1.2 on, the code lists
@@ -55,7 +55,7 @@ the chart.
 | 1 | Keycloak client `livestock-registry-staff-portal` has **Service accounts enabled**, and its secret is in the `livestock-registry-staff-portal` Kubernetes secret (`client_secret`) | DevOps | A client-credentials token request for the client returns 200 |
 | 2 | ConfigMap `live-ca-bundle` (key `ca-bundle.pem`) exists in `live` | DevOps | already used by the staff API; the celery worker now mounts it too |
 | 3 | Partner `Livestock` (ODK sender) and `Staff Portal` (File Import) exist in Master Data `g2p_partners` | db-seed creates them; DevOps only if the seed cannot reach Master Data | ingest of an ODK submission does not fail with `PARTNER_NOT_REGISTERED` |
-| 4 | ODK connector pipeline in namespace `common`: Central base URL, project 14, form `livestock_registry`, data model `LIVESTOCK_ODK_MODEL`, target our partner API, a Central web user with access to project 14 | DevOps | connector UI shows `last_poll_status = SUCCESS` |
+| 4 | ODK connector pipeline in namespace `common`: Central base URL, project 14, form `livestock_registry`, data model `ODK_TO_LIVESTOCK_INTAKE`, target our partner API, a Central web user with access to project 14 | DevOps | connector UI shows `last_poll_status = SUCCESS` |
 | 5 | AWE trusts tokens issued by `keycloak-livestock-development` | DevOps | finalizing a submission does not answer `Invalid issuer` |
 | 6 | SMTP for reminder and outbreak mails | DevOps | not configured on dev today; jobs run but no mail is sent |
 | 7 | Master Data 1.1 or later in the commons, reachable by the registry with a bearer token: CSRF off for API reads (`MASTER_DATA_API_CSRF_ENABLED=false`) | DevOps | the Livestock form shows species and breed lists; db-seed log shows `code lists: ... values in 5 lists` |

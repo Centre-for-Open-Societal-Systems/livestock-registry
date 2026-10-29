@@ -64,7 +64,7 @@ class IntakeIdentitySectionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(SECTION, [row[0] for row in again])
             self.assertGreater(await session.scalar(select(func.count()).select_from(G2PRegisterUITabSection)
                 .where(G2PRegisterUITabSection.section_id == OLD)), 0)
-            template = Environment().from_string((ROOT/"templates"/"ls_odk_transform.j2").read_text(encoding="utf-8"))
+            template = Environment().from_string((ROOT/"templates"/"odk_to_livestock_intake.j2").read_text(encoding="utf-8"))
             transformed = json.loads(template.render(expanded={"farmer": {
                 "farmer_id":"FR-000000000001", "fayda_id":"001234567890"}}))
             self.assertNotIn("ls_livestock_record", transformed)

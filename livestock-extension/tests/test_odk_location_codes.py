@@ -19,7 +19,7 @@ def render(location):
             'location': location,
             'livestock': [{'species_id': 'cattle', 'breed': 'local', 'gender': 'female',
                            'primary_identifier': 'ANIMAL-001', 'date_of_birth': '2020-01-01'}]}
-    template = (ROOT / 'templates' / 'ls_odk_transform.j2').read_text(encoding='utf-8')
+    template = (ROOT / 'templates' / 'odk_to_livestock_intake.j2').read_text(encoding='utf-8')
     return json.loads(Environment().from_string(template).render(expanded=data))
 
 
