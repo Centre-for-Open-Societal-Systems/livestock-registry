@@ -6,7 +6,10 @@ format errors) is shown as it is.
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
+
+_logger = logging.getLogger("coss-farmer-reference-validate")
 
 _CHECK_IDS = "Check the Farmer ID and Fayda ID against the farmer's Farmer Registry record and submit again"
 _REGISTER_FIRST = ("If the farmer is not registered yet, register them in the Farmer Registry first; "
@@ -89,8 +92,9 @@ def explain(code: str, identity: Mapping | None = None, *, held=False) -> str:
     elif code in UNAVAILABLE:
         text = "The Farmer Registry's answer about the farmer could not be verified. " + _TRY_AGAIN
     else:
-        text = ("The farmer could not be linked to this intake. Nothing was submitted. "
-                f"Tell the administrator the reference {code}")
+        _logger.warning("Farmer reference message missing for %s", code)
+        text = ("The Farmer Registry check could not be completed. Nothing was submitted. "
+                "Check the Farmer ID and Fayda ID and try again; if it keeps failing, tell the administrator.")
     if held:
         # Ingestion has already saved the intake; the staff refusal wording
         # must not say otherwise in the durable worker diagnostic.

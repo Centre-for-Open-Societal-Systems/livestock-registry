@@ -469,6 +469,11 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
+      "source": "docker/db-seed/migrations/0010_record_names_readable.sql",
+      "decision": "ported",
+      "reason": "Preserve domain contract; compatibility acceptance pending"
+    },
+    {
       "source": "docker/db-seed/migrations/0005_vital_events_offspring_ear_tags.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
