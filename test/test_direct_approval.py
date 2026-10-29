@@ -106,3 +106,32 @@ def test_every_installed_intake_and_change_request_service_carries_the_guard_fir
         classes = _classes(path)
         for name in names:
             assert classes[name][0] == "DirectApprovalClosed", f"{path}:{name} must put the guard first"
+
+
+def _methods(path):
+    tree = ast.parse((PACKAGE / path).read_text())
+    return {n.name: {m.name for m in n.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))}
+            for n in tree.body if isinstance(n, ast.ClassDef)}
+
+
+def test_no_guarded_service_redefines_a_direct_call():
+    # A redefinition would run before the guard: it could look the record up
+    # first, so a made-up id would answer "not found" and a real one would not.
+    for path, names in GUARDED.items():
+        methods = _methods(path)
+        for name in names:
+            assert not methods[name] & {"approve_submission", "approve_change_request"}, f"{path}:{name}"
+
+
+def test_a_made_up_id_gets_the_same_refusal_as_a_real_one():
+    class Looking(_Base):
+        async def approve_submission(self, submission_id, approved_by):
+            raise LookupError("INTAKE_FORM_NOT_FOUND: " + submission_id)
+
+    class Guarded(_guard().DirectApprovalClosed, Looking):
+        pass
+
+    for submission_id in ("00000000-0000-0000-0000-000000000000", "a-real-looking-id"):
+        error = _refusal(Guarded().approve_submission(submission_id, "admin"))
+        assert "NOT_FOUND" not in str(error)
+        assert getattr(error, "code", "") == "AWE_APPROVAL_REQUIRED"
