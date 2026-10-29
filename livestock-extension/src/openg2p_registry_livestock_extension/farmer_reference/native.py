@@ -281,6 +281,24 @@ class ReferenceChangeRequestService(DirectApprovalClosed, G2PRegisterChangeReque
                 raise FarmerReferenceError("FARMER_REFERENCE_VERIFIED_SOURCE_REQUEST_REQUIRED")
         return await super().create_change_request(change_request_request_payload, *args, **kwargs)
 
+    async def _ensure_change_request_readable(self, change_request_id, data_policies, session):
+        # A source-reference ADD names a Farmer record that exists only once the
+        # request is approved. The native check demands that subject record, so a
+        # pending (or rejected) ADD could not be opened (REG-ERR-002). Such a
+        # request is read on its own, but only for a caller without data policies:
+        # the native check is also where those policies apply, so a scoped user
+        # keeps it (and is refused) rather than seeing every pending ADD.
+        if data_policies:
+            return await super()._ensure_change_request_readable(change_request_id, data_policies, session)
+        managed = (await session.execute(select(FarmerReferenceRequest).where(
+            FarmerReferenceRequest.native_cr_id == change_request_id,
+            FarmerReferenceRequest.action == "ADD"))).scalar_one_or_none()
+        change_request = await session.get(G2PRegisterChangeRequest, change_request_id) if managed else None
+        if (change_request is not None and
+                await session.get(domain_models().G2PRegisterFarmer, change_request.internal_record_id) is None):
+            return change_request
+        return await super()._ensure_change_request_readable(change_request_id, data_policies, session)
+
     async def approve_change_request_from_awe_webhook(self, change_request_id, session, approved_by=None):
         token = _approved_callback.set(change_request_id)
         try:
