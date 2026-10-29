@@ -54,7 +54,7 @@ def test_intake_tab_is_a_translated_key():
 def test_list_headers_and_status_codes_are_translated():
     shown = translations()
     for key, text in {"ear_tag_id": "Ear tag", "farmer_name": "Farmer name", "total_animals": "Total livestock",
-                      "fayda_fan_id": "Fayda FAN (16 digits)", "FINAL": "Submitted", "ADD": "New"}.items():
+                      "fayda_fan_id": "Fayda FAN ID", "FINAL": "Submitted", "ADD": "New"}.items():
         assert shown[key] == text
 
 

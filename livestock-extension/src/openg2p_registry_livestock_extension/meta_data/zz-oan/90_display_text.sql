@@ -123,7 +123,7 @@ SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb) |
  "secondary_identifier": "Secondary identifier",
  "total_animals": "Total livestock",
  "state": "Approval stage",
- "fayda_fan_id": "Fayda FAN (16 digits)",
+ "fayda_fan_id": "Fayda FAN ID",
  "APPROVED": "Approved",
  "REJECTED": "Rejected",
  "FINAL": "Submitted",
