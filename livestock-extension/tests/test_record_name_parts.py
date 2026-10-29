@@ -50,8 +50,6 @@ def test_codes_read_as_words(key, value, words):
      {"event_type": "NATURAL", "ear_tag_id": "FLOCK-2026-01"}, "Natural FLOCK-2026-01"),
     ("health_event", "G2PRegisterDomainServiceHealthEvent",
      {"event_type": "DISEASE", "ear_tag_id": "ET0000000123"}, "Disease ET0000000123"),
-    ("import_batch", "G2PRegisterDomainServiceImportBatch",
-     {"batch_reference": "BATCH_2026_01", "source_system": "DOVAR"}, "BATCH_2026_01 DOVAR"),
 ])
 def test_service_record_names_keep_the_ear_tag(module, cls, payload, expected):
     pytest.importorskip("openg2p_registry_core")

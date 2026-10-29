@@ -119,21 +119,6 @@ class EventLocationEnum(StrEnum):
     OTHER = "OTHER"
 
 
-class ImportSourceSystemEnum(StrEnum):
-    DOVAR = "DOVAR"
-    LITS = "LITS"
-    CASE_BOOK = "CASE_BOOK"
-    ALIVE = "ALIVE"
-    MANUAL = "MANUAL"
-
-
-class ImportStateEnum(StrEnum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-
 class AuditActionTypeEnum(StrEnum):
     CREATE = "CREATE"
     UPDATE = "UPDATE"

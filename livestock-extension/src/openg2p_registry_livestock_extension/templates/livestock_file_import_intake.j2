@@ -1,0 +1,84 @@
+{#-
+  Livestock file import. One flat row of a CSV or Excel file (every value a string) becomes the sections
+  of one livestock intake. The import worker hands the row over as the business payload, so the columns
+  are the register's own field names (docs/file-import.md lists them with their codes).
+  The row also carries exactly one animal (the livestock details table needs at least one row). More animals
+  and the health, vaccination, vital and breeding events are not imported: add them in the staff portal or
+  by change request.
+  A value the register cannot take fails this row only, with the column named in the error.
+-#}
+{% macro fail(message) %}{{ {}[message].invalid }}{% endmacro %}
+{% set row = expanded if expanded is defined else {} %}
+{% set cell = {} %}
+{% for key, raw in row.items() %}{% set _ = cell.update({(key | string | trim | lower): ((raw if raw is not none else '') | string | trim)}) %}{% endfor %}
+
+{% set farmer_id = cell.get('farmer_id', '') | upper %}
+{% if not (farmer_id.startswith('FR-') and farmer_id[3:].isdigit() and farmer_id | length == 15) %}{{ fail('column farmer_id must be FR- followed by 12 digits, got ' ~ farmer_id) }}{% endif %}
+{% set fayda_id = cell.get('fayda_id', '') | replace(' ', '') %}
+{% if not (fayda_id.isdigit() and fayda_id | length in [12, 16]) %}{{ fail('column fayda_id must be a 16-digit FAN or a 12-digit FIN, got ' ~ fayda_id) }}{% endif %}
+
+{% set text_columns = ['surveyor_name', 'surveyor_mobile_number', 'supervisor_name', 'supervisor_mobile_number'] %}
+{% set number_columns = ['latitude', 'longitude'] %}
+
+{% set personnel = {} %}
+{% for key in text_columns %}{% if cell.get(key) %}{% set _ = personnel.update({key: cell[key]}) %}{% endif %}{% endfor %}
+
+{% set number = {} %}
+{% for key in number_columns %}{% set value = cell.get(key, '') %}{% if value %}
+  {% if not value.replace('-', '', 1).replace('.', '', 1).isdigit() %}{{ fail('column ' ~ key ~ ' must be a number, got ' ~ value) }}{% endif %}
+  {% set _ = number.update({key: value | float}) %}
+{% endif %}{% endfor %}
+{% if 'latitude' in number and (number['latitude'] < -90 or number['latitude'] > 90) %}{{ fail('column latitude must be between -90 and 90, got ' ~ cell.get('latitude')) }}{% endif %}
+{% if 'longitude' in number and (number['longitude'] < -180 or number['longitude'] > 180) %}{{ fail('column longitude must be between -180 and 180, got ' ~ cell.get('longitude')) }}{% endif %}
+{% if ('latitude' in number) != ('longitude' in number) %}{{ fail('columns latitude and longitude must be given together') }}{% endif %}
+
+{#- The administrative units are Master Data geo unit ids (P-codes: ET04, ET0404, ET040404, ET040404888003),
+    as the staff portal's geo-hierarchy widget writes them; geo_code_hierarchy_json carries the chain and
+    the registry fills the names from Master Data on save. A level needs the level above it. -#}
+{% set geo = {} %}
+{% set hierarchy = [] %}
+{% for level_id, level in [('l1', 'region'), ('l2', 'zone'), ('l3', 'woreda'), ('l4', 'kebele')] %}{% set code = cell.get(level, '') | upper %}{% if code %}
+  {% if hierarchy | length != loop.index0 %}{{ fail('column ' ~ level ~ ' needs the level above it, got ' ~ code) }}{% endif %}
+  {% set _ = geo.update({level ~ '_id': code}) %}
+  {% set _ = hierarchy.append({'level_id': level_id, 'level': level, 'level_mnemonic': level, 'level_value_id': code}) %}
+{% endif %}{% endfor %}
+{% if hierarchy %}
+  {% set _ = geo.update({'geo_lowest_level_value_id': hierarchy[-1]['level_value_id'], 'geo_code_hierarchy_json': {'hierarchy': hierarchy, 'lowest_level_value_id': hierarchy[-1]['level_value_id']}}) %}
+{% endif %}
+{% set _ = geo.update(number) %}
+
+{#- The animal row: the columns are the table's own field names. Species and breed are Master Data codes
+    (the registry checks them against Master Data), the choice columns take their fixed codes, and the
+    ear tag or secondary identifier, the date of birth and the head count are required per species, which
+    only the registry knows, so they are checked when the intake is saved and submitted. -#}
+{% set animal = {} %}
+{% for key in ['ear_tag_id', 'secondary_identifier', 'age'] %}{% if cell.get(key) %}{% set _ = animal.update({key: cell[key]}) %}{% endif %}{% endfor %}
+{% if animal.get('ear_tag_id') %}{% set _ = animal.update({'ear_tag_id': animal['ear_tag_id'] | replace(' ', '') | upper}) %}{% endif %}
+{% for key in ['species', 'breed'] %}{% set value = cell.get(key, '') | upper %}
+  {% if not value %}{{ fail('column ' ~ key ~ ' is required') }}{% endif %}
+  {% set _ = animal.update({key: value}) %}
+{% endfor %}
+{% for key, allowed in {'gender': ['MALE', 'FEMALE', 'MIXED'], 'health_status': ['HEALTHY', 'SICK', 'QUARANTINED', 'DECEASED'], 'vaccination_status': ['UP_TO_DATE', 'OVERDUE', 'NONE']}.items() %}{% set value = cell.get(key, '') | upper %}
+  {% if not value %}{{ fail('column ' ~ key ~ ' is required') }}{% endif %}
+  {% if value not in allowed %}{{ fail('column ' ~ key ~ ' must be one of ' ~ allowed | join(', ') ~ ', got ' ~ value) }}{% endif %}
+  {% set _ = animal.update({key: value}) %}
+{% endfor %}
+{% for key in ['weight', 'quantity'] %}{% set value = cell.get(key, '') %}{% if value %}
+  {% if not value.replace('.', '', 1).isdigit() %}{{ fail('column ' ~ key ~ ' must be a number, got ' ~ value) }}{% endif %}
+  {% set _ = animal.update({key: (value | float | int) if key == 'quantity' else (value | float)}) %}
+{% endif %}{% endfor %}
+{% for key in ['date_of_birth', 'registration_date'] %}{% set value = cell.get(key, '')[:10] %}
+  {% if not value and key == 'registration_date' %}{{ fail('column registration_date is required') }}{% endif %}
+  {% if value %}
+    {% set parts = value.split('-') %}
+    {% if not (parts | length == 3 and parts[0] | length == 4 and parts[1] | length == 2 and parts[2] | length == 2 and (parts | join('')).isdigit()) %}{{ fail('column ' ~ key ~ ' must be a date as YYYY-MM-DD, got ' ~ value) }}{% endif %}
+    {% set _ = animal.update({key: value}) %}
+  {% endif %}
+{% endfor %}
+
+{% set lookup = {'record_name': farmer_id, 'farmer_id': farmer_id, 'fayda_fin': fayda_id if fayda_id | length == 12 else none, 'fayda_fan_id': fayda_id if fayda_id | length == 16 else none, 'status': 'ACTIVE', 'state': 'DRAFT', 'total_animals': 1} %}
+{% set sections = {'livestock_farmer_lookup': [lookup], 'ls_animal_details': [animal]} %}
+{% if personnel %}{% set _ = sections.update({'ls_survey_personnel': [personnel]}) %}{% endif %}
+{% if geo %}{% set _ = sections.update({'ls_livestock_location': [geo]}) %}{% endif %}
+
+{{ sections | tojson }}

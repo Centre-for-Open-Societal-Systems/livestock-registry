@@ -27,6 +27,6 @@ SET "domain_translation" = ('{
  "livestock_animal_tab": "Livestock",
  "livestock_health_event_tab": "Health & vaccination",
  "livestock_vital_event_tab": "Breeding & vital events",
- "livestock_import_batch_tab": "Imports & audit",
+ "livestock_import_batch_tab": "Audit",
  "livestock_farmer_tab": "Farmer"
 }'::jsonb || COALESCE("domain_translation"::jsonb, '{}'::jsonb))::json;

@@ -97,7 +97,19 @@ def main(domain):
         "standards_scope":"Native extension DDL, seeded metadata and registered runtime declared fields; not full business/live acceptance",
         "sql_errors":[step for step in seed["steps"] if step["sqlstate_errors"]],
         "repeat_metadata_identical":seed["repeat_metadata_identical"]}
+    transition_file = repo / 'reference/metadata-transitions.json'
+    transition_doc = json.loads(transition_file.read_text(encoding='utf-8')) if transition_file.exists() else {}
+    # Registers retired on purpose are named in the transitions file; they must be gone from the target.
+    retired = {row["register_id"]:row for row in transition_doc.get("retired_registers", [])}
+    retired_sections = {section for row in retired.values() for section in row.get("section_ids", [])}
+    target_registers = {row["register_id"] for row in target["metadata"].get("g2p_register_definitions", [])}
+    target_sections = {row["section_id"] for row in target["metadata"]["g2p_register_sections"]}
+    report["retired_registers"] = [{"register_id":rid,"register_mnemonic":row.get("register_mnemonic"),
+        "absent_from_target":rid not in target_registers and not (set(row.get("section_ids", [])) & target_sections)}
+        for rid, row in retired.items()]
     for entry in live["registers"]:
+        if entry["definition"]["register_id"] in retired:
+            continue
         name = entry["definition"]["register_mnemonic"]
         fields = {field["field_name"] for field in entry["fields"]["fields"]}
         models = {prefix:target["models"][prefix+name] for prefix in
@@ -114,6 +126,8 @@ def main(domain):
     sections = {row["section_id"]:row for row in target["metadata"]["g2p_register_sections"]}
     for entry in live["registers"]:
         for row in entry["sections"]:
+            if row["section_id"] in retired_sections:
+                continue
             new = sections.get(row["section_id"])
             report["sections"].append({"section_id":row["section_id"],"register_id":row["register_id"],
                 "section_register_id":row["section_register_id"],"present":new is not None,
@@ -131,8 +145,7 @@ def main(domain):
                     "target_section_id":bindings.get(binding["tab_section_id"],{}).get("section_id"),
                     "present":binding["tab_section_id"] in bindings} for binding in tab["sections"]]})
         report["forms"].append(item)
-    transition_file = repo / 'reference/metadata-transitions.json'
-    transitions = json.loads(transition_file.read_text(encoding='utf-8'))['transitions'] if transition_file.exists() else []
+    transitions = transition_doc.get('transitions', [])
     report['section_transitions'] = reconcile_sections(report['sections'],target['metadata'],transitions)
     report['all_section_capabilities_preserved'] = all(row['present'] and row['relationship_preserved'] and not row['unexplained_removed_field_paths'] for row in report['sections'])
     report["all_live_register_fields_present"] = all(not item["missing_by_model"]["G2PRegister"] for item in report["runtime_model_presence"])
@@ -140,10 +153,11 @@ def main(domain):
     report["all_form_ids_preserved"] = all(row["present"] for row in report["forms"])
     report["all_domain_history_intake_fields_present"] = all(not fields for row in report["runtime_model_presence"] for fields in row["missing_domain_by_model"].values())
     report["all_register_field_types_match"] = all(not row["type_mismatches"] for row in report["runtime_model_presence"])
+    report["all_retired_registers_absent"] = all(row["absent_from_target"] for row in report["retired_registers"])
     report["field_count"] = sum(row["live_field_count"] for row in report["runtime_model_presence"])
     (folder / "comparison.json").write_bytes((json.dumps(report,indent=2)+"\n").encode("utf-8"))
     checks=("all_live_register_fields_present","all_section_capabilities_preserved","all_form_ids_preserved",
-            "all_domain_history_intake_fields_present","all_register_field_types_match","repeat_metadata_identical")
+            "all_domain_history_intake_fields_present","all_register_field_types_match","all_retired_registers_absent","repeat_metadata_identical")
     if report["sql_errors"] or not all(report[key] for key in checks):
         (folder / "VERIFICATION.md").write_text("# Metadata verification failed\n\nSee comparison.json; field/section/type or seed acceptance failed.\n",encoding="utf-8")
         raise RuntimeError("Metadata comparison failed; no successful acceptance claim written")

@@ -25,7 +25,6 @@ and `*_event_ids` one2many fields.
 | `VitalEvent` | Livestock | `g2p_register_vital_events` | `g2p.livestock.vital.event` |
 | `Breeding` | Livestock | `g2p_register_breedings` | `g2p.livestock.breeding` |
 | `VaccineSchedule` | Livestock | `g2p_register_vaccine_schedules` | `g2p.livestock.vaccine.schedule` |
-| `ImportBatch` | Livestock | `g2p_register_import_batches` | `g2p.livestock.import.batch` |
 | `AuditLog` | Livestock | `g2p_register_audit_logs` | `g2p.livestock.audit.log` |
 
 `live_stock_dashboard` is deliberately not ported: the staff portal renders its

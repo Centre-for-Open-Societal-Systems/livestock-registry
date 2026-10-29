@@ -1,7 +1,7 @@
 """LIVESTOCK — the root register and the hub of the model.
 
 One record per farmer's livestock holding. Every livestock line (animals, health
-events, vaccinations, vital events, breeding, vaccine schedule, import batches, audit
+events, vaccinations, vital events, breeding, vaccine schedule, audit
 log) links straight back to this record, mirroring the `line_ids` / `*_event_ids`
 one2many fields on `g2p.livestock.registry`.
 
