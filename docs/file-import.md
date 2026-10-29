@@ -12,15 +12,12 @@ The Livestock registry takes intakes from a CSV or Excel file through the staff 
 ## File rules
 
 - The first row holds the column names exactly as below (letter case is ignored). Columns not listed are ignored; columns may be in any order.
-- One row is one intake. Animal rows and the health, vaccination, vital and breeding events are **not** imported. Add them in the staff portal or by change request.
+- One row is one intake with exactly one animal, because the livestock details table needs at least one row. More animals and the health, vaccination, vital and breeding events are **not** imported. Add them in the staff portal or by change request.
+- Dropdown columns take the Master Data **code**, never the label.
 - A blank cell means "not given". Required columns are checked when the intake is saved and submitted.
-- Numbers use a decimal point and no thousands separator.
+- Numbers use a decimal point and no thousands separator. Dates are `YYYY-MM-DD` (a time after the date is dropped, as Excel writes it).
 - A row with a value the register cannot take (for example a letter in a number column) fails on its own, with the column named in the error; the other rows of the file continue. Check the row errors of the upload when the count of imported rows is lower than the count in the file.
 - The farmer is named by the Farmer ID and one Fayda ID (FIN or FAN). Nothing else about the farmer is imported; the Farmer registry owns it.
-
-## Known limit: the animal table is required at submit
-
-The Livestock intake requires at least one animal row (`widget-required` on `ls_animal_details_table`, enforced for every channel by `required_intake.py`). A file row carries no animal, so the intake is saved from the row but is refused when it is finalized, with "Livestock Details: add at least one row". Until that rule or the file shape changes, an imported intake does not start approval. See the open question in the commit message.
 
 ## Livestock intake (`livestock_intake_import_template.csv`)
 
@@ -40,17 +37,40 @@ Import configuration: `file_import_to_livestock_intake`.
 | `kebele` | Location (`ls_livestock_location`) | No | Master Data geo unit id (P-code), for example ET040404888003; needs the woreda |
 | `latitude` | Location (`ls_livestock_location`) | No | Decimal degrees, -90 to 90; needs the longitude too |
 | `longitude` | Location (`ls_livestock_location`) | No | Decimal degrees, -180 to 180; needs the latitude too |
+| `ear_tag_id` | Livestock details (`ls_animal_details`) | Conditional | ET followed by exactly 10 digits, for example ET0000000013. Required when the species needs an ear tag |
+| `secondary_identifier` | Livestock details (`ls_animal_details`) | Conditional | Text (leg band, wing tag, hive number). Required instead of the ear tag for a species without an ear tag |
+| `species` | Livestock details (`ls_animal_details`) | Yes | Code from the LIVESTOCK_SPECIES list below |
+| `breed` | Livestock details (`ls_animal_details`) | Yes | Code from the LIVESTOCK_BREED list below; it must belong to the species |
+| `quantity` | Livestock details (`ls_animal_details`) | Conditional | Whole number above zero. Required for a flock species (head count) |
+| `weight` | Livestock details (`ls_animal_details`) | No | Number, digits and an optional decimal point |
+| `date_of_birth` | Livestock details (`ls_animal_details`) | Conditional | YYYY-MM-DD, not in the future. Required except for a flock species |
+| `age` | Livestock details (`ls_animal_details`) | No | Text; the registry works it out from the date of birth |
+| `gender` | Livestock details (`ls_animal_details`) | Yes | `MALE`, `FEMALE`, `MIXED` (`MIXED` only for a species without an ear tag) |
+| `health_status` | Livestock details (`ls_animal_details`) | Yes | `HEALTHY`, `SICK`, `QUARANTINED`, `DECEASED` |
+| `vaccination_status` | Livestock details (`ls_animal_details`) | Yes | `UP_TO_DATE`, `OVERDUE`, `NONE` |
+| `registration_date` | Livestock details (`ls_animal_details`) | Yes | YYYY-MM-DD, not in the future |
 
 The place is written the way the staff portal's geo-hierarchy widget writes it: the deepest level given is the holding's place, the chain is kept in `geo_code_hierarchy_json`, and the registry fills the place names from Master Data on save.
 
 ## Code lists
 
-The flat columns of this form have no dropdown other than the geography, which takes Master Data geo unit ids. No other code list is read by the template.
+`region` to `kebele` take Master Data geo unit ids. The animal columns take these:
 
-For the child lists that are left out, check the codes against the validators before they are added to a later file shape:
+### LIVESTOCK_SPECIES
 
-- Species (`LIVESTOCK_SPECIES`): the validator (`validate_species_known`) accepts the Master Data codes of the country pack (`CATTLE`, `GOATS`, `SHEEP`, `CAMELS`, `EQUINES`, `POULTRY`, `OTHER`) and refuses the retired `LIVESTOCK_SPECIES_<NAME>` codes (`tests/test_species_from_master_data.py`). The ODK template still reads `LIVESTOCK_SPECIES_<NAME>` values by their name and turns them into the pack codes. Which spelling a future species column takes is waiting on a decision; this file shape has no such column.
-- Gender (`MALE`, `FEMALE`, `MIXED`), health status (`HEALTHY`, `SICK`, `QUARANTINED`, `DECEASED`) and vaccination status (`UP_TO_DATE`, `OVERDUE`, `NONE`) are static options of the animal table, not Master Data lists.
+Master Data list `LIVESTOCK_SPECIES` of the country pack. The validator (`validate_species_known`) accepts these codes and refuses the retired `LIVESTOCK_SPECIES_<NAME>` codes (`tests/test_species_from_master_data.py`). Whether a species needs an ear tag or is a flock is an attribute of the value in Master Data.
+
+`CATTLE`, `GOATS`, `SHEEP`, `CAMELS`, `EQUINES`, `POULTRY`, `OTHER`
+
+### LIVESTOCK_BREED
+
+Master Data list `LIVESTOCK_BREED`, the breed type; the registry refuses a breed that does not belong to the row's species.
+
+`BREED_IMPROVED`, `BREED_LOCAL`, `BREED_HYBRID`
+
+### Fixed codes
+
+Gender, health status and vaccination status are static options of the table, listed in the column table above.
 
 ## Where the pieces live
 
