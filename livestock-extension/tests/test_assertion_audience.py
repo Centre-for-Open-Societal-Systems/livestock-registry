@@ -45,4 +45,4 @@ def test_invalid_audience_has_an_actionable_error(value):
         OANRegistrantAuthenticationService._provider_to_login_provider(
             provider({"jwt_assertion_aud": value})
         )
-    assert "jwt_assertion_aud" in str(error.value.message)
+    assert "token audience" in str(error.value.message)

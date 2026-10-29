@@ -10,6 +10,7 @@ from openg2p_registry_core.models import (
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import and_, func, select
 
+from .plain_text import plain_code_text
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
@@ -118,8 +119,8 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         gender = await get_animal_gender(str(ear_tag_id).strip())
         if gender and str(gender).upper() != "FEMALE":
             validation_error(
-                "A Birth event can only be logged against a Female animal "
-                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).title()})."
+                "A birth event can only be logged against a female animal "
+                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).lower()})."
             )
 
     def _validate_disease_type(self, record: dict) -> None:
@@ -230,13 +231,13 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             ear_tag_id = str(ear_tag_id).strip()
 
             if ear_tag_id in seen_ear_tags:
-                validation_error("A Mortality event already exists for this animal.")
+                validation_error("A mortality event already exists for this animal.")
             seen_ear_tags.add(ear_tag_id)
 
             if await self._mortality_exists(
                 ear_tag_id, self_ids, exclude_submission_ids, search or tables_for(record)
             ):
-                validation_error("A Mortality event already exists for this animal.")
+                validation_error("A mortality event already exists for this animal.")
 
     async def _mortality_exists(
         self,
@@ -298,7 +299,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             key = (ear_tag_id, disease_type, onset)
             if key in seen:
                 validation_error(
-                    "A Disease event with the same disease and date of onset already "
+                    "A disease event with the same disease and date of onset already "
                     "exists for this animal."
                 )
             seen.add(key)
@@ -308,7 +309,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 search or tables_for(record),
             ):
                 validation_error(
-                    "A Disease event with the same disease and date of onset already "
+                    "A disease event with the same disease and date of onset already "
                     "exists for this animal."
                 )
 
@@ -682,7 +683,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            plain_code_text(payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

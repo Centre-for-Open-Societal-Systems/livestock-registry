@@ -4,6 +4,8 @@ from datetime import date, datetime
 
 from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
 
+from .plain_text import plain_code_text
+
 
 def validation_error(message: str) -> None:
     raise G2PRegistryException(
@@ -86,7 +88,7 @@ def require_field(record: dict, field: str, label: str | None = None) -> None:
     right without source access to fix them.
     """
     if is_blank(record.get(field)):
-        validation_error(f"{label or field} is required")
+        validation_error(f"{label or field_label(field)} is required. Enter a value.")
 
 
 async def refresh_total_animals(session, livestock_internal_record_id) -> None:
@@ -440,7 +442,10 @@ async def humanize_attribute_value(value_id: str | None) -> str:
         return str(value_id)
     from ... import master_data_lists
 
-    return await master_data_lists.display(str(value_id).strip())
+    raw = str(value_id).strip()
+    shown = await master_data_lists.display(raw)
+    return plain_code_text(shown) if shown == raw else shown
+
 
 
 async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
@@ -478,7 +483,8 @@ async def validate_species_known(record: dict) -> None:
 
     values = await master_data_lists.get_list("LIVESTOCK_SPECIES")
     if values and str(species).strip() not in values:
-        validation_error(f"Species '{species}' is not in the species list.")
+        shown = await humanize_attribute_value(species)
+        validation_error(f"Species '{shown}' is not in the species list. Choose a species from the list.")
 
 
 async def validate_species_matches(record: dict) -> None:
@@ -505,7 +511,7 @@ async def validate_species_matches(record: dict) -> None:
         entered_label = await humanize_attribute_value(species)
         actual_label = await humanize_attribute_value(animal_species)
         validation_error(
-            f"species '{entered_label}' does not match animal '{ear_tag_id}', "
+            f"Species '{entered_label}' does not match animal '{ear_tag_id}', "
             f"which is recorded as '{actual_label}' under Livestock Details. "
             "Select the matching species, or check you entered the correct ear tag / identifier."
         )
@@ -753,7 +759,8 @@ async def validate_known_code(record: dict, field: str, attribute_id: str, label
     if is_blank(value):
         return
     if not await attribute_value_known(value, attribute_id):
-        validation_error(f"{label} '{value}' is not in the {label.lower()} list.")
+        shown = await humanize_attribute_value(value)
+        validation_error(f"{label} '{shown}' is not in the {label.lower()} list. Choose one from the list.")
 
 
 async def attribute_value_parent(value_id, list_code: str | None = None) -> str | None:

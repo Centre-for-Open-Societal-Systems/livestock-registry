@@ -15,7 +15,7 @@ from openg2p_registry_livestock_extension.register_domain.services import (
 
 @pytest.mark.parametrize("raw", [0, -1, "no", None, True, float("inf"), float("nan")])
 def test_bad_timeout_config_names_the_setting(raw):
-    with pytest.raises(ValueError, match="token_timeout_seconds"):
+    with pytest.raises(ValueError, match="token timeout"):
         timeout.token_timeout_seconds(
             SimpleNamespace(provider_config={"token_timeout_seconds": raw})
         )

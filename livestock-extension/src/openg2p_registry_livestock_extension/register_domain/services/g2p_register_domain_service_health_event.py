@@ -5,6 +5,7 @@ from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import select
 
+from .plain_text import plain_code_text
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
@@ -266,7 +267,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            plain_code_text(payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

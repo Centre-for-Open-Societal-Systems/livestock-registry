@@ -123,7 +123,7 @@ def test_token_timeout_is_explained_and_never_stores_claims(monkeypatch, bind):
     assert auth.status == "FAILURE" and auth.user_claims is None
     assert (
         "30 seconds" in auth.failure_reason
-        and "token_timeout_seconds" in auth.failure_reason
+        and "more seconds" in auth.failure_reason
     )
     assert "30 seconds" in iv.explain_failure(auth.failure_reason)
 
