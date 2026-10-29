@@ -11,6 +11,17 @@ COPY livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/
 COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 COPY docker/db-seed/reporting-geo-sync.sh /seed/reporting-geo-sync.sh
 RUN chmod +x /seed/reporting-geo-sync.sh
+# Sample data (LOAD_SAMPLE_DATA=true). The platform image checks out openg2p-data
+# at /openg2p-data; this one checks out the COSS repository at a pinned commit in
+# its place, the source of the ETH-OAN pack's sample farmers and their livestock
+# (samples/farmer_ids.json, samples/livestock.json).
+ARG OPENG2P_DATA_REPO=https://github.com/Centre-for-Open-Societal-Systems/openg2p-data.git
+ARG OPENG2P_DATA_REF=5aa26d65aabd979ad96a2fc4a293c8f12de18bf7
+RUN rm -rf /openg2p-data && mkdir -p /openg2p-data && cd /openg2p-data \
+    && git init -q && git remote add origin ${OPENG2P_DATA_REPO} \
+    && git fetch -q --depth 1 origin ${OPENG2P_DATA_REF} && git checkout -q FETCH_HEAD \
+    && rm -rf .git
+COPY --chmod=755 docker/db-seed/load_sample_data.py /seed/
 # The image is the platform's db-seed with the Livestock extension's metadata,
 # AWE policies and templates in place of the reference extension's. The native
 # entrypoint applies the whole tree (meta_data, awe_meta_data, templates).
