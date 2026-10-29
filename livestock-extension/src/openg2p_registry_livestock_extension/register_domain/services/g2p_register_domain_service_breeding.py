@@ -7,6 +7,7 @@ from sqlalchemy import and_
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    field_label,
     normalize_event_ear_tag,
     ear_tag_exists, get_animal_gender, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
@@ -100,13 +101,13 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
         if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+            validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_date_order(self, record: dict, earlier: str, later: str) -> None:
         start = parse_date(record.get(earlier))
         end = parse_date(record.get(later))
         if start and end and end < start:
-            validation_error(f"{later} must not be before {earlier}")
+            validation_error(f"{field_label(later)} must not be before {field_label(earlier).lower()}.")
 
     def _breeding_models(self):
         """The Breeding register + intake-form models, imported the same way

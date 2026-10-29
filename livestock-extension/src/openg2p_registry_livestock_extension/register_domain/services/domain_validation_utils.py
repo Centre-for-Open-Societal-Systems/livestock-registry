@@ -407,6 +407,28 @@ async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None
         return None, None
 
 
+# Field names as the form labels them, for validation messages. Other fields
+# read as a sentence: "registration_date" -> "Registration date".
+_FIELD_LABELS = {
+    "ear_tag_id": "Ear tag",
+    "new_ear_tag_id": "New ear tag",
+    "old_ear_tag_id": "Old ear tag",
+    "secondary_identifier": "Secondary identifier",
+    "quantity": "Quantity (head count)",
+    "weight": "Weight",
+    "offspring_count": "Number of offspring",
+    "interval_days": "Interval (days)",
+}
+
+
+def field_label(field: str) -> str:
+    """The label a user sees for a field: ear_tag_id -> "Ear tag"."""
+    if field in _FIELD_LABELS:
+        return _FIELD_LABELS[field]
+    text = str(field).replace("_", " ").strip()
+    return text[:1].upper() + text[1:]
+
+
 async def humanize_attribute_value(value_id: str | None) -> str:
     """The human-readable label for a code-list value id (e.g.
     "SHEEP" -> "Sheep"), for building a validation message
