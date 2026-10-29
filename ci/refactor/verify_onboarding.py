@@ -93,7 +93,7 @@ def main(domain, *, build=False):
         for mode in ("staff", "partner", "worker", "beat"):
             role = "staff-api" if mode == "staff" else "partner-api" if mode == "partner" else "celery"
             run(f"native-{mode}-registration", ["docker", "run", "--rm", "--network", "none", "--entrypoint", "python",
-                *mount, f"openg2p/openg2p-registry-{role}:1.2.2-rc.557", "/probe/onboarding_probe.py", "/work", domain, mode])
+                *mount, f"openg2p/openg2p-registry-{role}:1.2.2-rc.614", "/probe/onboarding_probe.py", "/work", domain, mode])
         run("create-network", ["docker", "network", "create", "--label", "coss-refactor.disposable=onboarding", network])
         created_network = True
         run("create-database", ["docker", "run", "--detach", "--name", database, "--network", network,

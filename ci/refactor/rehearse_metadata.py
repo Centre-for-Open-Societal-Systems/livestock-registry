@@ -151,7 +151,7 @@ def main(domain, pipeline=False):
         if pipeline:
             result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
                 "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
-                "openg2p/openg2p-registry-celery:1.2.2-rc.557","/probe/notification_pipeline_probe.py","/work",domain)
+                "openg2p/openg2p-registry-celery:1.2.2-rc.614","/probe/notification_pipeline_probe.py","/work",domain)
             print(result.stdout.splitlines()[-1],flush=True)
         output = repo / "ci-output/refactor/new-dev"
         first = json.loads((output / "target-pass-1.json").read_text(encoding="utf-8"))

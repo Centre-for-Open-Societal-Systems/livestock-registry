@@ -57,7 +57,7 @@ def verify(repo: Path, domain: str) -> dict:
     for name in ("helm", "openg2p-connector-service", "openg2p-connector-ui"):
         if any((repo / name).rglob("Chart.yaml")) or (repo / name / "Dockerfile").exists():
             errors.append("retired vendored source remains: " + name)
-    if pins != {"1.2.2-rc.557"}:
+    if pins != {"1.2.2-rc.614"}:
         errors.append(f"split platform pins: {pins}")
     if (repo / "farmer-extension").exists():
         errors.append("upstream Farmer example package remains")

@@ -34,7 +34,7 @@ if mode == "ddl":
     engine.dispose()
     raise SystemExit(0)
 
-output = {"registry":domain,"native_platform":"1.2.2-rc.557","disposable_only":True,"models":{},"sql":[],"seed_errors":[]}
+output = {"registry":domain,"native_platform":"1.2.2-rc.614","disposable_only":True,"models":{},"sql":[],"seed_errors":[]}
 for name in app.MODEL_NAMES:
     model = getattr(models,name)
     output["models"][name] = {"table":model.__tablename__,"columns":{

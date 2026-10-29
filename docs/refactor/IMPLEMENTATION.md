@@ -10,7 +10,7 @@ The source base is OpenG2P Farmer `ed1e70ccf18df5476fa404ed8018e12d55e418fa`.
 Domain source decisions and original revision are in `SOURCE_MAP.json`. Legacy
 COSS develop is not merged. API and worker packages use the native selected
 extension namespace/factory. Published platform image/chart version is
-`1.2.2-rc.557`; UI source is pinned to its OCI revision
+`1.2.2-rc.614`; UI source is pinned to its OCI revision
 `4d5482dfea23d1accf98fe474fb90ed6ddb5f651`. Local image IDs and published base
 digests are recorded in `IMAGES.json`; local images are not registry releases.
 
