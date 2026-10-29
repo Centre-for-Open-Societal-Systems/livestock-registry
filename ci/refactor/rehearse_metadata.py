@@ -30,6 +30,17 @@ def main(domain, pipeline=False):
         if result.returncode:
             raise RuntimeError((result.stderr or result.stdout)[-3500:])
         return result
+    def remove_stale():
+        # An aborted build skips the cleanup below and leaves this run's labelled
+        # database and network behind; the next build of the same registry would
+        # then fail on "already exists". Builds of one registry never overlap, so
+        # a same-name leftover carrying our label is safe to remove.
+        for kind, name, label in (("container", database, "{{index .Config.Labels \"coss-refactor.disposable\"}}"),
+                                  ("network", network, "{{index .Labels \"coss-refactor.disposable\"}}")):
+            found = subprocess.run(["docker",kind,"inspect","--format",label,name],capture_output=True,text=True)
+            if found.returncode == 0 and found.stdout.strip() == "metadata":
+                run("docker","rm","--force","--volumes",name) if kind == "container" else run("docker","network","rm",name)
+    remove_stale()
     try:
         network_id = run("docker","network","create","--label","coss-refactor.disposable=metadata",network).stdout.strip()
         created_network = True
@@ -169,7 +180,7 @@ def main(domain, pipeline=False):
             owned = run("docker","inspect","--format",'{{.Id}} {{index .Config.Labels "coss-refactor.disposable"}}',database).stdout.strip()
             if owned != database_id + " metadata":
                 raise RuntimeError("Disposable database identity changed; refusing cleanup")
-            run("docker","rm","--force",database)
+            run("docker","rm","--force","--volumes",database)
         if created_network:
             owned = run("docker","network","inspect","--format",'{{.Id}} {{index .Labels "coss-refactor.disposable"}}',network).stdout.strip()
             if owned != network_id + " metadata":
