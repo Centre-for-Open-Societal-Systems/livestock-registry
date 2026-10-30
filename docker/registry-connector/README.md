@@ -31,7 +31,14 @@ source auth strategies ignore this key, so ODK credentials can sit beside it:
 `algorithm` is `EdDSA` (default), `ES256` or `RS256`.
 
 - A signing connector with no key fails the delivery, so it never sends an unsigned message.
-- The environment variables `CONNECTOR_REGISTRY_SIGNATURE_KEY_PEM`, `_KEY_ID` and `_ALGORITHM` are a fallback. The published chart cannot set them.
+- Fallbacks, in order: the environment variables `CONNECTOR_REGISTRY_SIGNATURE_KEY_PEM`, `_KEY_ID` and `_ALGORITHM`, then `CONNECTOR_SIGNING_KEY_PEM` and `CONNECTOR_SIGNING_KID` (EdDSA unless `CONNECTOR_SIGNING_ALGORITHM` is set), which the connector Helm release renders into the api, worker and beat containers. The first source holding a key is used, and logged once per process by name (never the key). Precedence caveat: a stored secret that holds a key but no `key_id` still wins and the delivery fails with "has no key id"; it does not fall through to the environment.
+
+**Recovering unsigned failures.** A delivery that failed with "Registry signature is not configured" is
+in `dead_letter_queue` with its raw body. A beat task (`connector.oan_redrive_unsigned`, every 5 minutes, in the
+worker image's beat process) replays those entries through the normal pipeline once a key can be resolved for the
+connector: success deletes the entry and records the idempotency key; any other outcome is rolled back and the
+entry keeps the new error with its attempt count raised (at most 5 tries, 50 entries per tick, only for active connectors that can sign). The original
+FAILED run rows stay as history. Operators can still replay with `POST /dlq/replay` (admin token).
 
 **Admin access.** The published API and UI have no login. `admin_auth` follows the OpenG2P
 service pattern (Keycloak `staff` realm; a confidential client defines the admin client role;
