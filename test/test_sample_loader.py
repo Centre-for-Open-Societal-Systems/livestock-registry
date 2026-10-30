@@ -43,7 +43,8 @@ def test_loader_signs_in_like_the_portal_and_writes_only_the_farmer_reference():
         assert forbidden not in code, forbidden
     # The one UPDATE: the backfill of the functional record id on the loader's own farmer copies.
     updates = re.findall(r"UPDATE [^\"]*", code)
-    assert len(updates) == 1 and updates[0].startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id")
+    assert len(updates) == 1
+    assert updates[0].startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id")
     # The only rows written directly: the farmer copy, its reference, and the intake's link to it.
     written = sorted(set(re.findall(r'INSERT INTO "?(?:public"\.")?"?(\w+)', code)))
     assert written == ["coss_farmer_references", "coss_farmer_submission_dependencies", "g2p_register_farmers"]
@@ -334,7 +335,8 @@ class FlakyOpener:
         if isinstance(outcome, Exception):
             raise outcome
         if outcome >= 400:
-            raise __import__("urllib.error").error.HTTPError(request.full_url, outcome, "x", {}, __import__("io").BytesIO(b"{}"))
+            raise __import__("urllib.error").error.HTTPError(
+                request.full_url, outcome, "x", {}, __import__("io").BytesIO(b"{}"))
         response = __import__("io").BytesIO(b"{}")
         response.status, response.headers = outcome, {}
         response.__enter__ = lambda: response
@@ -344,7 +346,8 @@ class FlakyOpener:
 def test_network_errors_and_gateway_statuses_are_retried(loader, monkeypatch):
     monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
     request = __import__("urllib.request").request.Request("https://staff-iam.example.org/x")
-    opener = FlakyOpener(__import__("urllib.error").error.URLError("connection reset"), TimeoutError("timed out"), 503, 200)
+    opener = FlakyOpener(__import__("urllib.error").error.URLError("connection reset"),
+                         TimeoutError("timed out"), 503, 200)
     status, _, _ = loader.fetch(opener, request)
     assert status == 200 and opener.calls == 4
 
@@ -440,7 +443,8 @@ class StageTwoApprover:
     """Stage 1 was approved by an earlier run; the stage 2 task waits, claimed or open."""
 
     def __init__(self, stage, claimed, registry, calls):
-        self.username, self.stage, self.claimed, self.registry, self.calls = f"u{stage}", stage, claimed, registry, calls
+        self.username, self.stage, self.claimed = f"u{stage}", stage, claimed
+        self.registry, self.calls = registry, calls
 
     def post(self, path, payload, once=False):
         self.calls.append((self.username, path, once))
@@ -629,7 +633,8 @@ def test_the_backfill_touches_only_the_loaders_own_copies_without_a_functional_i
     sql, params = cur.statements[0]
     assert got == 7 and params == (["FR-1", "FR-2"], "alex.carter")
     assert sql.startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id WHERE")
-    assert "farmer_id = ANY(%s)" in sql and "created_by = %s" in sql and "coalesce(functional_record_id, '') = ''" in sql
+    for part in ("farmer_id = ANY(%s)", "created_by = %s", "coalesce(functional_record_id, '') = ''"):
+        assert part in sql
     assert sql.count("SET") == 1 and ", " not in sql.split("SET")[1].split("WHERE")[0]
 
 
@@ -874,3 +879,9 @@ def test_a_country_level_place_gives_no_location_section_and_is_logged(loader, m
     people = [PEOPLE[0], {**PEOPLE[1], "geo_pcode": "ET"}]
     sections = plan(loader, people=people)[1]["stages"][0]["sections"]
     assert LOCATION_SECTION not in sections and any("no Location section" in line for line in logged)
+    # With coordinates in the pack, the coordinates are kept without a hierarchy.
+    herds = [HERDS[0], {**HERDS[1], "location": {"latitude": 1.0, "longitude": 2.0}}]
+    row = plan(loader, herds=herds, people=people)[1]["stages"][0]["sections"][LOCATION_SECTION][0]
+    root = plan(loader, herds=herds, people=people)[1]["stages"][0]["root"]
+    assert row == {"internal_record_id": root, "latitude": 1.0, "longitude": 2.0}
+    assert any("pack's coordinates only" in line for line in logged)

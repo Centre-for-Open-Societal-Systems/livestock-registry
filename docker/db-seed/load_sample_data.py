@@ -233,7 +233,8 @@ def place_chain(places: dict[str, dict], pcode: str) -> list[dict]:
 def location_section(chain: list[dict], root: str, pack_location: dict | None) -> dict | None:
     """The Location section row: the geo-hierarchy widget's document and lowest unit for the person's place,
     plus the holding's coordinates the pack gives. The country is not a level of the form's hierarchy:
-    a place with no level below it (a country-level P-code) gives no Location section (None)."""
+    a place with no level below it (a country-level P-code) gives None; the caller then keeps only the
+    pack's coordinates, if it has any."""
     levels = chain[1:] if chain and chain[0].get("level_id") == "l0" else chain
     hierarchy = [{"level_id": unit["level_id"], "level": level, "level_mnemonic": level,
                   "level_value_id": unit["level_value_id"], "level_value_mnemonic": unit["level_value_mnemonic"]}
@@ -310,6 +311,12 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], p
                 location = location_section(place_chain(places, person["geo_pcode"]), root, sample.get("location"))
                 if location:
                     sections[LOCATION] = [location]
+                elif sample.get("location"):
+                    # An unknown P-code already fails in place_chain; a country-level one has no hierarchy,
+                    # so only the pack's coordinates are kept.
+                    log(f"{who}: {person['geo_pcode']} has no level below the country; "
+                        "Location section with the pack's coordinates only")
+                    sections[LOCATION] = [{"internal_record_id": root, **sample["location"]}]
                 else:
                     log(f"{who}: {person['geo_pcode']} has no level below the country; no Location section")
             elif sample.get("location"):
