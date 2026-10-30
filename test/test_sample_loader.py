@@ -39,8 +39,11 @@ def test_loader_signs_in_like_the_portal_and_writes_only_the_farmer_reference():
     source = (SEED / "load_sample_data.py").read_text(encoding="utf-8")
     code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))
     for forbidden in ("grant_type", "KEYCLOAK_ADMIN", "admin-cli", "/admin/realms", "directAccessGrants",
-                      "UPDATE ", "DELETE FROM", "/approve_change_request"):
+                      "DELETE FROM", "/approve_change_request"):
         assert forbidden not in code, forbidden
+    # The one UPDATE: the backfill of the functional record id on the loader's own farmer copies.
+    updates = re.findall(r"UPDATE [^\"]*", code)
+    assert len(updates) == 1 and updates[0].startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id")
     # The only rows written directly: the farmer copy, its reference, and the intake's link to it.
     written = sorted(set(re.findall(r'INSERT INTO "?(?:public"\.")?"?(\w+)', code)))
     assert written == ["coss_farmer_references", "coss_farmer_submission_dependencies", "g2p_register_farmers"]
@@ -117,7 +120,9 @@ def test_each_person_is_one_livestock_intake_with_their_animals_and_events(loade
     animal = sections["livestock_animal_details_section_01"][0]
     assert animal["link_internal_record_id"] == root and animal["registration_date"] == "2026-03-01"
     other = planned[1]["stages"][0]["sections"]
-    assert "livestock_survey_personnel_section_02" in other and "livestock_livestock_location_section_03" not in other
+    assert "livestock_survey_personnel_section_02" in other
+    # A person without coordinates in the pack still gets the Location section: the form requires the hierarchy.
+    assert other["livestock_livestock_location_section_03"][0]["geo_lowest_level_value_id"] == "ET01010102"
 
 
 def test_the_farmer_copy_is_the_reference_profile_with_location_and_search_text(loader):
@@ -159,7 +164,7 @@ class FakeRegistry:
     def approval_status(self, submission_id):
         return self.status.get(submission_id)
 
-    def wait_for(self, table, record_id, timeout):
+    def wait_for(self, table, record_id, timeout, submission_id=None):
         self.waited.append((table, record_id))
 
 
@@ -551,3 +556,208 @@ def test_the_loaders_own_intake_is_looked_up_by_its_root_record(loader):
 def test_root_records_are_the_loaders_own_and_stable_across_runs(loader):
     assert [p["stages"][0]["root"] for p in plan(loader)] == [p["stages"][0]["root"] for p in plan(loader)]
     assert len({p["stages"][0]["root"] for p in plan(loader)}) == 2
+
+
+LOCATION_SECTION = "livestock_livestock_location_section_03"
+
+
+def test_the_location_section_carries_the_hierarchy_the_form_requires(loader):
+    row = plan(loader)[0]["stages"][0]["sections"][LOCATION_SECTION][0]
+    root = plan(loader)[0]["stages"][0]["root"]
+    assert row["internal_record_id"] == root and row["latitude"] == 14.4 and row["longitude"] == 37.7
+    assert row["geo_lowest_level_value_id"] == "ET01010102"
+    assert row["geo_code_hierarchy_json"] == {"lowest_level_value_id": "ET01010102", "hierarchy": [
+        {"level_id": "l1", "level": "region", "level_mnemonic": "region", "level_value_id": "ET01",
+         "level_value_mnemonic": "Tigray"},
+        {"level_id": "l2", "level": "zone", "level_mnemonic": "zone", "level_value_id": "ET0101",
+         "level_value_mnemonic": "North Western"},
+        {"level_id": "l3", "level": "woreda", "level_mnemonic": "woreda", "level_value_id": "ET010101",
+         "level_value_mnemonic": "Tahtay Adiyabo"},
+        {"level_id": "l4", "level": "kebele", "level_mnemonic": "kebele", "level_value_id": "ET01010102",
+         "level_value_mnemonic": "Badme"}]}
+    assert (row["region_id"], row["zone_id"], row["woreda_id"], row["kebele_id"]) == (
+        "ET01", "ET0101", "ET010101", "ET01010102")
+
+
+def test_the_location_stops_at_the_lowest_level_the_pack_has(loader):
+    people = [PEOPLE[0], {**PEOPLE[1], "geo_pcode": "ET010101"}]
+    row = plan(loader, people=people)[1]["stages"][0]["sections"][LOCATION_SECTION][0]
+    assert row["geo_lowest_level_value_id"] == "ET010101"
+    assert [e["level"] for e in row["geo_code_hierarchy_json"]["hierarchy"]] == ["region", "zone", "woreda"]
+    assert "kebele_id" not in row
+
+
+def test_a_person_without_a_place_keeps_only_the_packs_location(loader):
+    people = [PEOPLE[0], {k: v for k, v in PEOPLE[1].items() if k != "geo_pcode"}]
+    herds = [HERDS[0], {**HERDS[1], "location": {"latitude": 1.0, "longitude": 2.0}}]
+    sections = plan(loader, herds=herds, people=people)[1]["stages"][0]["sections"]
+    assert sections[LOCATION_SECTION][0]["latitude"] == 1.0
+    assert "geo_lowest_level_value_id" not in sections[LOCATION_SECTION][0]
+
+
+def test_the_farmer_copy_carries_its_functional_record_id(loader):
+    farmer = plan(loader)[0]["farmer"]
+    assert farmer["functional_record_id"] == farmer["farmer_id"] == "FR-100000000001"
+    assert loader.farmer_with_id(farmer, "FR-9")["functional_record_id"] == "FR-9"
+    cur = FakeCursor()
+    loader.Registry._ensure_farmer(cur, farmer, "alex.carter", "nina.patel", "ETH-IND-0001")
+    insert = next(p for sql, p in cur.statements if sql.startswith('INSERT INTO "public"."g2p_register_farmers"'))
+    assert insert.count("FR-100000000001") >= 2  # farmer_id and functional_record_id
+
+
+def test_the_backfill_touches_only_the_loaders_own_copies_without_a_functional_id(loader):
+    cur = FakeCursor()
+    cur.rowcount = 7
+    registry = loader.Registry.__new__(loader.Registry)
+
+    class Managed:
+        def __enter__(self):
+            return cur
+
+        def __exit__(self, *exc):
+            return False
+
+    registry.conn = types.SimpleNamespace(cursor=Managed)
+    got = loader.Registry.backfill_functional_ids(registry, ["FR-1", "FR-2"], "alex.carter")
+    sql, params = cur.statements[0]
+    assert got == 7 and params == (["FR-1", "FR-2"], "alex.carter")
+    assert sql.startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id WHERE")
+    assert "farmer_id = ANY(%s)" in sql and "created_by = %s" in sql and "coalesce(functional_record_id, '') = ''" in sql
+    assert sql.count("SET") == 1 and ", " not in sql.split("SET")[1].split("WHERE")[0]
+
+
+def test_the_defaults_leave_time_for_every_intake_and_a_wait_over_several_beats(loader):
+    assert loader.Loader.time_budget == 780 and loader.HARD_LIMIT == 840 and loader.INGEST_POLL <= 5
+    assert loader.Loader.time_budget < loader.HARD_LIMIT < 900
+
+
+class IngestRegistry:
+    """Registry.wait_for over a scripted database: the intake's status, then the register."""
+
+    def __init__(self, loader, statuses, record_after=None):
+        self.statuses, self.record_after, self.looks = list(statuses), record_after, 0
+        self.wait_for = lambda *a, **k: loader.Registry.wait_for(self, *a, **k)
+        self.ingested = lambda *a, **k: loader.Registry.ingested(self, *a, **k)
+
+    def rows(self, sql, params=()):
+        if "register_ingest_process_status FROM g2p_intake_form_submissions" in sql and "submission_id" in sql:
+            self.looks += 1
+            return [(self.statuses[min(self.looks - 1, len(self.statuses) - 1)],)]
+        if sql.startswith("SELECT 1 FROM"):
+            return [(1,)] if self.record_after is not None and self.looks >= self.record_after else []
+        return []
+
+
+def test_the_ingest_wait_ends_when_the_intake_is_processed_even_under_another_record_id(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda s: None)
+    registry = IngestRegistry(loader, ["PENDING", "PENDING", "PROCESSED"])
+    registry.wait_for("g2p_register_livestocks", "root", 60, "sub-1")
+    assert registry.looks == 3
+
+
+def test_the_ingest_wait_accepts_the_root_record_too(loader, monkeypatch):
+    monkeypatch.setattr(loader.time, "sleep", lambda s: None)
+    registry = IngestRegistry(loader, ["PENDING"], record_after=2)
+    registry.wait_for("g2p_register_livestocks", "root", 60, "sub-1")
+
+
+def test_an_ingest_that_does_not_finish_is_pending_not_a_failed_farmer(loader):
+    registry = FakeRegistry()
+
+    def wait_for(table, record_id, timeout, submission_id=None):
+        raise loader.IngestPending("slow")
+
+    registry.wait_for = wait_for
+    done, submitted, _ = run(loader, registry)
+    stages = [len(p["stages"]) for p in plan(loader)]
+    assert done["farmers failed"] == 0 and done["intakes approved, ingest pending"] == len(stages)
+    assert len(submitted) == len(stages)  # each farmer stops after its first stage
+    assert done["intakes left for the next run"] == sum(stages) - len(stages)
+
+
+def test_a_pending_farmer_reference_leaves_the_person_for_the_next_run_not_failed(loader):
+    cur = FakeCursor(reference=("ref-1", "FR-1", "local-1", "PENDING"))
+    with pytest.raises(loader.ReferencePending, match="PENDING"):
+        loader.Registry._ensure_farmer(cur, plan(loader)[0]["farmer"], "alex.carter", "nina.patel", "ETH-IND-0001")
+    cur = FakeCursor(reference=("ref-1", "FR-1", "local-1", "REJECTED"))
+    with pytest.raises(RuntimeError) as lasting:
+        loader.Registry._ensure_farmer(cur, plan(loader)[0]["farmer"], "alex.carter", "nina.patel", "ETH-IND-0001")
+    assert not isinstance(lasting.value, loader.ReferencePending)
+
+    registry = FakeRegistry()
+    real = registry.ensure_farmer
+
+    def ensure_farmer(farmer, *args):
+        if farmer["fayda_fin"] == "502628318720":
+            raise loader.ReferencePending("the farmer reference for 502628318720 is PENDING, not APPROVED")
+        return real(farmer, *args)
+
+    registry.ensure_farmer = ensure_farmer
+    done, submitted, _ = run(loader, registry)
+    assert done["farmers waiting for their farmer reference"] == 1 and done["farmers failed"] == 0
+    assert done["intakes left for the next run"] == 1 and len(submitted) == 1
+
+
+def test_a_failed_farmer_counts_its_stage_intakes_as_left(loader):
+    registry = FakeRegistry()
+
+    def ensure_farmer(farmer, *args):
+        raise RuntimeError("boom")
+
+    registry.ensure_farmer = ensure_farmer
+    done, _, _ = run(loader, registry)
+    assert done["farmers failed"] == 2 and done["intakes left for the next run"] == 2
+
+
+def test_a_failure_in_the_middle_of_an_intake_counts_that_intake_as_left(loader):
+    registry = FakeRegistry()
+    registry.approval_status = lambda sid: (_ for _ in ()).throw(RuntimeError("database away"))
+    done, _, _ = run(loader, registry)
+    assert done["farmers failed"] == 2 and done["intakes left for the next run"] == 2
+    assert done["intakes submitted"] == 2 and done["intakes approved and in the register"] == 0
+
+
+def test_a_refused_connection_is_retried_even_for_a_request_sent_once(loader, monkeypatch):
+    import urllib.error
+    import urllib.request
+
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    request = urllib.request.Request("http://api/intake-form-data/save_intake_form_submission")
+    refused = urllib.error.URLError(ConnectionRefusedError(111, "Connection refused"))
+    opener = FlakyOpener(refused, refused, 200)
+    assert loader.fetch(opener, request, attempts=1)[0] == 200 and opener.calls == 3
+    opener = FlakyOpener(*[refused] * loader.NETWORK_ATTEMPTS)
+    with pytest.raises(RuntimeError, match="Connection refused"):
+        loader.fetch(opener, request, attempts=1)
+    assert opener.calls == loader.NETWORK_ATTEMPTS
+
+
+def test_the_loader_waits_for_the_api_to_answer_before_its_first_call(loader, monkeypatch):
+    import urllib.error
+
+    slept, logged = [], []
+    monkeypatch.setattr(loader.time, "sleep", slept.append)
+    monkeypatch.setattr(loader, "log", logged.append)
+    opener = FlakyOpener(urllib.error.URLError(ConnectionRefusedError(111, "refused")), 503, 200)
+    monkeypatch.setattr(loader.urllib.request, "build_opener", lambda *handlers: opener)
+    loader.wait_until_ready("http://api:80/", timeout=60, poll=5)
+    assert opener.calls == 3 and slept == [5, 5]
+    assert any("answers" in line and "http://api:80/ping" in line for line in logged)
+
+
+def test_the_readiness_wait_gives_up_after_its_timeout_and_lets_the_first_call_report(loader, monkeypatch):
+    import urllib.error
+
+    monkeypatch.setattr(loader.time, "sleep", lambda seconds: None)
+    opener = FlakyOpener(*[urllib.error.URLError(ConnectionRefusedError(111, "refused"))] * 50)
+    monkeypatch.setattr(loader.urllib.request, "build_opener", lambda *handlers: opener)
+    ticks = itertools.count(0, 100)
+    monkeypatch.setattr(loader.time, "time", lambda: loader.STARTED + next(ticks) / 100)
+    loader.wait_until_ready("http://api", timeout=3, poll=1)
+    assert 1 <= opener.calls < 50
+
+
+def test_main_waits_for_the_api_before_signing_in():
+    source = (SEED / "load_sample_data.py").read_text(encoding="utf-8")
+    main = source[source.index("def main()"):]
+    assert main.index("wait_until_ready(api)") < main.index("session(env(")

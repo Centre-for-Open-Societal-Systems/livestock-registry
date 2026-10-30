@@ -60,11 +60,33 @@ answer is lost, the task is read again instead of resending it.
 
 Within the seed job's time (the deploy waits 15 minutes for the hook): the
 clock starts with the loader. After INTAKE_SEED_TIME_BUDGET seconds (default
-420) no further intake starts, and after INTAKE_SEED_HARD_LIMIT (default 660)
+780) no further intake starts, and after INTAKE_SEED_HARD_LIMIT (default 840)
 no request starts and no wait goes on (each try's timeout is cut to the time
 left); what is left is counted and the next upgrade's seed continues it, so
-the loader ends within about 11 minutes. INTAKE_SEED_APPROVE_TIMEOUT and
-INTAKE_SEED_INGEST_TIMEOUT (default 180 s each) bound the waits of one intake.
+the loader ends within 14 minutes. INTAKE_SEED_APPROVE_TIMEOUT (default 180 s)
+and INTAKE_SEED_INGEST_TIMEOUT (default 420 s) bound the waits of one intake.
+
+The ingest wait watches the approved intake's own ingest status
+(register_ingest_process_status = PROCESSED), as the register's record may carry
+an id the ingest chose, not the loader's root id (the worker beats approve,
+ingest and allocate ids in turn, 20 s apart). An intake still not ingested when
+the wait ends is not a failed farmer: it is approved, so the next run sees it as
+approved; the farmer's later stages wait for that run, as they build on it.
+
+Readiness: the job can start before the staff API accepts connections, so the
+loader first polls the API's /ping (INTAKE_SEED_READY_TIMEOUT, default 240 s)
+before its first call. A connection that is refused (nothing was sent) is
+retried even for a request that must not be applied twice.
+
+Location: the Livestock form requires the Location section's administrative
+hierarchy. It is filled from the sample person's place in the pack's geography
+(the kebele and its woreda, zone and region), the way the staff UI's geo-hierarchy
+widget and the ODK transform write it, next to the holding's coordinates the
+pack gives.
+
+A sample person whose farmer reference is still PENDING in this registry (a
+change request waiting for its approvers) is not a failure: the reference is
+the platform's to approve, so the person is left for the next run.
 
 Network: requests cross the public ingress (staff IAM, Keycloak) and the
 staff API; a connection error, a timeout or a gateway status (502, 503, 504)
@@ -96,12 +118,16 @@ TRANSIENT_HTTP = (502, 503, 504)  # the gateway's answer when the service behind
 NETWORK_ATTEMPTS = 4
 REQUEST_TIMEOUT = 30  # seconds per try
 STARTED = time.time()  # the time budget counts from here
-# No request starts after STARTED + HARD_LIMIT seconds (INTAKE_SEED_HARD_LIMIT, default 660).
-HARD_LIMIT = int(os.environ.get("INTAKE_SEED_HARD_LIMIT", "").strip() or 660)
+# No request starts after STARTED + HARD_LIMIT seconds (INTAKE_SEED_HARD_LIMIT, default 840).
+HARD_LIMIT = int(os.environ.get("INTAKE_SEED_HARD_LIMIT", "").strip() or 840)
+READY_TIMEOUT = int(os.environ.get("INTAKE_SEED_READY_TIMEOUT", "").strip() or 240)  # seconds to wait for the API
+READY_POLL = 5  # seconds between looks at the API
 # The root record of every intake the loader enters has an id only the loader makes (uuid5 of the sample
 # person, the form and the year): a rerun resumes only its own intakes, never one somebody else entered.
 SEED_RECORDS = uuid.UUID("5d3f0f8e-6c1a-4b7e-9a51-3c2f8e0d7a41")
 TASK_PAGE_SIZE, TASK_PAGES = 100, 20
+INGEST_POLL = 3  # seconds between looks at an approved intake's ingest
+GEO_LEVELS = ("region", "zone", "woreda", "kebele")  # the levels under the country, in order
 PACK = os.environ.get("SAMPLE_PACK", "ETH-OAN")
 OPENG2P_DATA_DIR = Path(os.environ.get("OPENG2P_DATA_DIR", "/openg2p-data"))
 SOURCE_SYSTEM = os.environ.get("FARMER_REFERENCE_SOURCE_SYSTEM", "farmer-registry")
@@ -118,6 +144,14 @@ STAGES = (
       ("livestock_breeding_details_section_01", "breeding"))),
 )
 LOCATION = "livestock_livestock_location_section_03"
+
+
+class IngestPending(RuntimeError):
+    """An approved intake is not in the register yet; the next run finds it approved."""
+
+
+class ReferencePending(RuntimeError):
+    """The person's farmer reference waits for approval; the next run finds it decided."""
 
 
 def log(message: str) -> None:
@@ -159,6 +193,21 @@ def place_chain(places: dict[str, dict], pcode: str) -> list[dict]:
     return chain
 
 
+def location_section(chain: list[dict], root: str, pack_location: dict | None) -> dict:
+    """The Location section row: the geo-hierarchy widget's document and lowest unit for the person's place,
+    plus the holding's coordinates the pack gives. The country is not a level of the form's hierarchy."""
+    levels = chain[1:] if chain and chain[0].get("level_id") == "l0" else chain
+    hierarchy = [{"level_id": unit["level_id"], "level": level, "level_mnemonic": level,
+                  "level_value_id": unit["level_value_id"], "level_value_mnemonic": unit["level_value_mnemonic"]}
+                 for unit, level in zip(levels, GEO_LEVELS)]
+    lowest = hierarchy[-1]["level_value_id"]
+    row = {"internal_record_id": root, **(pack_location or {}), "geo_lowest_level_value_id": lowest,
+           "geo_code_hierarchy_json": {"hierarchy": hierarchy, "lowest_level_value_id": lowest}}
+    for entry in hierarchy:
+        row[f"{entry['level']}_id"] = entry["level_value_id"]
+    return row
+
+
 def farmer_copy(person: dict, farm: dict, farmer_id: str, places: dict[str, dict]) -> dict:
     """The person as this registry's farmer register holds a Farmer: the reference profile fields."""
     names = (person.get("given_name"), person.get("fathers_name"),
@@ -186,8 +235,9 @@ def farmer_copy(person: dict, farm: dict, farmer_id: str, places: dict[str, dict
 
 
 def farmer_with_id(copy: dict, farmer_id: str) -> dict:
-    """The farmer copy under a Farmer ID, with the record name and search text the ORM would derive."""
-    return {**copy, "farmer_id": farmer_id, "record_name": words(copy["farmer_name"], farmer_id),
+    """The farmer copy under a Farmer ID, with the functional record id (the Farmer ID, as the platform's
+    ingest sets it), the record name and the search text the ORM would derive."""
+    return {**copy, "farmer_id": farmer_id, "functional_record_id": farmer_id, "record_name": words(copy["farmer_name"], farmer_id),
             "search_text": words(farmer_id, copy["fayda_fin"], copy["farmer_name"], copy.get("mobile_number"))}
 
 
@@ -215,7 +265,10 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], p
                           "fayda_id": person["national_id"]}],
                 personnel_section: [{"internal_record_id": root, **(sample.get("survey_personnel") or {})}],
             }
-            if sample.get("location"):
+            if person.get("geo_pcode"):
+                sections[LOCATION] = [location_section(place_chain(places, person["geo_pcode"]), root,
+                                                       sample.get("location"))]
+            elif sample.get("location"):
                 sections[LOCATION] = [{"internal_record_id": root, **sample["location"]}]
             for section, key in lists:
                 rows = [{"internal_record_id": new_id(), "link_internal_record_id": root, **line}
@@ -261,7 +314,9 @@ def fetch(opener, request, timeout: int = REQUEST_TIMEOUT,
     carries a one-time code there.
     """
     where = f"{request.get_method()} {request.full_url.split('?', 1)[0]}"
-    for attempt in range(1, attempts + 1):
+    attempt = 0
+    while True:
+        attempt += 1
         left = time_left()
         if left <= 0:
             raise OutOfTime(f"{where}: not sent, the loader's {HARD_LIMIT}s are used")
@@ -271,15 +326,44 @@ def fetch(opener, request, timeout: int = REQUEST_TIMEOUT,
         except urllib.error.HTTPError as exc:
             status, headers, body = exc.code, exc.headers, exc.read()
         except (urllib.error.URLError, OSError) as exc:
-            if attempt == attempts:
+            # A refused connection delivered nothing, so even a request that must not be applied twice
+            # may be sent again.
+            refused = isinstance(getattr(exc, "reason", exc), ConnectionRefusedError)
+            if attempt >= (max(attempts, NETWORK_ATTEMPTS) if refused else attempts):
                 raise RuntimeError(f"{where}: {exc}") from exc
             status, headers, body = None, None, str(exc)
-        if status is not None and (status not in TRANSIENT_HTTP or attempt == attempts):
+        if status is not None and (status not in TRANSIENT_HTTP or attempt >= attempts):
             return status, headers, body
         wait = min(2 ** attempt, max(0, time_left()))
         log(f"{where}: {status or body}; again in {wait:.0f}s")
         time.sleep(wait)
-    raise AssertionError("unreachable")
+
+
+def wait_until_ready(api_url: str, timeout: int = READY_TIMEOUT, poll: float = READY_POLL) -> None:
+    """Poll the staff API's /ping until it answers, for up to `timeout` seconds (the job can start before the
+    API accepts connections). Returns when it never does: the first call then reports the failure."""
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=tls_context()))
+    url = f"{api_url.rstrip('/')}/ping"
+    deadline = time.time() + timeout
+    while True:
+        try:
+            with opener.open(urllib.request.Request(url), timeout=min(REQUEST_TIMEOUT, max(1, time_left()))) as reply:
+                if reply.status < 500:
+                    log(f"staff API answers ({url})")
+                    return
+                problem = f"status {reply.status}"
+        except urllib.error.HTTPError as exc:
+            if exc.code < 500:  # the server is up; /ping may need no more than that
+                log(f"staff API answers ({url}: {exc.code})")
+                return
+            problem = f"status {exc.code}"
+        except (urllib.error.URLError, OSError) as exc:
+            problem = str(exc)
+        if time.time() >= deadline or time_left() <= 0:
+            log(f"staff API not ready after {timeout}s ({url}: {problem}); going on")
+            return
+        log(f"staff API not ready ({problem}); looking again in {poll:.0f}s")
+        time.sleep(min(poll, max(0.0, deadline - time.time())))
 
 
 class StaffSession:
@@ -423,6 +507,8 @@ class Registry:
         found = cur.fetchone()
         if found:
             reference_id, farmer_id, local_id, state = found
+            if state == "PENDING":
+                raise ReferencePending(f"the farmer reference for {fin} is PENDING, not APPROVED")
             if state != "APPROVED":
                 raise RuntimeError(f"the farmer reference for {fin} is {state}, not APPROVED")
             cur.execute("SELECT 1 FROM g2p_register_farmers WHERE internal_record_id = %s", (local_id,))
@@ -462,6 +548,19 @@ class Registry:
         cur.execute(f'INSERT INTO "public"."g2p_register_farmers" ({", ".join(columns)})'
                     f" VALUES ({', '.join(['%s'] * len(columns))})", list(columns.values()))
 
+    def backfill_functional_ids(self, farmer_ids: list[str], created_by: str) -> int:
+        """Set functional_record_id = farmer_id on the loader's own earlier inserts that lack it.
+
+        Only the pack's sample Farmer IDs, only rows this loader created (created_by is the submitting
+        username; the platform's own flows record display names), only where the id is empty. Nothing
+        else is touched.
+        """
+        with self.conn.cursor() as cur:
+            cur.execute("UPDATE g2p_register_farmers SET functional_record_id = farmer_id"
+                        " WHERE farmer_id = ANY(%s) AND created_by = %s"
+                        " AND coalesce(functional_record_id, '') = ''", (farmer_ids, created_by))
+            return cur.rowcount
+
     def link(self, submission_id: str, reference_id: str) -> None:
         """Tie a draft intake to its approved farmer reference, so finalizing needs no Farmer lookup."""
         self.rows("INSERT INTO coss_farmer_submission_dependencies (submission_id, reference_id)"
@@ -480,29 +579,42 @@ class Registry:
                           (submission_id,))
         return found[0][0] if found else None
 
-    def wait_for(self, table: str, record_id: str, timeout: int) -> None:
+    def ingested(self, table: str, record_id: str, submission_id: str | None) -> bool:
+        """The intake's ingest is PROCESSED, or the register already holds the loader's root record."""
+        if submission_id:
+            found = self.rows("SELECT register_ingest_process_status FROM g2p_intake_form_submissions"
+                              " WHERE submission_id = %s", (submission_id,))
+            if found and found[0][0] == "PROCESSED":
+                return True
+        return bool(self.rows(f'SELECT 1 FROM "public"."{table}" WHERE internal_record_id = %s', (record_id,)))
+
+    def wait_for(self, table: str, record_id: str, timeout: int, submission_id: str | None = None) -> None:
         deadline = time.time() + timeout
-        while time.time() < deadline:
-            if self.rows(f'SELECT 1 FROM "public"."{table}" WHERE internal_record_id = %s', (record_id,)):
+        while True:
+            if self.ingested(table, record_id, submission_id):
                 return
-            time.sleep(3)
+            if time.time() >= deadline:
+                break
+            time.sleep(min(INGEST_POLL, max(0.0, deadline - time.time())))
         stuck = self.rows(
             "SELECT register_ingest_process_status, register_ingest_process_attempts,"
             " left(coalesce(register_ingest_process_last_error_code, ''), 300) FROM g2p_intake_form_submissions"
             " WHERE approval_status = 'APPROVED' AND register_ingest_process_status <> 'PROCESSED'"
             " ORDER BY approved_at DESC LIMIT 1")
-        raise RuntimeError(f"{table} {record_id} was not ingested within {timeout}s"
-                           + (f" (latest unprocessed intake: {stuck[0]})" if stuck else ""))
+        raise IngestPending(f"{table} {record_id} was not ingested within {timeout}s"
+                            + (f" (latest unprocessed intake: {stuck[0]})" if stuck else ""))
 
 
 # What a run reports: per sample farmer, then per stage intake.
 COUNTERS = ("farmers seeded", "farmers restored", "farmers referenced", "farmers failed", "farmers out of time",
+            "farmers waiting for their farmer reference",
             "intakes submitted", "drafts completed", "intakes resumed at approval",
-            "intakes approved and in the register", "intakes already approved", "intakes left for the next run")
+            "intakes approved and in the register", "intakes approved, ingest pending", "intakes already approved",
+            "intakes left for the next run")
 
 
 class Loader:
-    time_budget = 420  # seconds from the loader's start; INTAKE_SEED_TIME_BUDGET overrides
+    time_budget = 780  # seconds from the loader's start; INTAKE_SEED_TIME_BUDGET overrides
 
     def __init__(self, registry: Registry, submitter: StaffSession, approvers: list[StaffSession],
                  approve_timeout: int, ingest_timeout: int):
@@ -591,21 +703,25 @@ class Loader:
         stop_at = STARTED + self.time_budget
         approved_by = self.approvers[-1].username
         for person in planned:
+            accounted = 0  # this person's stage intakes counted as done, already approved or left over
             try:
                 who = f"{person['individual_id']} {person['farmer']['farmer_name']}"
                 reference = self.registry.ensure_farmer(person["farmer"], self.submitter.username, approved_by,
                                                         person["individual_id"])
                 done[f"farmers {reference['seeded']}"] += 1
                 log(f"  {who}: farmer {reference['farmer_id']} {reference['seeded']}")
-                for stage in person["stages"]:
+                for position, stage_def in enumerate(person["stages"]):
+                    stage = stage_def
                     if time.time() > stop_at:
                         done["intakes left for the next run"] += 1
+                        accounted += 1
                         continue
                     form_id = self.forms[stage["form"]][0]
                     stage = self._with_farmer_id(stage, reference["farmer_id"])
                     previous = self.registry.stage_intakes(form_id, person["foundational_id"], stage["root"])
                     if any(approval == "APPROVED" for _, _, approval, _ in previous):
                         done["intakes already approved"] += 1
+                        accounted += 1
                         log(f"    {stage['form']}: already approved")
                         continue
                     # Only the loader's own intakes (its root record id) are resumed or completed.
@@ -627,12 +743,29 @@ class Loader:
                         log(f"    {stage['form']}: intake {submission_id} submitted")
                         done["intakes submitted"] += 1
                     self.approve(submission_id)
-                    self.registry.wait_for("g2p_register_livestocks", stage["root"],
-                                           self.wait_time(self.ingest_timeout))
+                    try:
+                        self.registry.wait_for("g2p_register_livestocks", stage["root"],
+                                               self.wait_time(self.ingest_timeout), submission_id)
+                    except IngestPending as pending:
+                        # Approved, only the ingest is slow: not a failed farmer. Its later stages build
+                        # on this one, so they wait for the next run, which finds this one approved.
+                        remaining = len(person["stages"]) - position - 1
+                        done["intakes approved, ingest pending"] += 1
+                        done["intakes left for the next run"] += remaining
+                        accounted += 1 + remaining
+                        log(f"    {stage['form']}: approved, ingest pending ({pending}); "
+                            f"{remaining} later stages left for the next run")
+                        break
                     done["intakes approved and in the register"] += 1
+                    accounted += 1
                     log(f"    {stage['form']}: in the register")
             except Exception as exc:  # sample data must not fail the upgrade; the next run retries
-                if isinstance(exc, OutOfTime) or time_left() <= 0:
+                # Every stage not counted above is left for the next run, so the counters match the log.
+                done["intakes left for the next run"] += len(person["stages"]) - accounted
+                if isinstance(exc, ReferencePending):
+                    done["farmers waiting for their farmer reference"] += 1
+                    log(f"  {person['individual_id']}: waiting, left for the next run: {exc}")
+                elif isinstance(exc, OutOfTime) or time_left() <= 0:
                     done["farmers out of time"] += 1
                     log(f"  {person['individual_id']}: out of time, left for the next run: {exc}")
                 else:
@@ -687,6 +820,7 @@ def main() -> None:
 
     iam, api, password = staff_iam_url(), env("STAFF_API_URL"), env("INTAKE_SEED_PASSWORD")
     log(f"staff IAM {iam}")
+    wait_until_ready(api)
     sessions: dict[str, StaffSession] = {}
 
     def session(user: str) -> StaffSession:
@@ -700,7 +834,13 @@ def main() -> None:
             registry, session(env("INTAKE_SEED_SUBMIT_USER", "alex.carter")),
             [session(env("INTAKE_SEED_APPROVER_1", "alex.carter")),
              session(env("INTAKE_SEED_APPROVER_2", "nina.patel"))],
-            int(env("INTAKE_SEED_APPROVE_TIMEOUT", "180")), int(env("INTAKE_SEED_INGEST_TIMEOUT", "180")))
+            int(env("INTAKE_SEED_APPROVE_TIMEOUT", "180")), int(env("INTAKE_SEED_INGEST_TIMEOUT", "420")))
+        try:
+            fixed = registry.backfill_functional_ids([p["farmer"]["farmer_id"] for p in planned],
+                                                     loader.submitter.username)
+            log(f"{fixed} earlier sample farmer copies given their functional record id")
+        except Exception as exc:  # noqa: BLE001 - a nicety: sample data must not fail the upgrade
+            log(f"functional record id backfill skipped: {exc!r}")
         done = loader.run(planned)
     finally:
         registry.conn.close()
