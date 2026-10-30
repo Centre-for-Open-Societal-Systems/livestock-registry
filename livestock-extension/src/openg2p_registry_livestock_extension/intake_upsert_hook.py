@@ -24,17 +24,27 @@ Put it in the intake service's bases, before the platform service.
 
 from openg2p_registry_core.interfaces import G2PRegisterDomainFactory
 
+from .register_domain.services.domain_validation_utils import ingest_session
+
 
 class IntakeUpsertHook:
     async def save_intake_form_submission_with_session(
         self, submission_id, section_id, section_payload, section_register_id,
         form_id, register_id, created_by, session, documents=None,
     ):
-        submission = await super().save_intake_form_submission_with_session(
-            submission_id, section_id, section_payload, section_register_id,
-            form_id, register_id, created_by, session, documents=documents)
-        await self._run_post_intake_upsert(submission, section_register_id, session)
-        return submission
+        # The checks read through this save's own session, so they see rows it
+        # has flushed but not committed (the ingest worker commits once, after
+        # every section; a separate connection would not see this submission's
+        # animals).
+        token = ingest_session.set(session)
+        try:
+            submission = await super().save_intake_form_submission_with_session(
+                submission_id, section_id, section_payload, section_register_id,
+                form_id, register_id, created_by, session, documents=documents)
+            await self._run_post_intake_upsert(submission, section_register_id, session)
+            return submission
+        finally:
+            ingest_session.reset(token)
 
     async def _run_post_intake_upsert(self, submission, section_register_id, session) -> None:
         definition = await self._get_register_definition(section_register_id, session)
