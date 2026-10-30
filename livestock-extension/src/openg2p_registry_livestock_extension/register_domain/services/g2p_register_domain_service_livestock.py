@@ -90,6 +90,24 @@ def _extension_models():
     return importlib.import_module("openg2p_registry_extensions.register_domain.models")
 
 
+def mark_verified(register_row) -> bool:
+    """An approved intake reaching the register is VERIFIED, dated today.
+
+    post_approval_stage used to set this on the intake draft as AWE stages
+    completed, but registry-platform 1.2 never calls it, so every approved
+    holding kept a blank state. post_ingest runs once per approved intake on
+    every channel (web, ODK, File Import), after the approval chain, which is
+    the moment a holding is verified. An ARCHIVED holding and one already
+    VERIFIED are left alone. True if the state changed.
+    """
+    enum = _extension_models().LivestockStateEnum
+    if register_row.state in (enum.VERIFIED.value, enum.ARCHIVED.value):
+        return False
+    register_row.state = enum.VERIFIED.value
+    register_row.state_date = local_today()
+    return True
+
+
 class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
@@ -250,6 +268,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         """
         if register_id != LIVESTOCK_REGISTER_ID:
             return
+        mark_verified(register_row)
         await sync_admin_area(register_row)
         await self._sync_farmer_identity(register_row, session)
         from .domain_validation_utils import refresh_total_animals
