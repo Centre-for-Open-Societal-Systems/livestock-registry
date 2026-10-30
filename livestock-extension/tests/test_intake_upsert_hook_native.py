@@ -52,6 +52,14 @@ class IntakeUpsertHookNativeTests(unittest.IsolatedAsyncioTestCase):
             patcher = patch.object(getattr(services, name), "validate_domain_attributes", AsyncMock())
             patcher.start()
             self.addCleanup(patcher.stop)
+        # The platform's default reference is the second of the day plus one
+        # random digit, so drafts created in the same second can collide; give
+        # each draft of this test its own.
+        from uuid import uuid4
+        references = patch("openg2p_registry_core.helpers.application_reference_generator.generate_application_reference",
+                           side_effect=lambda now=None: "TEST-" + uuid4().hex[:12].upper())
+        references.start()
+        self.addCleanup(references.stop)
         # Checks that look across drafts open their own connection on the app engine.
         previous_engine = dbengine.get()
         dbengine.set(self.fixture.engine)
@@ -98,9 +106,12 @@ class IntakeUpsertHookNativeTests(unittest.IsolatedAsyncioTestCase):
         return submission.submission_id
 
     async def draft_with_animal(self, tag):
+        from openg2p_registry_core.models import G2PIntakeFormSubmission
         async with self.fixture.sessions.begin() as session:
             submission_id = await self.save(session, "survey", [{"surveyor_name": "Abebe"}])
             await self.save(session, "animals", [animal(tag)], submission_id)
+            reference = (await session.get(G2PIntakeFormSubmission, submission_id)).application_reference
+        self.assertTrue(reference.startswith("TEST-"), reference)
         return submission_id
 
     async def count_health_events(self):
