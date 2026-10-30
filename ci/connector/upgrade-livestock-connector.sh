@@ -10,6 +10,9 @@
 # definitions, checkpoints and webhook secrets are not touched: they live in the
 # connector database, which an upgrade does not migrate away.
 #
+# The connector API is admin-only: the verification mints a client-credentials token for the
+# Keycloak client registry-connector (secret from commons/registry-connector) and also asserts
+# that a request without a token is refused.
 # After the upgrade it removes, through the connector admin API, the four Crop Sown ODK
 # pipelines that the crop connector build seeded into this database (step 6).
 #
@@ -167,20 +170,73 @@ for d in api worker beat; do
   done
 done
 API_POD=$(kubectl get pod -n "$NAMESPACE" -l app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component=api -o name | head -n 1)
-kubectl exec -n "$NAMESPACE" "${API_POD#pod/}" -- python -c 'import json,urllib.request; print(json.load(urllib.request.urlopen("http://127.0.0.1:8050/connectors/meta", timeout=10))["webhook_verifiers"])'
+# The connector API is admin-only (Keycloak realm staff, client registry-connector, role
+# REGISTRY_CONNECTOR_ADMIN). Mint a client-credentials token for the client's service account.
+# The client secret is read from the Secret registry-connector in commons (key client_secret,
+# written by keycloak-init). Neither the secret nor the token is printed or put on a command line:
+# the token reaches the pod on stdin.
+KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.development.oanstaging.com}"
+TOKEN_URL="${KEYCLOAK_URL%/}/realms/staff/protocol/openid-connect/token"
+set +x
+client_secret=$(kubectl get secret registry-connector -n commons -o jsonpath='{.data.client_secret}' | base64 -d)
+[[ -n "$client_secret" ]] || { echo "Secret commons/registry-connector has no client_secret; cannot verify the admin-only API." >&2; exit 1; }
+ADMIN_TOKEN=$(CLIENT_SECRET="$client_secret" TOKEN_URL="$TOKEN_URL" python3 -c '
+import json, os, sys, urllib.error, urllib.parse, urllib.request
+body = urllib.parse.urlencode({"grant_type": "client_credentials", "client_id": "registry-connector",
+                               "client_secret": os.environ["CLIENT_SECRET"]}).encode()
+try:
+    with urllib.request.urlopen(urllib.request.Request(os.environ["TOKEN_URL"], data=body), timeout=20) as r:
+        print(json.load(r)["access_token"])
+except urllib.error.HTTPError as e:
+    sys.exit("Keycloak refused the registry-connector client-credentials grant: HTTP %s" % e.code)
+except Exception as e:
+    sys.exit("Could not obtain a registry-connector token from the token endpoint: %s" % type(e).__name__)
+')
+unset client_secret
+[[ -n "$ADMIN_TOKEN" ]] || { echo "Keycloak returned no access token for registry-connector." >&2; exit 1; }
+# Run a python program (argument 1, stdlib only) in the API pod. stdin carries the token on line 1,
+# then the program; the program sees it as TOKEN.
+pod_py() {
+  { printf '%s\n' "$ADMIN_TOKEN"; printf '%s\n' "$1"; } |
+    kubectl exec -i -n "$NAMESPACE" "${API_POD#pod/}" -- python -c 'import sys; TOKEN = sys.stdin.readline().strip(); exec(sys.stdin.read())'
+}
+# The upgrade exists to make this true: a request without a token must be refused.
+pod_py '
+import urllib.error, urllib.request
+try:
+    urllib.request.urlopen("http://127.0.0.1:8050/connectors/meta", timeout=10)
+except urllib.error.HTTPError as e:
+    if e.code not in (401, 403):
+        raise SystemExit("Unauthenticated GET /connectors/meta answered HTTP %s, expected 401 or 403" % e.code)
+    print("Unauthenticated GET /connectors/meta refused with HTTP %s" % e.code)
+else:
+    raise SystemExit("Unauthenticated GET /connectors/meta succeeded: the connector API is NOT admin-only")
+'
+pod_py '
+import json, urllib.request
+req = urllib.request.Request("http://127.0.0.1:8050/connectors/meta", headers={"Authorization": "Bearer " + TOKEN})
+print(json.load(urllib.request.urlopen(req, timeout=10))["webhook_verifiers"])
+'
 kubectl exec -n "$NAMESPACE" "${API_POD#pod/}" -- sh -c 'grep -rl "websub_content_envelope" "$(python -c "import openg2p_connector_service,os; print(os.path.dirname(openg2p_connector_service.__file__))")" | head -3'
 # 6. Remove the four Crop Sown ODK pipelines that the crop connector build (develop-116)
 # seeded at every start. Only now, with the livestock image running, does a removal last.
 # Through the connector's own admin API, by id, and only if the row still carries the
 # seeded name; a missing row is already gone.
-kubectl exec -i -n "$NAMESPACE" "${API_POD#pod/}" -- python - <<'PY'
+pod_py "$(cat <<'PY'
 import json, urllib.error, urllib.request
 BASE = "http://127.0.0.1:8050/connectors/"
+
+
+def call(url, method="GET"):
+    req = urllib.request.Request(url, method=method, headers={"Authorization": "Bearer " + TOKEN})
+    return urllib.request.urlopen(req, timeout=10)
+
+
 SEEDED = ("533b074b13544a8eb0a8fbd10c6f52ed", "24b12b2f3aac4ccdb5b876a604eb54aa",
           "54e73482cf304614a1f3db4982d907c5", "2e6c255ec645430e8f8a8c5d3d94f707")
 for cid in SEEDED:
     try:
-        row = json.load(urllib.request.urlopen(BASE + cid, timeout=10))
+        row = json.load(call(BASE + cid))
     except urllib.error.HTTPError as e:
         if e.code != 404:
             raise
@@ -188,14 +244,15 @@ for cid in SEEDED:
         continue
     if not str(row.get("name", "")).startswith("Crop Sown"):
         raise SystemExit(f"{cid} is named {row.get('name')!r}, not a seeded Crop Sown pipeline; not removed")
-    urllib.request.urlopen(urllib.request.Request(BASE + cid, method="DELETE"), timeout=10)
+    call(BASE + cid, "DELETE")
     print(f"{cid}: removed {row['name']!r}")
-rows = json.load(urllib.request.urlopen(BASE.rstrip("/"), timeout=10))
+rows = json.load(call(BASE.rstrip("/")))
 rows = rows if isinstance(rows, list) else rows.get("items") or rows.get("data") or []
 left = [c["name"] for c in rows if str(c.get("name", "")).startswith("Crop Sown")]
 if left:
     raise SystemExit(f"Crop Sown pipelines still present: {left}")
 print("No Crop Sown pipelines in the livestock connector.")
 PY
+)"
 helm history "$RELEASE" -n "$NAMESPACE" --max 3
 echo "Upgraded $RELEASE in $NAMESPACE to git (archive: $BACKUP_HOST:$BACKUP_DIR/$STAMP-connector-*)"
