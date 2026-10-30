@@ -2,8 +2,8 @@ def call() {
 
 pipeline {
     parameters {
-        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['publish-only', 'deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
-            description: 'develop only. publish-only (the default, also for polled builds) builds and pushes the images. deploy upgrades the existing New Dev release with them. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the manifest diff and server-side dry run of the livestock-connector release against ci/connector. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the livestock-connector release to ci/connector (chart + values, --reset-values), printing the manifest diff and a server-side dry run first.')
+        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
+            description: 'develop only. There is nothing to choose for a normal build: every develop build (push, merge or poll) builds and pushes the images, upgrades the existing New Dev release with them and, if the upgrade or a rollout fails, rolls the release back to the last deployed revision (deploy, the default). The other actions are deliberate maintenance runs. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the manifest diff and server-side dry run of the livestock-connector release against ci/connector. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the livestock-connector release to ci/connector (chart + values, --reset-values), printing the manifest diff and a server-side dry run first.')
     }
     // Validation and image builds run on any build agent; only the deploy
     // stages below run on vpn-agent2, the one node that reaches the clusters.
@@ -37,6 +37,8 @@ pipeline {
         // stage and values-dev.yaml were removed, so there is now one dev target.
         DEV_NAMESPACE            = 'livestock'
         DEV_KUBECONFIG_CRED_ID   = 'livestock-dev-kubeconfig'
+        // GitHub App credential used by the last stage to push a branch and open the chart-pin pull request.
+        PIN_PR_CRED_ID           = 'oan-ci-app'
 
         // livestock-registry-dashboard-api lives in its own (public) repository
         // and is built here beside the registry images. Each branch builds the
@@ -66,6 +68,8 @@ pipeline {
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_oan_chart.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_deployment_guard.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work oan/livestock-reference-tests:rc557 -m unittest discover -s test -p test_onboarding_runner_failure.py -v'
+                // Rollback of a failed deploy and the chart-pin updater, with stand-in helm/kubectl and GitHub (no cluster, no network).
+                sh 'python3 -m unittest discover -s test -p test_deploy_ci.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src oan/livestock-reference-tests:rc557 -m unittest discover -s livestock-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
@@ -136,7 +140,7 @@ pipeline {
 
         stage('Build & Push Images') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' }
-                           expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['connector-plan', 'connector-upgrade']) } } }
+                           expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) } } }
             // Per-build Docker config: login, push and logout never touch the agent user's shared ~/.docker/config.json, so concurrent builds on one host cannot invalidate each other's ECR credentials.
             environment { DOCKER_CONFIG = "${env.WORKSPACE}/.docker-${env.BUILD_TAG}" }
             steps {
@@ -277,35 +281,40 @@ EOF
             when {
                 beforeAgent true
                 branch 'develop'
-                // A branch-index or polled build has no explicit action: it publishes
-                // only; deploy and fresh-install are requested on purpose.
-                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'publish-only') in ['publish-only', 'connector-plan', 'connector-upgrade']) }
+                // Every develop build deploys: there is no publish-only mode. An empty value, or
+                // the retired 'publish-only' that Jenkins may still pass on the first run after
+                // this change, is a normal deploy. Only the connector maintenance actions skip it.
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options { timeout(time: 60, unit: 'MINUTES') }
             steps {
                 sh 'rm -rf ci scripts .central-charts'
                 unstash 'deploy'
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
-                        script {
-                            def deployEnv = [
-                                "DEV_NAMESPACE=${DEV_NAMESPACE}", "ECR_REGISTRY=${env.ECR_REGISTRY}", "ECR_PATH=${ECR_PATH}",
-                                "IMAGE_TAG=${env.IMAGE_TAG}", "DASHBOARD_UI_ECR=${DASHBOARD_UI_ECR}", "DASHBOARD_UI_SHA=${env.DASHBOARD_UI_SHA}",
-                            ]
-                            withEnv(deployEnv) {
-                                if (params.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
-                                    // The database archive goes to the New Dev box over the existing backup key.
-                                    withCredentials([sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
-                                        sh 'bash ci/deploy/fresh-install-livestock-dev.sh'
-                                    }
-                                } else {
-                                    sh 'bash ci/deploy/deploy-livestock-dev.sh'
+                // A failed deploy is rolled back by ci/deploy/deploy-livestock-dev.sh and then fails
+                // the build: no catchError, so it is never reported as a pass.
+                withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
+                    script {
+                        def deployEnv = [
+                            "DEV_NAMESPACE=${DEV_NAMESPACE}", "ECR_REGISTRY=${env.ECR_REGISTRY}", "ECR_PATH=${ECR_PATH}",
+                            "IMAGE_TAG=${env.IMAGE_TAG}", "DASHBOARD_UI_ECR=${DASHBOARD_UI_ECR}", "DASHBOARD_UI_SHA=${env.DASHBOARD_UI_SHA}",
+                        ]
+                        withEnv(deployEnv) {
+                            if (params.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
+                                // The database archive goes to the New Dev box over the existing backup key.
+                                withCredentials([sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
+                                    sh 'bash ci/deploy/fresh-install-livestock-dev.sh'
                                 }
+                            } else {
+                                sh 'bash ci/deploy/deploy-livestock-dev.sh'
                             }
                         }
-                        archiveArtifacts artifacts: 'newdev-rendered-*.yaml', allowEmptyArchive: true
                     }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'newdev-rendered-*.yaml, deploy-failure-*.txt', allowEmptyArchive: true
                 }
             }
         }
@@ -333,6 +342,29 @@ EOF
                                          sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
                             sh 'bash ci/connector/upgrade-livestock-connector.sh'
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Propose chart pin update') {
+            // After a successful deploy: if oan-helm main has a newer Livestock chart or changed
+            // public values than ci/deploy/oan-chart.json, open a pull request to develop that moves
+            // the pin (branch bot/oan-chart-pin-*). It never deploys and never changes develop; a
+            // person reviews and merges it, and the next develop build deploys the new pin. A
+            // failure here (no GitHub access, a refused push) only marks this stage UNSTABLE.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['fresh-install', 'connector-plan', 'connector-upgrade']) }
+            }
+            agent { label 'vpn-agent2' }
+            options { timeout(time: 10, unit: 'MINUTES') }
+            steps {
+                checkout scm
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    withCredentials([usernamePassword(credentialsId: "${PIN_PR_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                        sh 'python3 ci/deploy/propose_pin_pr.py'
                     }
                 }
             }
@@ -441,12 +473,10 @@ Jenkins
                     body: """
 Hi ${committerName},
 
-Livestock Registry build or deployment failed. Deploy no longer uses
---atomic (dropped 2026-09-16 -- it was blocking on the already-broken
-id-generator Deployment and auto-rolling-back every run), so a Deploy
-failure does NOT automatically revert `live`. Check
-`helm history livestock-registry -n live` and `helm status livestock-registry -n live`
-to see exactly what state the release is in before assuming anything.
+Livestock Registry build or deployment failed. A failed New Dev deploy is
+rolled back to the last deployed revision (see deploy-failure-<build>.txt in the
+build's artifacts); database changes made by hooks are not undone. Check
+`helm history livestock-registry -n livestock` to see which revision is running.
 
 Job:    ${env.JOB_NAME}
 Branch: ${env.GIT_BRANCH}

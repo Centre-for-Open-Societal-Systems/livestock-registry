@@ -12,6 +12,10 @@
 #      route and Farmer-reference guards on the rendered workloads.
 #   4. helm upgrade --install, wait for the rollouts, deploy the dashboard UI and
 #      run the Farmer-reference guard against the live Deployments.
+#   5. If anything fails from the upgrade onwards, save the diagnostics
+#      (deploy-failure-<build>.txt) and `helm rollback` to the last revision that was
+#      `deployed` before this run (ci/deploy/release-rollback.sh), then fail. A first
+#      install has nothing to go back to. Hooks' database changes are not undone.
 #
 # Env (Jenkins supplies them):
 #   KUBECONFIG        livestock-dev-kubeconfig
@@ -34,10 +38,28 @@ DEV_NAMESPACE="${DEV_NAMESPACE:-livestock}"
 HELM_RELEASE="${HELM_RELEASE:-livestock-registry}"
 ECR_PATH="${ECR_PATH:-openg2p/livestock-registry}"
 BUILD_NUMBER="${BUILD_NUMBER:-local}"
+# shellcheck source=release-rollback.sh
+. "$REPO_ROOT/ci/deploy/release-rollback.sh"
+
+# Runs on every exit. Once the upgrade has started, a non-zero exit (the upgrade, a rollout, the
+# dashboard UI or the final guard) puts the release back before the build fails.
+UPGRADE_STARTED=0
+PREV=""
+WATCHER_PID=""
+on_exit() {
+  local rc=$?
+  trap - EXIT
+  if [ -n "$WATCHER_PID" ]; then kill "$WATCHER_PID" 2>/dev/null || true; fi
+  if [ "$rc" -ne 0 ] && [ "$UPGRADE_STARTED" = 1 ]; then
+    rollback_release "$HELM_RELEASE" "$DEV_NAMESPACE" "$PREV" "deploy failed (exit ${rc})" "deploy-failure-${BUILD_NUMBER}.txt" || true
+  fi
+  rm -rf "${WORK:-}"
+  exit "$rc"
+}
 
 python3 ci/deploy/oan_chart.py require-deployable registry dev
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+trap on_exit EXIT
 CHART=$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")
 CENTRAL_VALUES=$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")
 umask 077
@@ -48,6 +70,13 @@ if ! helm get values "$HELM_RELEASE" -n "$DEV_NAMESPACE" --all -o yaml > "$WORK/
   echo "No release $HELM_RELEASE in $DEV_NAMESPACE yet: installing on the chart's public values."
   : > "$WORK/current-values.yaml"
 fi
+# A release left half-way through an upgrade or rollback cannot be upgraded or rolled back: stop before changing anything.
+case "$(latest_status "$HELM_RELEASE" "$DEV_NAMESPACE")" in
+  pending-*) echo "FATAL: $HELM_RELEASE in $DEV_NAMESPACE is in a pending Helm operation; resolve it (helm history) before deploying." >&2; exit 1 ;;
+esac
+# The revision to go back to if this run fails: the last one Helm recorded as `deployed`.
+PREV="$(last_deployed_revision "$HELM_RELEASE" "$DEV_NAMESPACE")"
+if [ -n "$PREV" ]; then echo "rollback target: revision ${PREV}"; else echo "rollback target: none (no deployed revision found)"; fi
 
 IMAGE_SET_FLAGS=(
   --set "registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/staff-api"
@@ -117,8 +146,8 @@ save_hook_logs() {
   done
 ) &
 WATCHER_PID=$!
-trap 'kill "$WATCHER_PID" 2>/dev/null || true; rm -rf "$WORK"' EXIT
 
+UPGRADE_STARTED=1
 if ! helm upgrade --install "$HELM_RELEASE" "$CHART" -n "$DEV_NAMESPACE" \
     -f "$WORK/current-values.yaml" -f "$CENTRAL_VALUES" "${IMAGE_SET_FLAGS[@]}" \
     --cleanup-on-fail --timeout 15m; then
