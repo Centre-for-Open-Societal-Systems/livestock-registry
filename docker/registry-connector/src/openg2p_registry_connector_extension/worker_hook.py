@@ -11,7 +11,8 @@ def install(worker) -> None:
         return
     setattr(app, _MARK, True)
 
-    @app.task(name=requeue.TASK_NAME)
+    @app.task(name=requeue.TASK_NAME, time_limit=requeue.TIME_LIMIT_SECONDS,
+              soft_time_limit=requeue.TIME_LIMIT_SECONDS - 20)
     def redrive_unsigned() -> dict:
         from sqlalchemy.ext.asyncio import async_sessionmaker
 

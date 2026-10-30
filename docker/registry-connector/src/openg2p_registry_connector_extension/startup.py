@@ -15,7 +15,18 @@ failing .pth line, so each wrap waits for its module's own import instead:
 
 import importlib.abc
 import importlib.machinery
+import logging
 import sys
+
+_logger = logging.getLogger("connector.extension.startup")
+
+
+def _safely(extend, module) -> None:
+    """An extension failing must never stop the connector importing its own module."""
+    try:
+        extend(module)
+    except Exception:
+        _logger.exception("Extension hook %s failed for %s", getattr(extend, "__name__", extend), module.__name__)
 
 
 def _ingestion(module) -> None:
@@ -53,7 +64,7 @@ class _Loader(importlib.abc.Loader):
 
     def exec_module(self, module):
         self._loader.exec_module(module)
-        self._extend(module)
+        _safely(self._extend, module)
 
     def get_code(self, fullname):  # runpy (python -m) reads the code through the loader
         return self._loader.get_code(fullname)
@@ -73,6 +84,6 @@ class _Finder(importlib.abc.MetaPathFinder):
 def register() -> None:
     for name, extend in TARGETS.items():
         if name in sys.modules:
-            extend(sys.modules[name])
+            _safely(extend, sys.modules[name])
     if not any(isinstance(f, _Finder) for f in sys.meta_path):
         sys.meta_path.insert(0, _Finder())

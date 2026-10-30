@@ -61,7 +61,8 @@ def test_hook_wraps_the_published_ingestion_service():
 
 
 def test_signature_equals_the_scheme_the_registry_verifies_today():
-    data = {"event_type": "farmer_reference.changed.v1", "farmer_id": "FR-245216494759", "fayda_fan_id": "9988998899889988"}
+    data = {"event_type": "farmer_reference.changed.v1", "farmer_id": "FR-245216494759",
+            "fayda_fan_id": "9988998899889988"}
     env = svc()._wrap_in_g2p_envelope(Connector(secrets=STORED, sign_registry_payload=True), data, "evt-1")
     assert env["header"]["signature_algorithm"] == "EdDSA"
     assert env["header"]["signature"] == crop_d0cd4f9_signature(env["message"]["payload"])
@@ -92,7 +93,8 @@ def test_stored_key_wins_over_environment(monkeypatch):
 
 def test_odk_credentials_sit_beside_the_signing_key():
     secrets = {"email": "odk@example.org", "password": "x", **STORED}
-    env = svc()._wrap_in_g2p_envelope(Connector("odk_central", secrets=secrets, sign_registry_payload=True), {"a": 1}, "evt-6")
+    connector = Connector("odk_central", secrets=secrets, sign_registry_payload=True)
+    env = svc()._wrap_in_g2p_envelope(connector, {"a": 1}, "evt-6")
     assert env["header"]["signature_algorithm"] == "EdDSA"
 
 
@@ -148,14 +150,16 @@ def test_signing_without_key_fails_closed(monkeypatch):
 
 def test_prewrapped_payload_is_refused_by_a_signing_connector():
     with pytest.raises(ValueError, match="Prewrapped"):
-        svc()._wrap_in_g2p_envelope(Connector(secrets=STORED, sign_registry_payload=True), {"header": {"sender_id": "x"}}, None)
+        connector = Connector(secrets=STORED, sign_registry_payload=True)
+        svc()._wrap_in_g2p_envelope(connector, {"header": {"sender_id": "x"}}, None)
 
 
 def test_websub_content_string_is_read_before_data_path():
     notice = {"event_type": "farmer_reference.changed.v1", "farmer_id": "FR-245216494759"}
     raw = {"hub.topic": "oan.farmer-reference.changed.v1", "hub.content": json.dumps(notice)}
     assert svc()._extract_envelope(Connector(websub_content_envelope=True), raw) == notice
-    assert svc()._extract_envelope(Connector(websub_content_envelope=True, data_path="farmer_id"), raw) == notice  # non-dict result falls back
+    with_path = Connector(websub_content_envelope=True, data_path="farmer_id")
+    assert svc()._extract_envelope(with_path, raw) == notice  # non-dict result falls back
     assert svc()._extract_envelope(Connector(), raw) == raw  # switch off: published behaviour
 
 
