@@ -1,5 +1,6 @@
-"""The db-seed sample loader: the pack's sample farmers seeded as approved farmer references, their livestock
-entered as Livestock intakes and approved at both stages by the sample approvers."""
+"""The db-seed sample loader: each sample person is found in the registry's own Farmer references by Fayda
+number (the Farmer ID is the Farmer registry's, never invented), their livestock is entered as an intake and
+approved at both stages by the sample approvers, and the database is only read."""
 
 import ast
 import importlib.util
@@ -35,19 +36,21 @@ def loader():
                 sys.modules[name] = module
 
 
-def test_loader_signs_in_like_the_portal_and_writes_only_the_farmer_reference():
+def test_loader_signs_in_like_the_portal_and_never_writes_to_the_database():
     source = (SEED / "load_sample_data.py").read_text(encoding="utf-8")
     code = "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))
     for forbidden in ("grant_type", "KEYCLOAK_ADMIN", "admin-cli", "/admin/realms", "directAccessGrants",
-                      "DELETE FROM", "/approve_change_request"):
+                      "/approve_change_request"):
         assert forbidden not in code, forbidden
-    # The one UPDATE: the backfill of the functional record id on the loader's own farmer copies.
-    updates = re.findall(r"UPDATE [^\"]*", code)
-    assert len(updates) == 1
-    assert updates[0].startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id")
-    # The only rows written directly: the farmer copy, its reference, and the intake's link to it.
-    written = sorted(set(re.findall(r'INSERT INTO "?(?:public"\.")?"?(\w+)', code)))
-    assert written == ["coss_farmer_references", "coss_farmer_submission_dependencies", "g2p_register_farmers"]
+    # No database write of any kind: no statement that changes data, and a read-only connection.
+    assert not re.findall(r"\b(INSERT\s+INTO|UPDATE\s+[\"\w.]+\s+SET|DELETE\s+FROM|TRUNCATE|DROP\s|ALTER\s+TABLE|\.commit\()",
+                          code, re.IGNORECASE)
+    # The read-only session is the real guard: the database refuses a write whatever the text says.
+    assert "readonly=True" in code
+    assert "backfill_functional_ids" not in code and "ensure_farmer" not in code and "def link" not in code
+    # The Farmer reference is only read, and no Farmer ID is invented or read from the pack.
+    assert "FROM coss_farmer_references" in code
+    assert "farmer_ids.json" not in code and not re.search(r"FR-\d", source)
     for required in ("/auth/start_authentication_transaction", "kc-form-login", "/auth/callback",
                      "/intake-form-data/finalize_intake_form_submission", "/awe/submit_task_decision",
                      "INTAKE_SEED_APPROVER_1", "INTAKE_SEED_APPROVER_2", "INTAKE_SEED_PASSWORD"):
@@ -83,9 +86,8 @@ PEOPLE = [
      "birth_date": "1988-02-29", "phone": "+251911000002", "national_id": "721996394985",
      "geo_pcode": "ET01010102", "latitude": 14.4, "longitude": 37.7},
 ]
-FARMS = {"ETH-IND-0001": {"farmer": {"grandfathers_name": "Assefa"}},
-         "ETH-IND-0002": {"farmer": {"grandfathers_name": "Tadesse"}}}
-FARMER_IDS = {"ETH-IND-0001": "FR-100000000001", "ETH-IND-0002": "FR-100000000002"}
+# The Farmer IDs the Farmer registry generated, as the Farmer references in this registry carry them.
+REFERENCES = {"502628318720": "FR-209610506580", "721996394985": "FR-579834743732"}
 HERDS = [
     {"individual_id": "ETH-IND-0001",
      "survey_personnel": {"surveyor_name": "Hailu Gebre", "surveyor_mobile_number": "0911223344"},
@@ -104,7 +106,7 @@ HERDS = [
 
 def plan(loader, herds=HERDS, people=PEOPLE):
     ids = (f"id-{n}" for n in itertools.count(1))
-    return loader.plan(people, FARMS, FARMER_IDS, herds, PLACES, new_id=lambda: next(ids))
+    return loader.plan(people, herds, PLACES, new_id=lambda: next(ids))
 
 
 def test_each_person_is_one_livestock_intake_with_their_animals_and_events(loader):
@@ -115,8 +117,7 @@ def test_each_person_is_one_livestock_intake_with_their_animals_and_events(loade
     assert list(sections) == ["livestock_farmer_lookup", "livestock_survey_personnel_section_02",
                               "livestock_livestock_location_section_03", "livestock_animal_details_section_01",
                               "livestock_health_event_details_section_01", "livestock_breeding_details_section_01"]
-    assert sections["livestock_farmer_lookup"] == [{"internal_record_id": root, "farmer_id": "FR-100000000001",
-                                                    "fayda_id": "502628318720"}]
+    assert sections["livestock_farmer_lookup"] == [{"internal_record_id": root, "fayda_id": "502628318720"}]  # no Farmer ID yet
     assert sections["livestock_survey_personnel_section_02"][0]["surveyor_name"] == "Hailu Gebre"
     animal = sections["livestock_animal_details_section_01"][0]
     assert animal["link_internal_record_id"] == root and animal["registration_date"] == "2026-03-01"
@@ -126,12 +127,13 @@ def test_each_person_is_one_livestock_intake_with_their_animals_and_events(loade
     assert other["livestock_livestock_location_section_03"][0]["geo_lowest_level_value_id"] == "ET01010102"
 
 
-def test_the_farmer_copy_is_the_reference_profile_with_location_and_search_text(loader):
-    farmer = plan(loader)[0]["farmer"]
-    assert farmer["farmer_id"] == "FR-100000000001" and farmer["fayda_fin"] == "502628318720"
-    assert (farmer["first_name"], farmer["middle_name"], farmer["last_name"]) == ("Berhanu", "Abebe", "Assefa")
-    assert farmer["mobile_number"] == "0941923320" and farmer["kebele_id"] == "ET01010102"
-    assert "FR-100000000001" in farmer["search_text"] and "502628318720" in farmer["search_text"]
+def test_a_person_is_identified_by_the_fayda_number_with_birth_date_and_gender_and_carries_no_farmer_id(loader):
+    planned = plan(loader)
+    person = planned[0]
+    assert person["foundational_id"] == "502628318720"
+    assert (person["birth_date"], person["gender"]) == ("1984-08-06", "MALE")
+    assert "farmer_id" not in person and "farmer" not in person
+    assert "FR-" not in repr([(p, [s["sections"] for s in p["stages"]]) for p in planned])
 
 
 @pytest.mark.parametrize("change, message", [
@@ -145,26 +147,27 @@ def test_bad_samples_fail(loader, change, message):
         plan(loader, **change)
 
 
-class FakeRegistry:
-    def __init__(self, previous=None, existing=None):
-        self.previous, self.existing = dict(previous or {}), dict(existing or {})
-        self.status, self.waited, self.pending, self.seeded, self.failures = {}, [], [], [], {}
-        self.unprocessed = set()
+_LOADER = []
 
-    def ingest_pending(self, submission_id):
-        return submission_id in self.unprocessed
+
+class FakeRegistry:
+    def __init__(self, previous=None, references=None):
+        self.previous = dict(previous or {})
+        self.references = REFERENCES if references is None else dict(references)
+        self.status, self.waited, self.pending, self.looked_up, self.failures = {}, [], [], [], {}
+        self.unprocessed = set()
 
     def ingest_failure(self, submission_id):
         return self.failures.get(submission_id)
 
-    def ensure_farmer(self, farmer, created_by, approved_by, source_record_id):
-        if farmer["fayda_fin"] in self.existing:
-            farmer_id, how = self.existing[farmer["fayda_fin"]]
-            return {"reference_id": "ref-existing", "farmer_id": farmer_id, "local_farmer_id": "local-existing",
-                    "seeded": how}
-        self.seeded.append((farmer["farmer_id"], created_by, approved_by, source_record_id))
-        return {"reference_id": f"ref-{source_record_id}", "farmer_id": farmer["farmer_id"],
-                "local_farmer_id": "local", "seeded": "seeded"}
+    def ingest_pending(self, submission_id):
+        return submission_id in self.unprocessed
+
+    def farmer_reference(self, fayda_id, birth_date, gender, individual_id=None):
+        self.looked_up.append((fayda_id, birth_date, gender))
+        if fayda_id not in self.references:
+            raise _LOADER[0].ReferencePending(f"no farmer reference for Fayda number {fayda_id} yet")
+        return {"reference_id": f"ref-{fayda_id}", "farmer_id": self.references[fayda_id], "local_farmer_id": "local"}
 
     def stage_intakes(self, form_id, fin, root):
         return self.previous.get(fin, [])
@@ -202,6 +205,7 @@ class FakeApprover:
 
 
 def run(loader, registry):
+    _LOADER[:] = [loader]
     calls, submitted = [], []
     runner = loader.Loader.__new__(loader.Loader)
     runner.registry, runner.approve_timeout, runner.ingest_timeout = registry, 5, 5
@@ -209,13 +213,13 @@ def run(loader, registry):
     runner.approvers = [FakeApprover("alex.carter", 1, registry, calls), FakeApprover("nina.patel", 2, registry, calls)]
     runner.forms = {form: ("form-livestock", "register", {}) for form, _, _ in loader.STAGES}
 
-    def submit(stage, reference_id, draft=None):
+    def submit(stage, draft=None):
         if draft:
             submitted.append(("draft", draft))
             registry.pending.append(draft)
             return draft
         sid = f"sub-{len(submitted) + 1}"
-        submitted.append((reference_id, stage["sections"]["livestock_farmer_lookup"][0]["farmer_id"]))
+        submitted.append(("new", stage["sections"]["livestock_farmer_lookup"][0]["farmer_id"]))
         registry.pending.append(sid)
         return sid
 
@@ -223,24 +227,24 @@ def run(loader, registry):
     return runner.run(plan(loader)), submitted, calls
 
 
-def test_farmers_are_seeded_and_every_intake_approved_at_stage_1_then_stage_2(loader):
+def test_every_farmer_is_found_by_fayda_number_and_every_intake_approved_at_stage_1_then_stage_2(loader):
     registry = FakeRegistry()
     done, submitted, calls = run(loader, registry)
-    assert done == {**dict.fromkeys(loader.COUNTERS, 0), "farmers seeded": 2, "intakes submitted": 2,
+    assert done == {**dict.fromkeys(loader.COUNTERS, 0), "farmers referenced": 2, "intakes submitted": 2,
                     "intakes approved and in the register": 2}
-    assert registry.seeded[0] == ("FR-100000000001", "alex.carter", "nina.patel", "ETH-IND-0001")
-    assert submitted == [("ref-ETH-IND-0001", "FR-100000000001"), ("ref-ETH-IND-0002", "FR-100000000002")]
+    assert registry.looked_up == [("502628318720", "1984-08-06", "MALE"), ("721996394985", "1988-02-29", "FEMALE")]
+    assert submitted == [("new", REFERENCES["502628318720"]), ("new", REFERENCES["721996394985"])]
     decisions = [c for c in calls if c[1] == "/awe/submit_task_decision"]
     assert decisions == [("alex.carter", "/awe/submit_task_decision"), ("nina.patel", "/awe/submit_task_decision")] * 2
     assert [t for t, _ in registry.waited] == ["g2p_register_livestocks"] * 2
 
 
-@pytest.mark.parametrize("how", ["referenced", "restored"])
-def test_a_farmer_already_referenced_keeps_its_farmer_id(loader, how):
-    registry = FakeRegistry(existing={"502628318720": ("FR-209610506580", how)})
-    done, submitted, _ = run(loader, registry)
-    assert done[f"farmers {how}"] == 1 and done["farmers seeded"] == 1
-    assert submitted[0] == ("ref-existing", "FR-209610506580")
+def test_nobody_is_loaded_before_their_farmer_reference_arrives(loader):
+    registry = FakeRegistry(references={})
+    done, submitted, calls = run(loader, registry)
+    assert submitted == [] and calls == [] and done["farmers waiting for their farmer reference"] == 2
+    assert done["farmers failed"] == 0 and done["farmers referenced"] == 0
+    assert done["intakes left for the next run"] == 2
 
 
 def test_a_rerun_skips_approved_intakes_and_resumes_waiting_ones(loader):
@@ -251,49 +255,118 @@ def test_a_rerun_skips_approved_intakes_and_resumes_waiting_ones(loader):
     })
     registry.pending = ["sub-wait"]
     done, submitted, _ = run(loader, registry)
-    assert done == {**dict.fromkeys(loader.COUNTERS, 0), "farmers seeded": 2, "intakes resumed at approval": 1,
+    assert done == {**dict.fromkeys(loader.COUNTERS, 0), "farmers referenced": 2, "intakes resumed at approval": 1,
                     "intakes already approved": 1, "intakes approved and in the register": 1}
     assert submitted == [] and ("g2p_register_livestocks", second) in registry.waited
 
 
-class FakeCursor:
-    """A cursor over one reference row and the farmer copies, recording the statements it runs."""
+class ReadOnlyRegistry:
+    """Registry.farmer_reference over scripted query answers: the reference rows, then the farmer copy."""
 
-    def __init__(self, reference=None, copies=()):
-        self.reference, self.copies, self.statements, self._result = reference, set(copies), [], []
+    def __init__(self, loader, references, copy=None):
+        self.statements, self.references, self.copy = [], references, copy
+        self.farmer_reference = loader.Registry.farmer_reference.__get__(self)
 
-    def execute(self, sql, params=()):
+    def rows(self, sql, params=()):
         self.statements.append((" ".join(sql.split()), params))
         if "FROM coss_farmer_references" in sql:
-            self._result = [self.reference] if self.reference else []
-        elif "WHERE internal_record_id = %s" in sql:
-            self._result = [(1,)] if params[0] in self.copies else []
-        else:
-            self._result = []
-
-    def fetchone(self):
-        return self._result[0] if self._result else None
-
-    def fetchall(self):
-        return self._result
+            return self.references
+        return [self.copy] if self.copy else []
 
 
-def inserts(cur):
-    return [sql.split(" (")[0] for sql, _ in cur.statements if sql.startswith("INSERT")]
+def test_an_approved_reference_gives_its_generated_farmer_id_by_fayda_number(loader):
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-209610506580", "local-1", "APPROVED", "src-ref-1")],
+                                copy=("1984-08-06", "MALE"))
+    got = registry.farmer_reference("502628318720", "1984-08-06", "MALE")
+    assert got == {"reference_id": "ref-1", "farmer_id": "FR-209610506580", "local_farmer_id": "local-1"}
+    assert registry.statements[0][1] == ("502628318720",)  # found by the Fayda number, never by name
+    assert all(sql.startswith("SELECT") for sql, _ in registry.statements)
 
 
-def test_a_new_farmer_gets_a_copy_and_an_approved_reference(loader):
-    cur = FakeCursor()
-    got = loader.Registry._ensure_farmer(cur, plan(loader)[0]["farmer"], "alex.carter", "nina.patel", "ETH-IND-0001")
-    assert got["seeded"] == "seeded" and got["farmer_id"] == "FR-100000000001"
-    assert inserts(cur) == ['INSERT INTO "public"."g2p_register_farmers"', "INSERT INTO coss_farmer_references"]
+def test_a_missing_or_pending_reference_is_pending_not_failed(loader):
+    with pytest.raises(loader.ReferencePending, match="no farmer reference"):
+        ReadOnlyRegistry(loader, []).farmer_reference("502628318720", "1984-08-06", "MALE")
+    with pytest.raises(loader.ReferencePending, match="PENDING, not APPROVED"):
+        ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "PENDING", "src-ref-1")]).farmer_reference(
+            "502628318720", None, None)
+    with pytest.raises(loader.ReferencePending, match="not in the register yet"):
+        ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1")]).farmer_reference(
+            "502628318720", None, None)
 
 
-def test_a_reference_whose_copy_was_deleted_gets_its_copy_back_under_its_own_ids(loader):
-    cur = FakeCursor(reference=("ref-1", "FR-245216494759", "local-1", "APPROVED"))
-    got = loader.Registry._ensure_farmer(cur, plan(loader)[0]["farmer"], "alex.carter", "nina.patel", "ETH-IND-0001")
-    assert got["seeded"] == "restored" and got["farmer_id"] == "FR-245216494759"
-    assert inserts(cur) == ['INSERT INTO "public"."g2p_register_farmers"']
+@pytest.mark.parametrize("rows, copy, message", [
+    ([("ref-1", "FR-1", "local-1", "REJECTED", "src-ref-1")], None, "REJECTED, not APPROVED"),
+    ([("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1"), ("ref-2", "FR-2", "local-2", "APPROVED", "src-ref-2")], None, "more than one"),
+    ([("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1")], ("1990-01-01", "MALE"), "birth date"),
+    ([("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1")], ("1984-08-06", "FEMALE"), "gender"),
+])
+def test_a_wrong_or_ambiguous_reference_is_refused(loader, rows, copy, message):
+    with pytest.raises(RuntimeError, match=message) as error:
+        ReadOnlyRegistry(loader, rows, copy).farmer_reference("502628318720", "1984-08-06", "MALE")
+    assert not isinstance(error.value, loader.ReferencePending)
+
+
+def test_gender_is_compared_by_its_first_letter_and_a_date_by_its_day(loader):
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1")],
+                                copy=("1984-08-06 00:00:00", "m"))
+    assert registry.farmer_reference("502628318720", "1984-08-06", "MALE")["farmer_id"] == "FR-1"
+
+
+def test_the_reference_is_looked_up_in_the_configured_farmer_source_only(loader, monkeypatch):
+    monkeypatch.delenv("FARMER_REFERENCE_SOURCE_SYSTEM", raising=False)
+    monkeypatch.setenv("COSS_FARMER_SOURCE_ID", "farmer-source")
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-209610506580", "local-1", "APPROVED", "src-1")],
+                                copy=("1984-08-06", "MALE"))
+    registry.farmer_reference("502628318720", "1984-08-06", "MALE", "ETH-IND-0001")
+    sql, params = registry.statements[0]
+    assert "source_system = %s" in sql and params == ("502628318720", "farmer-source")
+    assert "ORDER BY (state = 'APPROVED') DESC" in sql
+
+
+def test_a_reference_an_earlier_loader_wrote_is_not_a_farmer_reference(loader, monkeypatch):
+    monkeypatch.delenv("FARMER_REFERENCE_SOURCE_SYSTEM", raising=False)
+    monkeypatch.delenv("COSS_FARMER_SOURCE_ID", raising=False)
+    stale = ("ref-old", "FR-STALE", "local-old", "APPROVED", "ETH-IND-0001")  # source record id = the individual
+    with pytest.raises(loader.ReferencePending, match="earlier sample loader"):
+        ReadOnlyRegistry(loader, [stale]).farmer_reference("502628318720", None, None, "ETH-IND-0001")
+    real = ("ref-new", "FR-209610506580", "local-new", "APPROVED", "uuid-in-farmer-registry")
+    got = ReadOnlyRegistry(loader, [stale, real], copy=("1984-08-06", "MALE")).farmer_reference(
+        "502628318720", "1984-08-06", "MALE", "ETH-IND-0001")
+    assert got["farmer_id"] == "FR-209610506580"
+
+
+def test_references_of_one_farmer_from_two_sources_agree_and_pending_never_wins_over_approved(loader):
+    rows = [("ref-1", "FR-1", "local-1", "APPROVED", "a"), ("ref-2", "FR-1", "local-2", "APPROVED", "b")]
+    assert ReadOnlyRegistry(loader, rows, copy=("1984-08-06", "MALE")).farmer_reference(
+        "502628318720", "1984-08-06", "MALE")["farmer_id"] == "FR-1"
+    rows = [("ref-1", "FR-1", "local-1", "PENDING", "a"), ("ref-2", "FR-1", "local-2", "APPROVED", "b")]
+    assert ReadOnlyRegistry(loader, rows, copy=("1984-08-06", "MALE")).farmer_reference(
+        "502628318720", "1984-08-06", "MALE")["reference_id"] == "ref-2"
+
+
+@pytest.mark.parametrize("copy, message", [((None, "MALE"), "no birth date"), (("1984-08-06", None), "no gender"),
+                                           (("1984-08-06", ""), "no gender")])
+def test_a_missing_birth_date_or_gender_on_the_farmer_is_a_mismatch(loader, copy, message):
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "APPROVED", "src")], copy=copy)
+    with pytest.raises(RuntimeError, match=message) as error:
+        registry.farmer_reference("502628318720", "1984-08-06", "MALE")
+    assert not isinstance(error.value, loader.ReferencePending)
+
+
+def test_the_connection_is_read_only(loader, monkeypatch):
+    seen = {}
+
+    class Conn:
+        def set_session(self, **kwargs):
+            seen.update(kwargs)
+
+    fake = types.ModuleType("psycopg2")
+    fake.connect = lambda **kwargs: Conn()
+    monkeypatch.setitem(sys.modules, "psycopg2", fake)
+    for name in ("PGHOST", "PGDATABASE", "PGUSER", "PGPASSWORD"):
+        monkeypatch.setenv(name, "x")
+    loader.Registry()
+    assert seen == {"readonly": True, "autocommit": True}
 
 
 KEYCLOAK_TOKEN = "https://keycloak.example.org/realms/staff/protocol/openid-connect/token"
@@ -407,16 +480,16 @@ def test_no_intake_starts_once_the_time_budget_is_used(loader):
 
 def test_one_failing_farmer_does_not_stop_the_others(loader):
     registry = FakeRegistry()
-    real = registry.ensure_farmer
+    real = registry.farmer_reference
 
-    def ensure_farmer(farmer, *args):
-        if farmer["fayda_fin"] == "502628318720":
-            raise RuntimeError("this registry already holds another farmer")
-        return real(farmer, *args)
+    def farmer_reference(fayda_id, birth_date, gender, individual_id=None):
+        if fayda_id == "502628318720":
+            raise RuntimeError("more than one farmer reference")
+        return real(fayda_id, birth_date, gender, individual_id)
 
-    registry.ensure_farmer = ensure_farmer
+    registry.farmer_reference = farmer_reference
     done, submitted, _ = run(loader, registry)
-    assert done["farmers failed"] == 1 and done["farmers seeded"] == 1 and submitted
+    assert done["farmers failed"] == 1 and done["farmers referenced"] == 1 and submitted
 
 
 def test_a_request_sent_once_is_not_retried(loader):
@@ -496,7 +569,7 @@ def test_an_intake_somebody_else_entered_is_never_completed_or_approved(loader, 
     registry = FakeRegistry(previous={"502628318720": [("sub-tester", draft, approval, "a-testers-record")]})
     registry.pending = ["sub-tester"]
     done, submitted, _ = run(loader, registry)
-    assert ("draft", "sub-tester") not in submitted and submitted[0][0] == "ref-ETH-IND-0001"
+    assert ("draft", "sub-tester") not in submitted and submitted[0][0] == "new"
     assert done["intakes resumed at approval"] == 0 and done["drafts completed"] == 0
     assert registry.status.get("sub-tester") is None or registry.status["sub-tester"] != "APPROVED" \
         or ("g2p_register_livestocks", "a-testers-record") not in registry.waited
@@ -527,10 +600,10 @@ def test_a_try_never_waits_past_the_hard_limit(loader, monkeypatch):
 def test_out_of_time_counts_the_farmer_as_left_not_failed(loader):
     registry = FakeRegistry()
 
-    def ensure_farmer(farmer, *args):
+    def farmer_reference(fayda_id, birth_date, gender, individual_id=None):
         raise loader.OutOfTime("POST /x: not sent")
 
-    registry.ensure_farmer = ensure_farmer
+    registry.farmer_reference = farmer_reference
     done, _, _ = run(loader, registry)
     assert done["farmers out of time"] == 2 and done["farmers failed"] == 0
 
@@ -604,38 +677,6 @@ def test_a_person_without_a_place_keeps_only_the_packs_location(loader):
     sections = plan(loader, herds=herds, people=people)[1]["stages"][0]["sections"]
     assert sections[LOCATION_SECTION][0]["latitude"] == 1.0
     assert "geo_lowest_level_value_id" not in sections[LOCATION_SECTION][0]
-
-
-def test_the_farmer_copy_carries_its_functional_record_id(loader):
-    farmer = plan(loader)[0]["farmer"]
-    assert farmer["functional_record_id"] == farmer["farmer_id"] == "FR-100000000001"
-    assert loader.farmer_with_id(farmer, "FR-9")["functional_record_id"] == "FR-9"
-    cur = FakeCursor()
-    loader.Registry._ensure_farmer(cur, farmer, "alex.carter", "nina.patel", "ETH-IND-0001")
-    insert = next(p for sql, p in cur.statements if sql.startswith('INSERT INTO "public"."g2p_register_farmers"'))
-    assert insert.count("FR-100000000001") >= 2  # farmer_id and functional_record_id
-
-
-def test_the_backfill_touches_only_the_loaders_own_copies_without_a_functional_id(loader):
-    cur = FakeCursor()
-    cur.rowcount = 7
-    registry = loader.Registry.__new__(loader.Registry)
-
-    class Managed:
-        def __enter__(self):
-            return cur
-
-        def __exit__(self, *exc):
-            return False
-
-    registry.conn = types.SimpleNamespace(cursor=Managed)
-    got = loader.Registry.backfill_functional_ids(registry, ["FR-1", "FR-2"], "alex.carter")
-    sql, params = cur.statements[0]
-    assert got == 7 and params == (["FR-1", "FR-2"], "alex.carter")
-    assert sql.startswith("UPDATE g2p_register_farmers SET functional_record_id = farmer_id WHERE")
-    for part in ("farmer_id = ANY(%s)", "created_by = %s", "coalesce(functional_record_id, '') = ''"):
-        assert part in sql
-    assert sql.count("SET") == 1 and ", " not in sql.split("SET")[1].split("WHERE")[0]
 
 
 def test_the_defaults_leave_time_for_every_intake_and_a_wait_over_several_beats(loader):
@@ -748,7 +789,7 @@ def test_after_the_first_slow_ingest_no_further_farmer_starts(loader):
 
     registry.wait_for = wait_for
     done, submitted, _ = run(loader, registry)
-    assert len(submitted) == 1 and len(registry.seeded) == 1
+    assert len(submitted) == 1 and len(registry.looked_up) == 1
     assert done["intakes approved, ingest pending"] == 1 and done["farmers failed"] == 0
     assert done["intakes left for the next run"] == 1  # the second farmer's stage
 
@@ -774,24 +815,8 @@ def test_the_job_start_comes_from_the_environment_or_pid_1_and_ignores_nonsense(
     assert abs(loader.job_started() - now) < 5
 
 
-def test_a_pending_farmer_reference_leaves_the_person_for_the_next_run_not_failed(loader):
-    cur = FakeCursor(reference=("ref-1", "FR-1", "local-1", "PENDING"))
-    with pytest.raises(loader.ReferencePending, match="PENDING"):
-        loader.Registry._ensure_farmer(cur, plan(loader)[0]["farmer"], "alex.carter", "nina.patel", "ETH-IND-0001")
-    cur = FakeCursor(reference=("ref-1", "FR-1", "local-1", "REJECTED"))
-    with pytest.raises(RuntimeError) as lasting:
-        loader.Registry._ensure_farmer(cur, plan(loader)[0]["farmer"], "alex.carter", "nina.patel", "ETH-IND-0001")
-    assert not isinstance(lasting.value, loader.ReferencePending)
-
-    registry = FakeRegistry()
-    real = registry.ensure_farmer
-
-    def ensure_farmer(farmer, *args):
-        if farmer["fayda_fin"] == "502628318720":
-            raise loader.ReferencePending("the farmer reference for 502628318720 is PENDING, not APPROVED")
-        return real(farmer, *args)
-
-    registry.ensure_farmer = ensure_farmer
+def test_a_person_waiting_for_the_farmer_reference_is_left_for_the_next_run_not_failed(loader):
+    registry = FakeRegistry(references={"721996394985": REFERENCES["721996394985"]})
     done, submitted, _ = run(loader, registry)
     assert done["farmers waiting for their farmer reference"] == 1 and done["farmers failed"] == 0
     assert done["intakes left for the next run"] == 1 and len(submitted) == 1
@@ -800,10 +825,10 @@ def test_a_pending_farmer_reference_leaves_the_person_for_the_next_run_not_faile
 def test_a_failed_farmer_counts_its_stage_intakes_as_left(loader):
     registry = FakeRegistry()
 
-    def ensure_farmer(farmer, *args):
+    def farmer_reference(fayda_id, birth_date, gender, individual_id=None):
         raise RuntimeError("boom")
 
-    registry.ensure_farmer = ensure_farmer
+    registry.farmer_reference = farmer_reference
     done, _, _ = run(loader, registry)
     assert done["farmers failed"] == 2 and done["intakes left for the next run"] == 2
 
@@ -869,7 +894,7 @@ def test_a_rerun_does_not_count_an_approved_intake_that_is_not_ingested_as_alrea
     done, submitted, _ = run(loader, registry)
     assert done["intakes already approved"] == 0 and done["intakes approved, ingest pending"] == 1
     assert done["farmers failed"] == 0 and submitted == []  # the second farmer waits for the next run
-    assert done["intakes left for the next run"] == 1 and len(registry.seeded) == 1
+    assert done["intakes left for the next run"] == 1 and len(registry.looked_up) == 1
 
 
 def test_a_country_level_place_gives_no_location_section_and_is_logged(loader, monkeypatch):

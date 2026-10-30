@@ -18,11 +18,11 @@ COPY docker/db-seed/migrations/ /seed/migrations/
 COPY --chmod=755 docker/db-seed/apply-migrations.sh /seed/apply-migrations.sh
 # openg2p-data: the COSS repository at a pinned commit, checked out at
 # /openg2p-data in place of the platform's copy. It is the only source of seed
-# data in this image: the ETH-OAN pack's sample farmers and their livestock
-# (samples/farmer_ids.json, samples/livestock.json, LOAD_SAMPLE_DATA=true) and
+# data in this image: the ETH-OAN pack's sample people and their livestock
+# (samples/individuals.json, samples/livestock.json, LOAD_SAMPLE_DATA=true) and
 # the OAN staff-portal theme (themes/oan_theme: palette and background image).
 ARG OPENG2P_DATA_REPO=https://github.com/Centre-for-Open-Societal-Systems/openg2p-data.git
-ARG OPENG2P_DATA_REF=34b239463cc38af8c028428df1eb52d786cc14c2
+ARG OPENG2P_DATA_REF=2614a3252a078d8c24f1d982d6e3e702d56b5de7
 RUN rm -rf /openg2p-data && mkdir -p /openg2p-data && cd /openg2p-data     && git init -q && git remote add origin ${OPENG2P_DATA_REPO}     && git fetch -q --depth 1 origin ${OPENG2P_DATA_REF} && git checkout -q FETCH_HEAD     && rm -rf .git
 COPY --chmod=755 docker/db-seed/load_sample_data.py /seed/
 # The image is the platform's db-seed with the Livestock extension's metadata,
