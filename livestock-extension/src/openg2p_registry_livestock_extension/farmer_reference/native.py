@@ -27,6 +27,7 @@ INGESTION_PIPELINE_SOURCE = ChangeRequestSourceEnum.INGESTION_PIPELINE.value
 
 from ..direct_approval import DirectApprovalClosed
 from ..fayda_id_view import FaydaIdMixin
+from ..intake_upsert_hook import IntakeUpsertHook
 from ..required_intake import RequiredFieldsMixin
 from . import messages
 from .configuration import configured_lookup
@@ -193,10 +194,12 @@ def _issue_code(reference_code: str) -> str:
     return "FARMER_NOT_FOUND"
 
 
-class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, DirectApprovalClosed, G2PIntakeFormDataService):
+class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, IntakeUpsertHook, DirectApprovalClosed, G2PIntakeFormDataService):
     # FaydaIdMixin shows a stored FIN or FAN in the Fayda ID box and keeps it on a
     # blank re-save (fayda_id_view.py); RequiredFieldsMixin refuses a save or a
-    # submit that leaves a required field empty, on every channel (required_intake.py).
+    # submit that leaves a required field empty, on every channel (required_intake.py);
+    # IntakeUpsertHook runs the domain services' post_intake_upsert after the rows
+    # are saved, for the checks that need the submission (intake_upsert_hook.py).
     # No approve_submission here: the DirectApprovalClosed guard answers a
     # direct approval first, for every register, before any lookup, so a
     # made-up id and a real one get the same AWE_APPROVAL_REQUIRED.
