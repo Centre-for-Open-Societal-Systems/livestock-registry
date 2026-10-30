@@ -2,12 +2,18 @@
 """Load the Livestock Registry's sample data (db-seed, LOAD_SAMPLE_DATA=true).
 
 The sample farmers are the Farmer Registry's sample people (the ETH-OAN pack in
-openg2p-data). Seeding never asks the Farmer Registry for them, which need not
-be running: each one is written straight into this registry's own farmer
-register, as an approved farmer reference carrying the pack's sample Farmer ID
-(samples/farmer_ids.json). A sample person this registry already references
-keeps that reference and its Farmer ID; a reference whose farmer copy is gone
-gets the copy back.
+openg2p-data). This loader never creates a Farmer or a Farmer reference and
+never invents a Farmer ID: the Farmer Registry generates every Farmer ID, and
+its outgestion events deliver each approved Farmer to this registry as a Farmer
+reference change request, approved here by the registry's own approvers. The
+loader finds a sample person's Farmer reference by the person's Fayda number
+(then checks birth date and gender), takes the real Farmer ID from it, and
+enters the person's records with it. The database is only read; every write
+goes through the staff API.
+
+A person whose Farmer reference is missing or not yet approved is not a
+failure: the person is counted as waiting for the Farmer reference, logged,
+and left for the next run.
 
 Their livestock is entered the way an officer enters it, and approved the way
 every register change is approved:
@@ -15,8 +21,8 @@ every register change is approved:
 - for each person in samples/livestock.json, one Livestock intake (survey
   personnel, location, animals and their health, vaccination, vital and
   breeding events), saved section by section through the staff API;
-- the intake is linked to the seeded farmer reference before it is finalized,
-  so finalizing does not look the farmer up in the Farmer Registry;
+- finalizing is the platform's own step: it looks the declared Farmer ID and Fayda
+  number up and links the approved Farmer reference;
 - the approval request's stage 1 is approved as INTAKE_SEED_APPROVER_1 and its
   stage 2 as INTAKE_SEED_APPROVER_2, through the staff API's AWE proxy;
 - the registry's workers ingest the approved intake into the register.
@@ -38,8 +44,7 @@ issued for that domain.
 
 Idempotent: a person whose Livestock intake is already approved is skipped; a
 finalized intake still waiting for approval is approved rather than entered
-again. A draft intake a failed run left behind (it is linked to
-the farmer reference as soon as it exists) is completed rather than entered
+again. A draft intake a failed run left behind is completed rather than entered
 again: saving a section replaces that section's rows.
 
 A sample farmer whose intake fails (after the network retries) is logged and
@@ -91,10 +96,6 @@ hierarchy. It is filled from the sample person's place in the pack's geography
 (the kebele and its woreda, zone and region), the way the staff UI's geo-hierarchy
 widget and the ODK transform write it, next to the holding's coordinates the
 pack gives.
-
-A sample person whose farmer reference is still PENDING in this registry (a
-change request waiting for its approvers) is not a failure: the reference is
-the platform's to approve, so the person is left for the next run.
 
 Network: requests cross the public ingress (staff IAM, Keycloak) and the
 staff API; a connection error, a timeout or a gateway status (502, 503, 504)
@@ -163,8 +164,6 @@ INGEST_POLL = 3  # seconds between looks at an approved intake's ingest
 GEO_LEVELS = ("region", "zone", "woreda", "kebele")  # the levels under the country, in order
 PACK = os.environ.get("SAMPLE_PACK", "ETH-OAN")
 OPENG2P_DATA_DIR = Path(os.environ.get("OPENG2P_DATA_DIR", "/openg2p-data"))
-SOURCE_SYSTEM = os.environ.get("FARMER_REFERENCE_SOURCE_SYSTEM", "farmer-registry")
-DIAL_CODE = "+251"
 LOOKUP = "livestock_farmer_lookup"
 # The form, its survey personnel section, and its list sections with the pack key
 # that fills them; the first list (animals) must have rows.
@@ -197,13 +196,6 @@ def log(message: str) -> None:
 
 def words(*parts) -> str:
     return " ".join(str(p) for p in parts if p not in (None, ""))
-
-
-def local_phone(e164: str | None) -> str | None:
-    """+251941923320 -> 0941923320, the way an officer types it."""
-    if not e164:
-        return None
-    return "0" + e164[len(DIAL_CODE):] if e164.startswith(DIAL_CODE) else e164.lstrip("+")
 
 
 class Pack:
@@ -249,43 +241,9 @@ def location_section(chain: list[dict], root: str, pack_location: dict | None) -
     return row
 
 
-def farmer_copy(person: dict, farm: dict, farmer_id: str, places: dict[str, dict]) -> dict:
-    """The person as this registry's farmer register holds a Farmer: the reference profile fields."""
-    names = (person.get("given_name"), person.get("fathers_name"),
-             (farm.get("farmer") or {}).get("grandfathers_name"))
-    if not all(names):
-        raise RuntimeError(f"{person['individual_id']} needs a given, father's and grandfather's name")
-    name = words(*names)
-    copy = {
-        "farmer_id": farmer_id, "fayda_fin": person["national_id"], "farmer_name": name,
-        "first_name": names[0], "middle_name": names[1], "last_name": names[2],
-        "gender": person.get("gender"), "date_of_birth": person.get("birth_date"),
-        "mobile_number": local_phone(person.get("phone")), "country_code": "ET",
-        "latitude": person.get("latitude"), "longitude": person.get("longitude"),
-    }
-    pcode = person.get("geo_pcode")
-    if pcode:
-        chain = place_chain(places, pcode)
-        copy["geo_lowest_level_value_id"] = pcode
-        copy["geo_code_hierarchy_json"] = {"lowest_level_value_id": pcode, "hierarchy": [
-            {"level_id": u["level_id"], "level_value_id": u["level_value_id"],
-             "level_value_mnemonic": u["level_value_mnemonic"]} for u in chain]}
-        for unit, level in zip(chain[1:], ("region", "zone", "woreda", "kebele")):
-            copy[f"{level}_id"], copy[f"{level}_name"] = unit["level_value_id"], unit["level_value_mnemonic"]
-    return farmer_with_id(copy, farmer_id)
-
-
-def farmer_with_id(copy: dict, farmer_id: str) -> dict:
-    """The farmer copy under a Farmer ID, with the functional record id (the Farmer ID, as the platform's
-    ingest sets it), the record name and the search text the ORM would derive."""
-    return {**copy, "farmer_id": farmer_id, "functional_record_id": farmer_id,
-            "record_name": words(copy["farmer_name"], farmer_id),
-            "search_text": words(farmer_id, copy["fayda_fin"], copy["farmer_name"], copy.get("mobile_number"))}
-
-
-def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], places: dict,
+def plan(people: list[dict], herds: list[dict], places: dict,
          new_id=lambda: str(uuid.uuid4())) -> list[dict]:
-    """One entry per person with livestock samples: their farmer copy and their Livestock intake."""
+    """One entry per person with livestock samples: their Livestock intake."""
     by_id = {p["individual_id"]: p for p in people}
     planned = []
     for sample in herds:
@@ -293,8 +251,6 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], p
         person = by_id.get(who)
         if person is None:
             raise RuntimeError(f"livestock.json names {who}, who is not a sample person")
-        if who not in farmer_ids:
-            raise RuntimeError(f"farmer_ids.json has no sample Farmer ID for {who}")
         if not person.get("national_id"):
             raise RuntimeError(f"{who} has no Fayda ID")
         stages = []
@@ -303,8 +259,7 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], p
                 raise RuntimeError(f"{who} has no animals; a Livestock record needs at least one")
             root = seed_record_id("livestock-sample", who, form)
             sections = {
-                LOOKUP: [{"internal_record_id": root, "farmer_id": farmer_ids[who],
-                          "fayda_id": person["national_id"]}],
+                LOOKUP: [{"internal_record_id": root, "fayda_id": person["national_id"]}],
                 personnel_section: [{"internal_record_id": root, **(sample.get("survey_personnel") or {})}],
             }
             if person.get("geo_pcode"):
@@ -328,10 +283,21 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], p
                     sections[section] = rows
             stages.append({"form": form, "root": root, "sections": sections})
         planned.append({
-            "individual_id": who, "foundational_id": person["national_id"], "farmer_id": farmer_ids[who],
-            "farmer": farmer_copy(person, farms.get(who) or {}, farmer_ids[who], places), "stages": stages,
+            "individual_id": who, "foundational_id": person["national_id"], "birth_date": person.get("birth_date"),
+            "gender": person.get("gender"), "name": words(person.get("given_name"), person.get("fathers_name")),
+            "stages": stages,
         })
     return planned
+
+
+def check_identity(fayda_id: str, farmer_id: str, found_birth, found_gender, birth, gender) -> None:
+    """The Fayda number picked the reference; the birth date and gender must agree with the pack's person."""
+    if found_birth is not None and birth and str(found_birth)[:10] != str(birth)[:10]:
+        raise RuntimeError(f"farmer {farmer_id} for Fayda number {fayda_id} has birth date {found_birth}, "
+                           f"the pack's person {birth}; leaving it alone")
+    if found_gender and gender and str(found_gender).strip().lower()[:1] != str(gender).strip().lower()[:1]:  # M / male
+        raise RuntimeError(f"farmer {farmer_id} for Fayda number {fayda_id} has gender {found_gender}, "
+                           f"the pack's person {gender}; leaving it alone")
 
 
 def tls_context() -> ssl.SSLContext:
@@ -501,14 +467,14 @@ class StaffSession:
 
 
 class Registry:
-    """The registry database: form metadata, the farmer references this loader seeds, intake progress."""
+    """The registry database, read only: form metadata, the Farmer references, intake progress."""
 
     def __init__(self):
         import psycopg2  # only where the database is used; the tests run without it
 
         self.conn = psycopg2.connect(host=env("PGHOST"), port=os.environ.get("PGPORT", "5432"),
                                      dbname=env("PGDATABASE"), user=env("PGUSER"), password=env("PGPASSWORD"))
-        self.conn.autocommit = True
+        self.conn.set_session(readonly=True, autocommit=True)  # the loader writes through the staff API only
 
     def rows(self, sql: str, params=()) -> list[tuple]:
         with self.conn.cursor() as cur:
@@ -536,86 +502,29 @@ class Registry:
                 raise RuntimeError(f"form {form} has no section {', '.join(missing)}")
         return forms
 
-    def ensure_farmer(self, farmer: dict, created_by: str, approved_by: str, source_record_id: str) -> dict:
-        """The approved farmer reference for this Fayda ID, written straight in when there is none."""
-        self.conn.autocommit = False
-        try:
-            with self.conn.cursor() as cur:
-                reference = self._ensure_farmer(cur, farmer, created_by, approved_by, source_record_id)
-            self.conn.commit()
-            return reference
-        except Exception:
-            self.conn.rollback()
-            raise
-        finally:
-            self.conn.autocommit = True
+    def farmer_reference(self, fayda_id: str, birth_date: str | None, gender: str | None) -> dict:
+        """The approved Farmer reference for a Fayda number: read only.
 
-    @staticmethod
-    def _ensure_farmer(cur, farmer: dict, created_by: str, approved_by: str, source_record_id: str) -> dict:
-        fin = farmer["fayda_fin"]
-        cur.execute("SELECT reference_id, farmer_id, local_farmer_id, state FROM coss_farmer_references"
-                    " WHERE source_system = %s AND uid = %s FOR UPDATE", (SOURCE_SYSTEM, fin))
-        found = cur.fetchone()
-        if found:
-            reference_id, farmer_id, local_id, state = found
-            if state == "PENDING":
-                raise ReferencePending(f"the farmer reference for {fin} is PENDING, not APPROVED")
-            if state != "APPROVED":
-                raise RuntimeError(f"the farmer reference for {fin} is {state}, not APPROVED")
-            cur.execute("SELECT 1 FROM g2p_register_farmers WHERE internal_record_id = %s", (local_id,))
-            if cur.fetchone():
-                return {"reference_id": reference_id, "farmer_id": farmer_id, "local_farmer_id": local_id,
-                        "seeded": "referenced"}
-            # The reference outlived its farmer copy: write the copy back under the reference's ids.
-            Registry._insert_farmer(cur, farmer_with_id(farmer, farmer_id), str(local_id), created_by, approved_by)
-            return {"reference_id": reference_id, "farmer_id": farmer_id, "local_farmer_id": local_id,
-                    "seeded": "restored"}
-        cur.execute("SELECT internal_record_id, farmer_id, record_status, last_approved_at"
-                    " FROM g2p_register_farmers WHERE fayda_fin = %s OR farmer_id = %s", (fin, farmer["farmer_id"]))
-        local = cur.fetchall()
-        if len(local) > 1 or (local and (local[0][1] != farmer["farmer_id"] or local[0][2] != "ACTIVE"
-                                         or not local[0][3])):
-            raise RuntimeError(f"this registry already holds another farmer for {fin} or {farmer['farmer_id']}; "
-                               "leaving it alone")
-        local_id = str(local[0][0]) if local else str(uuid.uuid4())
-        if not local:
-            Registry._insert_farmer(cur, farmer, local_id, created_by, approved_by)
-        reference_id = str(uuid.uuid4())
-        cur.execute("INSERT INTO coss_farmer_references (reference_id, source_system, source_record_id, farmer_id,"
-                    " uid, local_farmer_id, applied_version, state) VALUES (%s, %s, %s, %s, %s, %s, 0, 'APPROVED')",
-                    (reference_id, SOURCE_SYSTEM, source_record_id, farmer["farmer_id"], fin, local_id))
-        return {"reference_id": reference_id, "farmer_id": farmer["farmer_id"], "local_farmer_id": local_id,
-                "seeded": "seeded"}
-
-    @staticmethod
-    def _insert_farmer(cur, farmer: dict, local_id: str, created_by: str, approved_by: str) -> None:
-        from psycopg2.extras import Json
-
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        columns = {"internal_record_id": local_id, "created_by": created_by, "created_at": now,
-                   "last_approved_at": now, "last_approved_by": approved_by, "record_status": "ACTIVE", **farmer}
-        if columns.get("geo_code_hierarchy_json"):
-            columns["geo_code_hierarchy_json"] = Json(columns["geo_code_hierarchy_json"])
-        cur.execute(f'INSERT INTO "public"."g2p_register_farmers" ({", ".join(columns)})'
-                    f" VALUES ({', '.join(['%s'] * len(columns))})", list(columns.values()))
-
-    def backfill_functional_ids(self, farmer_ids: list[str], created_by: str) -> int:
-        """Set functional_record_id = farmer_id on the loader's own earlier inserts that lack it.
-
-        Only the pack's sample Farmer IDs, only rows this loader created (created_by is the submitting
-        username; the platform's own flows record display names), only where the id is empty. Nothing
-        else is touched.
-        """
-        with self.conn.cursor() as cur:
-            cur.execute("UPDATE g2p_register_farmers SET functional_record_id = farmer_id"
-                        " WHERE farmer_id = ANY(%s) AND created_by = %s"
-                        " AND coalesce(functional_record_id, '') = ''", (farmer_ids, created_by))
-            return cur.rowcount
-
-    def link(self, submission_id: str, reference_id: str) -> None:
-        """Tie a draft intake to its approved farmer reference, so finalizing needs no Farmer lookup."""
-        self.rows("INSERT INTO coss_farmer_submission_dependencies (submission_id, reference_id)"
-                  " VALUES (%s, %s) ON CONFLICT (submission_id) DO NOTHING RETURNING 1", (submission_id, reference_id))
+        The reference is the Farmer registry's own record of the farmer, which arrived here through
+        outgestion and was approved here; its Farmer ID was generated by the Farmer registry. A missing
+        or not yet approved reference is ReferencePending (the person waits for the next run)."""
+        found = self.rows("SELECT reference_id, farmer_id, local_farmer_id, state FROM coss_farmer_references"
+                          " WHERE uid = %s", (fayda_id,))
+        if not found:
+            raise ReferencePending(f"no farmer reference for Fayda number {fayda_id} yet")
+        if len({farmer_id for _, farmer_id, _, _ in found}) > 1:
+            raise RuntimeError(f"more than one farmer reference for Fayda number {fayda_id}; leaving it alone")
+        reference_id, farmer_id, local_id, state = found[0]
+        if state == "PENDING":
+            raise ReferencePending(f"the farmer reference for Fayda number {fayda_id} is PENDING, not APPROVED")
+        if state != "APPROVED":
+            raise RuntimeError(f"the farmer reference for Fayda number {fayda_id} is {state}, not APPROVED")
+        copy = self.rows("SELECT date_of_birth, gender FROM g2p_register_farmers WHERE internal_record_id = %s",
+                         (local_id,))
+        if not copy:
+            raise ReferencePending(f"the farmer record of reference {reference_id} is not in the register yet")
+        check_identity(fayda_id, farmer_id, copy[0][0], copy[0][1], birth_date, gender)
+        return {"reference_id": reference_id, "farmer_id": farmer_id, "local_farmer_id": local_id}
 
     def stage_intakes(self, form_id: str, fin: str, root: str) -> list[tuple[str, str, str, str]]:
         """This person's intakes on the form, and the loader's own one by its root record id:
@@ -687,7 +596,7 @@ class Registry:
 
 
 # What a run reports: per sample farmer, then per stage intake.
-COUNTERS = ("farmers seeded", "farmers restored", "farmers referenced", "farmers failed", "farmers out of time",
+COUNTERS = ("farmers referenced", "farmers failed", "farmers out of time",
             "farmers waiting for their farmer reference",
             "intakes submitted", "drafts completed", "intakes resumed at approval",
             "intakes approved and in the register", "intakes approved, ingest pending",
@@ -706,15 +615,13 @@ class Loader:
         self.approve_timeout, self.ingest_timeout = approve_timeout, ingest_timeout
         self.forms = registry.forms()
 
-    def submit(self, stage: dict, reference_id: str, submission_id: str | None = None) -> str:
+    def submit(self, stage: dict, submission_id: str | None = None) -> str:
         """Save every section (into the given draft, or a new one), then finalize.
 
-        The submission is linked to the farmer reference as soon as it exists, so a draft a failed run
-        leaves behind is found and completed by the next run; saving a section replaces its rows.
-        """
+        A draft a failed run leaves behind is found by its root record id and completed by the next run;
+        saving a section replaces its rows. Finalizing is the platform's own step: it looks the declared
+        Farmer ID and Fayda number up and links the approved Farmer reference."""
         form_id, register_id, registers = self.forms[stage["form"]]
-        if submission_id:
-            self.registry.link(submission_id, reference_id)
         for section, rows in stage["sections"].items():
             # The save that creates the submission is sent once: a lost answer must not create a second
             # draft (the next run completes the first one, found by its own root record id).
@@ -727,7 +634,6 @@ class Loader:
                 submission_id = saved.get("submission_id")
                 if not submission_id:
                     raise RuntimeError(f"saving {section} on {stage['form']} returned no submission")
-                self.registry.link(submission_id, reference_id)
         self.submitter.post("/intake-form-data/finalize_intake_form_submission", {
             "submission_id": submission_id, "register_id": register_id, "form_id": form_id}, once=True)
         return submission_id
@@ -784,18 +690,17 @@ class Loader:
     def run(self, planned: list[dict]) -> dict:
         done = dict.fromkeys(COUNTERS, 0)
         stop_at = STARTED + self.time_budget
-        approved_by = self.approvers[-1].username
         for person in planned:
             if self.ingest_slow:  # one slow worker must not burn the whole run
                 done["intakes left for the next run"] += len(person["stages"])
                 continue
             accounted = 0  # this person's stage intakes counted as done, already approved or left over
             try:
-                who = f"{person['individual_id']} {person['farmer']['farmer_name']}"
-                reference = self.registry.ensure_farmer(person["farmer"], self.submitter.username, approved_by,
-                                                        person["individual_id"])
-                done[f"farmers {reference['seeded']}"] += 1
-                log(f"  {who}: farmer {reference['farmer_id']} {reference['seeded']}")
+                who = f"{person['individual_id']} {person['name']}"
+                reference = self.registry.farmer_reference(person["foundational_id"], person["birth_date"],
+                                                           person["gender"])
+                done["farmers referenced"] += 1
+                log(f"  {who}: farmer {reference['farmer_id']} (Farmer reference)")
                 for position, stage_def in enumerate(person["stages"]):
                     stage = stage_def
                     if time.time() > stop_at:
@@ -836,11 +741,11 @@ class Loader:
                         log(f"    {stage['form']}: intake {submission_id} waits for approval; approving it")
                         done["intakes resumed at approval"] += 1
                     elif draft:
-                        submission_id = self.submit(stage, reference["reference_id"], draft)
+                        submission_id = self.submit(stage, draft)
                         log(f"    {stage['form']}: draft intake {submission_id} completed and submitted")
                         done["drafts completed"] += 1
                     else:
-                        submission_id = self.submit(stage, reference["reference_id"])
+                        submission_id = self.submit(stage)
                         log(f"    {stage['form']}: intake {submission_id} submitted")
                         done["intakes submitted"] += 1
                     self.approve(submission_id)
@@ -889,7 +794,7 @@ class Loader:
 
     @staticmethod
     def _with_farmer_id(stage: dict, farmer_id: str) -> dict:
-        """The stage with the Farmer ID of the reference used (an existing one keeps its own)."""
+        """The stage with the Farmer ID of the Farmer reference: the one the Farmer registry generated."""
         lookup = [{**stage["sections"][LOOKUP][0], "farmer_id": farmer_id}]
         return {**stage, "sections": {**stage["sections"], LOOKUP: lookup}}
 
@@ -919,9 +824,7 @@ def main() -> None:
     if not herds:
         log(f"the {PACK} pack has no livestock samples: nothing to load.")
         return
-    farmer_ids = {f["individual_id"]: f["farmer_id"] for f in pack.read("farmer_ids.json")}
-    farms = {f["individual_id"]: f for f in pack.read("farms.json")}
-    planned = plan(pack.read("individuals.json"), farms, farmer_ids, herds, pack.places())
+    planned = plan(pack.read("individuals.json"), herds, pack.places())
     animals = sum(len(s["sections"].get(STAGES[0][2][0][0], [])) for p in planned for s in p["stages"])
     log(f"{len(planned)} sample farmers with livestock, {animals} animal rows, from {pack.root}")
 
@@ -942,12 +845,6 @@ def main() -> None:
             [session(env("INTAKE_SEED_APPROVER_1", "alex.carter")),
              session(env("INTAKE_SEED_APPROVER_2", "nina.patel"))],
             int(env("INTAKE_SEED_APPROVE_TIMEOUT", "180")), int(env("INTAKE_SEED_INGEST_TIMEOUT", "420")))
-        try:
-            fixed = registry.backfill_functional_ids([p["farmer"]["farmer_id"] for p in planned],
-                                                     loader.submitter.username)
-            log(f"{fixed} earlier sample farmer copies given their functional record id")
-        except Exception as exc:  # noqa: BLE001 - a nicety: sample data must not fail the upgrade
-            log(f"functional record id backfill skipped: {exc!r}")
         done = loader.run(planned)
     finally:
         registry.conn.close()
