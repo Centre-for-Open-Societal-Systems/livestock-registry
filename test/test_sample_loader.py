@@ -43,7 +43,9 @@ def test_loader_signs_in_like_the_portal_and_never_writes_to_the_database():
                       "/approve_change_request"):
         assert forbidden not in code, forbidden
     # No database write of any kind: no statement that changes data, and a read-only connection.
-    assert not re.findall(r"\b(INSERT INTO|UPDATE \w+ SET|DELETE FROM|TRUNCATE|DROP|ALTER TABLE|\.commit\(\))", code)
+    assert not re.findall(r"\b(INSERT\s+INTO|UPDATE\s+[\"\w.]+\s+SET|DELETE\s+FROM|TRUNCATE|DROP\s|ALTER\s+TABLE|\.commit\()",
+                          code, re.IGNORECASE)
+    # The read-only session is the real guard: the database refuses a write whatever the text says.
     assert "readonly=True" in code
     assert "backfill_functional_ids" not in code and "ensure_farmer" not in code and "def link" not in code
     # The Farmer reference is only read, and no Farmer ID is invented or read from the pack.
@@ -161,7 +163,7 @@ class FakeRegistry:
     def ingest_pending(self, submission_id):
         return submission_id in self.unprocessed
 
-    def farmer_reference(self, fayda_id, birth_date, gender):
+    def farmer_reference(self, fayda_id, birth_date, gender, individual_id=None):
         self.looked_up.append((fayda_id, birth_date, gender))
         if fayda_id not in self.references:
             raise _LOADER[0].ReferencePending(f"no farmer reference for Fayda number {fayda_id} yet")
@@ -273,7 +275,7 @@ class ReadOnlyRegistry:
 
 
 def test_an_approved_reference_gives_its_generated_farmer_id_by_fayda_number(loader):
-    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-209610506580", "local-1", "APPROVED")],
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-209610506580", "local-1", "APPROVED", "src-ref-1")],
                                 copy=("1984-08-06", "MALE"))
     got = registry.farmer_reference("502628318720", "1984-08-06", "MALE")
     assert got == {"reference_id": "ref-1", "farmer_id": "FR-209610506580", "local_farmer_id": "local-1"}
@@ -285,18 +287,18 @@ def test_a_missing_or_pending_reference_is_pending_not_failed(loader):
     with pytest.raises(loader.ReferencePending, match="no farmer reference"):
         ReadOnlyRegistry(loader, []).farmer_reference("502628318720", "1984-08-06", "MALE")
     with pytest.raises(loader.ReferencePending, match="PENDING, not APPROVED"):
-        ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "PENDING")]).farmer_reference(
+        ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "PENDING", "src-ref-1")]).farmer_reference(
             "502628318720", None, None)
     with pytest.raises(loader.ReferencePending, match="not in the register yet"):
-        ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "APPROVED")]).farmer_reference(
+        ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1")]).farmer_reference(
             "502628318720", None, None)
 
 
 @pytest.mark.parametrize("rows, copy, message", [
-    ([("ref-1", "FR-1", "local-1", "REJECTED")], None, "REJECTED, not APPROVED"),
-    ([("ref-1", "FR-1", "local-1", "APPROVED"), ("ref-2", "FR-2", "local-2", "APPROVED")], None, "more than one"),
-    ([("ref-1", "FR-1", "local-1", "APPROVED")], ("1990-01-01", "MALE"), "birth date"),
-    ([("ref-1", "FR-1", "local-1", "APPROVED")], ("1984-08-06", "FEMALE"), "gender"),
+    ([("ref-1", "FR-1", "local-1", "REJECTED", "src-ref-1")], None, "REJECTED, not APPROVED"),
+    ([("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1"), ("ref-2", "FR-2", "local-2", "APPROVED", "src-ref-2")], None, "more than one"),
+    ([("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1")], ("1990-01-01", "MALE"), "birth date"),
+    ([("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1")], ("1984-08-06", "FEMALE"), "gender"),
 ])
 def test_a_wrong_or_ambiguous_reference_is_refused(loader, rows, copy, message):
     with pytest.raises(RuntimeError, match=message) as error:
@@ -305,9 +307,50 @@ def test_a_wrong_or_ambiguous_reference_is_refused(loader, rows, copy, message):
 
 
 def test_gender_is_compared_by_its_first_letter_and_a_date_by_its_day(loader):
-    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "APPROVED")],
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "APPROVED", "src-ref-1")],
                                 copy=("1984-08-06 00:00:00", "m"))
     assert registry.farmer_reference("502628318720", "1984-08-06", "MALE")["farmer_id"] == "FR-1"
+
+
+def test_the_reference_is_looked_up_in_the_configured_farmer_source_only(loader, monkeypatch):
+    monkeypatch.delenv("FARMER_REFERENCE_SOURCE_SYSTEM", raising=False)
+    monkeypatch.setenv("COSS_FARMER_SOURCE_ID", "farmer-source")
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-209610506580", "local-1", "APPROVED", "src-1")],
+                                copy=("1984-08-06", "MALE"))
+    registry.farmer_reference("502628318720", "1984-08-06", "MALE", "ETH-IND-0001")
+    sql, params = registry.statements[0]
+    assert "source_system = %s" in sql and params == ("502628318720", "farmer-source")
+    assert "ORDER BY (state = 'APPROVED') DESC" in sql
+
+
+def test_a_reference_an_earlier_loader_wrote_is_not_a_farmer_reference(loader, monkeypatch):
+    monkeypatch.delenv("FARMER_REFERENCE_SOURCE_SYSTEM", raising=False)
+    monkeypatch.delenv("COSS_FARMER_SOURCE_ID", raising=False)
+    stale = ("ref-old", "FR-STALE", "local-old", "APPROVED", "ETH-IND-0001")  # source record id = the individual
+    with pytest.raises(loader.ReferencePending, match="earlier sample loader"):
+        ReadOnlyRegistry(loader, [stale]).farmer_reference("502628318720", None, None, "ETH-IND-0001")
+    real = ("ref-new", "FR-209610506580", "local-new", "APPROVED", "uuid-in-farmer-registry")
+    got = ReadOnlyRegistry(loader, [stale, real], copy=("1984-08-06", "MALE")).farmer_reference(
+        "502628318720", "1984-08-06", "MALE", "ETH-IND-0001")
+    assert got["farmer_id"] == "FR-209610506580"
+
+
+def test_references_of_one_farmer_from_two_sources_agree_and_pending_never_wins_over_approved(loader):
+    rows = [("ref-1", "FR-1", "local-1", "APPROVED", "a"), ("ref-2", "FR-1", "local-2", "APPROVED", "b")]
+    assert ReadOnlyRegistry(loader, rows, copy=("1984-08-06", "MALE")).farmer_reference(
+        "502628318720", "1984-08-06", "MALE")["farmer_id"] == "FR-1"
+    rows = [("ref-1", "FR-1", "local-1", "PENDING", "a"), ("ref-2", "FR-1", "local-2", "APPROVED", "b")]
+    assert ReadOnlyRegistry(loader, rows, copy=("1984-08-06", "MALE")).farmer_reference(
+        "502628318720", "1984-08-06", "MALE")["reference_id"] == "ref-2"
+
+
+@pytest.mark.parametrize("copy, message", [((None, "MALE"), "no birth date"), (("1984-08-06", None), "no gender"),
+                                           (("1984-08-06", ""), "no gender")])
+def test_a_missing_birth_date_or_gender_on_the_farmer_is_a_mismatch(loader, copy, message):
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-1", "local-1", "APPROVED", "src")], copy=copy)
+    with pytest.raises(RuntimeError, match=message) as error:
+        registry.farmer_reference("502628318720", "1984-08-06", "MALE")
+    assert not isinstance(error.value, loader.ReferencePending)
 
 
 def test_the_connection_is_read_only(loader, monkeypatch):
@@ -439,10 +482,10 @@ def test_one_failing_farmer_does_not_stop_the_others(loader):
     registry = FakeRegistry()
     real = registry.farmer_reference
 
-    def farmer_reference(fayda_id, birth_date, gender):
+    def farmer_reference(fayda_id, birth_date, gender, individual_id=None):
         if fayda_id == "502628318720":
             raise RuntimeError("more than one farmer reference")
-        return real(fayda_id, birth_date, gender)
+        return real(fayda_id, birth_date, gender, individual_id)
 
     registry.farmer_reference = farmer_reference
     done, submitted, _ = run(loader, registry)
@@ -557,7 +600,7 @@ def test_a_try_never_waits_past_the_hard_limit(loader, monkeypatch):
 def test_out_of_time_counts_the_farmer_as_left_not_failed(loader):
     registry = FakeRegistry()
 
-    def farmer_reference(fayda_id, birth_date, gender):
+    def farmer_reference(fayda_id, birth_date, gender, individual_id=None):
         raise loader.OutOfTime("POST /x: not sent")
 
     registry.farmer_reference = farmer_reference
@@ -782,7 +825,7 @@ def test_a_person_waiting_for_the_farmer_reference_is_left_for_the_next_run_not_
 def test_a_failed_farmer_counts_its_stage_intakes_as_left(loader):
     registry = FakeRegistry()
 
-    def farmer_reference(fayda_id, birth_date, gender):
+    def farmer_reference(fayda_id, birth_date, gender, individual_id=None):
         raise RuntimeError("boom")
 
     registry.farmer_reference = farmer_reference
