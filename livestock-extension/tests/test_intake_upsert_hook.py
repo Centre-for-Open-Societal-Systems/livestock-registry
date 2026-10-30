@@ -105,3 +105,47 @@ def test_the_intake_service_runs_the_hook_after_the_required_field_check():
     order = native.ReferenceIntakeService.__mro__
     assert order.index(required.RequiredFieldsMixin) < order.index(hook_module.IntakeUpsertHook)
     assert order.index(hook_module.IntakeUpsertHook) < order.index(native.G2PIntakeFormDataService)
+
+
+def utils_module():
+    return importlib.import_module(PACKAGE + ".register_domain.services.domain_validation_utils")
+
+
+def test_the_domain_checks_read_through_the_saving_session_and_release_it():
+    utils, db, seen = utils_module(), session(), []
+
+    async def post_intake_upsert(rows, given):
+        seen.append((utils.ingest_session.get(), given))
+
+    with with_domain_service(SimpleNamespace(post_intake_upsert=post_intake_upsert)):
+        save(Service([SimpleNamespace(submission_id=SUBMISSION)]), db)
+    assert seen == [(db, db)]
+    assert utils.ingest_session.get() is None
+
+
+def test_the_session_is_released_when_the_domain_service_refuses():
+    utils = utils_module()
+    refusal = G2PRegistryException(code="G2P-REG-400", message="refused")
+    domain_service = SimpleNamespace(post_intake_upsert=AsyncMock(side_effect=refusal))
+    with with_domain_service(domain_service), pytest.raises(G2PRegistryException):
+        save(Service([SimpleNamespace(submission_id=SUBMISSION)]), session())
+    assert utils.ingest_session.get() is None
+
+
+def test_ear_tag_exists_sees_an_animal_flushed_in_the_saving_session():
+    utils = utils_module()
+    db = SimpleNamespace(execute=AsyncMock(side_effect=[
+        SimpleNamespace(scalar=lambda: False), SimpleNamespace(scalar=lambda: True)]))
+    columns = SimpleNamespace(ear_tag_id=None, secondary_identifier=None)
+
+    async def run():
+        token = utils.ingest_session.set(db)
+        try:
+            return await utils.ear_tag_exists("ET0101010101")
+        finally:
+            utils.ingest_session.reset(token)
+
+    with patch.object(utils, "_animal_models", return_value=(columns, columns)):
+        with patch.object(utils, "animal_identified_by", return_value=True):
+            assert asyncio.run(run()) is True
+    assert db.execute.await_count == 2
