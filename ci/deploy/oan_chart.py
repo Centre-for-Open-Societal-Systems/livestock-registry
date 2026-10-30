@@ -132,7 +132,7 @@ def fetch_values(pin, destination):
     if cached.exists():
         data = cached.read_bytes()
     else:
-        uri = pin['repository'].removesuffix('repository/')+values['path']
+        uri = pin['repository'][:-len('repository/')]+values['path']
         with urllib.request.urlopen(uri,timeout=30) as response:
             data = response.read(1024*1024+1)
     if len(data)>1024*1024 or hashlib.sha256(data).hexdigest()!=values['sha256']:
