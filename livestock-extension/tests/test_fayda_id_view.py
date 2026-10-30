@@ -58,8 +58,10 @@ class SaveTests(unittest.IsolatedAsyncioTestCase):
         service = object.__new__(native.ReferenceIntakeService)
         service._resolve_intake_form_class = AsyncMock(return_value=Row)
         service._get_intake_rows = AsyncMock(return_value=stored_rows)
-        # The required-field check has its own tests; here only the Fayda ID handling is under test.
+        # The required-field check and the post-save domain hook have their own tests;
+        # here only the Fayda ID handling is under test.
         service._required_on_save = AsyncMock(return_value=[])
+        service._run_post_intake_upsert = AsyncMock()
         platform = AsyncMock(return_value="submission")
         with patch.object(Platform, "save_intake_form_submission_with_session", platform):
             await service.save_intake_form_submission_with_session(
