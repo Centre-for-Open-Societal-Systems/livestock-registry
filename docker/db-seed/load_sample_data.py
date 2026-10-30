@@ -75,9 +75,11 @@ ingest and allocate ids in turn, 20 s apart). An intake still not ingested when
 the wait ends is not a failed farmer: it is approved, so the next run sees it as
 approved; the farmer's later stages wait for that run, as they build on it. After the first such
 intake no further farmer starts in the run, so one slow worker cannot burn the whole run.
-An ingest that ends in a failure status (INGEST_FAILED) stops the wait at once, is logged with its
-error columns and counted as a failed farmer; a later run reports an approved intake whose ingest
-failed instead of skipping it as approved.
+An ingest in a failure status (INGEST_FAILED) stops the wait when the status holds for two polls in a
+row or after INGEST_MAX_ATTEMPTS attempts (a single look can be a retry's intermediate state); it is
+logged with its error columns and counted as a failed farmer. A later run reports an approved intake
+whose ingest failed instead of skipping it as approved, and treats one whose ingest has not finished
+as pending (its farmer's later stages and every later farmer wait for the next run).
 
 Readiness: the job can start before the staff API accepts connections, so the
 loader first polls the API's /ping (INTAKE_SEED_READY_TIMEOUT, default 240 s)
@@ -147,7 +149,10 @@ STARTED = job_started()  # the time budget counts from here
 # No request starts after STARTED + HARD_LIMIT seconds (INTAKE_SEED_HARD_LIMIT, default 720).
 HARD_LIMIT = int(os.environ.get("INTAKE_SEED_HARD_LIMIT", "").strip() or 720)
 # Ingest statuses that end an approved intake's ingest without the record: waiting on them is pointless.
+# A failure status may be a retry's intermediate state: it ends a wait only when it holds for two polls in
+# a row or the ingest has been attempted INGEST_MAX_ATTEMPTS times.
 INGEST_FAILED = ("ERROR", "FAILED", "DEAD", "DEAD_LETTER")
+INGEST_MAX_ATTEMPTS = 3
 READY_TIMEOUT = int(os.environ.get("INTAKE_SEED_READY_TIMEOUT", "").strip() or 240)  # seconds to wait for the API
 READY_POLL = 5  # seconds between looks at the API
 # The root record of every intake the loader enters has an id only the loader makes (uuid5 of the sample
@@ -225,13 +230,16 @@ def place_chain(places: dict[str, dict], pcode: str) -> list[dict]:
     return chain
 
 
-def location_section(chain: list[dict], root: str, pack_location: dict | None) -> dict:
+def location_section(chain: list[dict], root: str, pack_location: dict | None) -> dict | None:
     """The Location section row: the geo-hierarchy widget's document and lowest unit for the person's place,
-    plus the holding's coordinates the pack gives. The country is not a level of the form's hierarchy."""
+    plus the holding's coordinates the pack gives. The country is not a level of the form's hierarchy:
+    a place with no level below it (a country-level P-code) gives no Location section (None)."""
     levels = chain[1:] if chain and chain[0].get("level_id") == "l0" else chain
     hierarchy = [{"level_id": unit["level_id"], "level": level, "level_mnemonic": level,
                   "level_value_id": unit["level_value_id"], "level_value_mnemonic": unit["level_value_mnemonic"]}
                  for unit, level in zip(levels, GEO_LEVELS)]
+    if not hierarchy:
+        return None
     lowest = hierarchy[-1]["level_value_id"]
     row = {"internal_record_id": root, **(pack_location or {}), "geo_lowest_level_value_id": lowest,
            "geo_code_hierarchy_json": {"hierarchy": hierarchy, "lowest_level_value_id": lowest}}
@@ -269,7 +277,8 @@ def farmer_copy(person: dict, farm: dict, farmer_id: str, places: dict[str, dict
 def farmer_with_id(copy: dict, farmer_id: str) -> dict:
     """The farmer copy under a Farmer ID, with the functional record id (the Farmer ID, as the platform's
     ingest sets it), the record name and the search text the ORM would derive."""
-    return {**copy, "farmer_id": farmer_id, "functional_record_id": farmer_id, "record_name": words(copy["farmer_name"], farmer_id),
+    return {**copy, "farmer_id": farmer_id, "functional_record_id": farmer_id,
+            "record_name": words(copy["farmer_name"], farmer_id),
             "search_text": words(farmer_id, copy["fayda_fin"], copy["farmer_name"], copy.get("mobile_number"))}
 
 
@@ -298,8 +307,11 @@ def plan(people: list[dict], farms: dict, farmer_ids: dict, herds: list[dict], p
                 personnel_section: [{"internal_record_id": root, **(sample.get("survey_personnel") or {})}],
             }
             if person.get("geo_pcode"):
-                sections[LOCATION] = [location_section(place_chain(places, person["geo_pcode"]), root,
-                                                       sample.get("location"))]
+                location = location_section(place_chain(places, person["geo_pcode"]), root, sample.get("location"))
+                if location:
+                    sections[LOCATION] = [location]
+                else:
+                    log(f"{who}: {person['geo_pcode']} has no level below the country; no Location section")
             elif sample.get("location"):
                 sections[LOCATION] = [{"internal_record_id": root, **sample["location"]}]
             for section, key in lists:
@@ -611,38 +623,49 @@ class Registry:
                           (submission_id,))
         return found[0][0] if found else None
 
-    def ingest_state(self, table: str, record_id: str, submission_id: str | None) -> tuple[str, str]:
-        """("done" | "failed" | "waiting", detail): the intake's ingest status and error columns, or the
-        loader's root record already in the register."""
+    def ingest_state(self, table: str, record_id: str, submission_id: str | None) -> tuple[str, str, int]:
+        """("done" | "failed" | "waiting", detail, attempts): the intake's ingest status and error columns,
+        or the loader's root record already in the register."""
         if submission_id:
             failure = self.ingest_failure(submission_id)
             if failure:
-                return "failed", failure
+                return "failed", failure[0], failure[1]
             found = self.rows("SELECT register_ingest_process_status FROM g2p_intake_form_submissions"
                               " WHERE submission_id = %s", (submission_id,))
             if found and found[0][0] == "PROCESSED":
-                return "done", ""
+                return "done", "", 0
         if self.rows(f'SELECT 1 FROM "public"."{table}" WHERE internal_record_id = %s', (record_id,)):
-            return "done", ""
-        return "waiting", ""
+            return "done", "", 0
+        return "waiting", "", 0
 
-    def ingest_failure(self, submission_id: str) -> str | None:
-        """The failure details when the intake's ingest ended in a failure status, else None."""
+    def ingest_failure(self, submission_id: str) -> tuple[str, int] | None:
+        """(details, attempts) when the intake's ingest is in a failure status, else None."""
         found = self.rows("SELECT register_ingest_process_status, register_ingest_process_attempts,"
                           " left(coalesce(register_ingest_process_last_error_code, ''), 300)"
                           " FROM g2p_intake_form_submissions WHERE submission_id = %s", (submission_id,))
         if found and found[0][0] in INGEST_FAILED:
-            return f"status {found[0][0]}, attempts {found[0][1]}, error {found[0][2]!r}"
+            return f"status {found[0][0]}, attempts {found[0][1]}, error {found[0][2]!r}", int(found[0][1] or 0)
         return None
+
+    def ingest_pending(self, submission_id: str) -> bool:
+        """An approved intake whose ingest has not finished (and is not in a failure status)."""
+        found = self.rows("SELECT register_ingest_process_status FROM g2p_intake_form_submissions"
+                          " WHERE submission_id = %s", (submission_id,))
+        return bool(found) and found[0][0] not in ("PROCESSED", "NOT_APPLICABLE", *INGEST_FAILED)
 
     def wait_for(self, table: str, record_id: str, timeout: int, submission_id: str | None = None) -> None:
         deadline = time.time() + timeout
+        failing = False
         while True:
-            state, detail = self.ingest_state(table, record_id, submission_id)
+            state, detail, attempts = self.ingest_state(table, record_id, submission_id)
             if state == "done":
                 return
             if state == "failed":
-                raise IngestFailed(f"ingest of intake {submission_id} failed: {detail}")
+                if failing or attempts >= INGEST_MAX_ATTEMPTS:
+                    raise IngestFailed(f"ingest of intake {submission_id} failed: {detail}")
+                failing = True
+            else:
+                failing = False
             if time.time() >= deadline:
                 break
             time.sleep(min(INGEST_POLL, max(0.0, deadline - time.time())))
@@ -650,7 +673,8 @@ class Registry:
             "SELECT register_ingest_process_status, register_ingest_process_attempts,"
             " left(coalesce(register_ingest_process_last_error_code, ''), 300) FROM g2p_intake_form_submissions"
             " WHERE approval_status = 'APPROVED' AND register_ingest_process_status <> 'PROCESSED'"
-            " ORDER BY approved_at DESC LIMIT 1")
+            + (" AND submission_id = %s" if submission_id else "")
+            + " ORDER BY approved_at DESC LIMIT 1", (submission_id,) if submission_id else ())
         raise IngestPending(f"{table} {record_id} was not ingested within {timeout}s"
                             + (f" (latest unprocessed intake: {stuck[0]})" if stuck else ""))
 
@@ -774,9 +798,9 @@ class Loader:
                     form_id = self.forms[stage["form"]][0]
                     stage = self._with_farmer_id(stage, reference["farmer_id"])
                     previous = self.registry.stage_intakes(form_id, person["foundational_id"], stage["root"])
-                    failed = [(sid, self.registry.ingest_failure(sid))
-                              for sid, _, approval, _ in previous if approval == "APPROVED"]
-                    failed = [(sid, detail) for sid, detail in failed if detail]
+                    approved = [sid for sid, _, approval, _ in previous if approval == "APPROVED"]
+                    failed = [(sid, self.registry.ingest_failure(sid)) for sid in approved]
+                    failed = [(sid, found[0]) for sid, found in failed if found]
                     if failed:
                         remaining = len(person["stages"]) - position - 1
                         done["intakes approved, ingest failed"] += 1
@@ -784,6 +808,10 @@ class Loader:
                         accounted += 1 + remaining
                         log(f"    {stage['form']}: INGEST FAILED for approved intake {failed[0][0]}: "
                             f"{failed[0][1]}; needs a look, not loaded")
+                        break
+                    if any(self.registry.ingest_pending(sid) for sid in approved):
+                        accounted += self._ingest_pending(done, person, position,
+                                                              "approved earlier, not yet in the register")
                         break
                     if any(approval == "APPROVED" for _, _, approval, _ in previous):
                         done["intakes already approved"] += 1
@@ -815,13 +843,7 @@ class Loader:
                     except IngestPending as pending:
                         # Approved, only the ingest is slow: not a failed farmer. Its later stages build
                         # on this one, so they wait for the next run, which finds this one approved.
-                        remaining = len(person["stages"]) - position - 1
-                        self.ingest_slow = True
-                        done["intakes approved, ingest pending"] += 1
-                        done["intakes left for the next run"] += remaining
-                        accounted += 1 + remaining
-                        log(f"    {stage['form']}: approved, ingest pending ({pending}); "
-                            f"{remaining} later stages left for the next run")
+                        accounted += self._ingest_pending(done, person, position, str(pending))
                         break
                     done["intakes approved and in the register"] += 1
                     accounted += 1
@@ -842,6 +864,17 @@ class Loader:
             log(f"time budget of {self.time_budget}s used: {done['intakes left for the next run']} stage intakes "
                 "are left for the next seed run")
         return done
+
+    def _ingest_pending(self, done: dict, person: dict, position: int, why: str) -> int:
+        """An approved intake not yet in the register: its farmer's later stages and every later farmer
+        wait for the next run. Returns how many of the farmer's stages this accounts for."""
+        remaining = len(person["stages"]) - position - 1
+        self.ingest_slow = True
+        done["intakes approved, ingest pending"] += 1
+        done["intakes left for the next run"] += remaining
+        log(f"    {person['stages'][position]['form']}: ingest pending ({why}); "
+            f"{remaining} later stages left for the next run")
+        return 1 + remaining
 
     def wait_time(self, timeout: int) -> int:
         """`timeout`, cut to what is left before the hard limit."""

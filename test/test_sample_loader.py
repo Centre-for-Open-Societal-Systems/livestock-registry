@@ -148,6 +148,10 @@ class FakeRegistry:
     def __init__(self, previous=None, existing=None):
         self.previous, self.existing = dict(previous or {}), dict(existing or {})
         self.status, self.waited, self.pending, self.seeded, self.failures = {}, [], [], [], {}
+        self.unprocessed = set()
+
+    def ingest_pending(self, submission_id):
+        return submission_id in self.unprocessed
 
     def ingest_failure(self, submission_id):
         return self.failures.get(submission_id)
@@ -637,8 +641,9 @@ def test_the_defaults_leave_time_for_every_intake_and_a_wait_over_several_beats(
 class IngestRegistry:
     """Registry.wait_for over a scripted database: the intake's status per look, then the register."""
 
-    def __init__(self, loader, statuses, record_after=None):
-        self.statuses, self.record_after, self.looks = list(statuses), record_after, 0
+    def __init__(self, loader, statuses, record_after=None, attempts=2):
+        self.statuses, self.record_after, self.looks, self.attempts = list(statuses), record_after, 0, attempts
+        self.stuck_query = None
         for name in ("wait_for", "ingest_state", "ingest_failure"):
             setattr(self, name, getattr(loader.Registry, name).__get__(self))
 
@@ -648,11 +653,12 @@ class IngestRegistry:
     def rows(self, sql, params=()):
         if "register_ingest_process_attempts" in sql and "WHERE submission_id" in sql:
             self.looks += 1
-            return [(self.status(), 2, "boom")]
+            return [(self.status(), self.attempts, "boom")]
         if sql.startswith("SELECT register_ingest_process_status FROM"):
             return [(self.status(),)]
         if sql.startswith("SELECT 1 FROM"):
             return [(1,)] if self.record_after is not None and self.looks >= self.record_after else []
+        self.stuck_query = (sql, params)
         return [("PENDING", 3, "")]  # the latest unprocessed intake
 
 
@@ -689,16 +695,32 @@ def test_a_wait_that_runs_out_raises_pending_with_the_latest_unprocessed_intake(
     with pytest.raises(loader.IngestPending, match=r"not ingested within 30s.*PENDING"):
         registry.wait_for("g2p_register_livestocks", "root", 30, "sub-1")
     assert clock.now == 1030.0 and registry.looks >= 10  # polled every few seconds, ended at the timeout
+    sql, params = registry.stuck_query
+    assert "AND submission_id = %s" in sql and params == ("sub-1",)
 
 
 @pytest.mark.parametrize("status", ["ERROR", "FAILED", "DEAD", "DEAD_LETTER"])
-def test_a_failed_ingest_ends_the_wait_at_once_with_its_error(loader, monkeypatch, status):
+def test_a_failure_status_that_holds_for_two_polls_ends_the_wait_with_its_error(loader, monkeypatch, status):
     clock = Clock()
     monkeypatch.setattr(loader, "time", clock)
-    registry = IngestRegistry(loader, ["PENDING", status])
+    registry = IngestRegistry(loader, ["PENDING", status, status])
     with pytest.raises(loader.IngestFailed, match=rf"sub-1 failed: status {status}, attempts 2, error 'boom'"):
         registry.wait_for("g2p_register_livestocks", "root", 420, "sub-1")
-    assert clock.now < 1010
+    assert registry.looks == 3 and clock.now < 1010  # two failure polls in a row, not the whole wait
+
+
+def test_a_failure_status_seen_once_is_a_retry_in_between_not_the_end(loader, monkeypatch):
+    monkeypatch.setattr(loader, "time", Clock())
+    registry = IngestRegistry(loader, ["ERROR", "PENDING", "ERROR", "PROCESSED"])
+    registry.wait_for("g2p_register_livestocks", "root", 420, "sub-1")  # no raise
+
+
+def test_a_failure_status_at_the_attempt_limit_is_terminal_at_once(loader, monkeypatch):
+    monkeypatch.setattr(loader, "time", Clock())
+    registry = IngestRegistry(loader, ["ERROR"], attempts=loader.INGEST_MAX_ATTEMPTS)
+    with pytest.raises(loader.IngestFailed, match="attempts 3"):
+        registry.wait_for("g2p_register_livestocks", "root", 420, "sub-1")
+    assert registry.looks == 1 and loader.INGEST_MAX_ATTEMPTS == 3
 
 
 def test_a_failed_ingest_counts_as_a_failed_farmer(loader):
@@ -732,7 +754,7 @@ def test_a_rerun_skips_an_approved_intake_still_pending_but_reports_one_whose_in
     done, _, _ = run(loader, registry)
     assert done["intakes already approved"] == 1 and done["intakes approved, ingest failed"] == 0
     registry = FakeRegistry(previous=previous)
-    registry.failures["sub-old"] = "status ERROR, attempts 5, error 'boom'"
+    registry.failures["sub-old"] = ("status ERROR, attempts 5, error 'boom'", 5)
     done, _, _ = run(loader, registry)
     assert done["intakes approved, ingest failed"] == 1 and done["intakes already approved"] == 0
 
@@ -833,3 +855,22 @@ def test_main_waits_for_the_api_before_signing_in():
     source = (SEED / "load_sample_data.py").read_text(encoding="utf-8")
     main = source[source.index("def main()"):]
     assert main.index("wait_until_ready(api)") < main.index("session(env(")
+
+
+def test_a_rerun_does_not_count_an_approved_intake_that_is_not_ingested_as_already_approved(loader):
+    previous = {"502628318720": [("sub-old", "FINAL", "APPROVED", "root-old")]}
+    registry = FakeRegistry(previous=previous)
+    registry.unprocessed.add("sub-old")
+    done, submitted, _ = run(loader, registry)
+    assert done["intakes already approved"] == 0 and done["intakes approved, ingest pending"] == 1
+    assert done["farmers failed"] == 0 and submitted == []  # the second farmer waits for the next run
+    assert done["intakes left for the next run"] == 1 and len(registry.seeded) == 1
+
+
+def test_a_country_level_place_gives_no_location_section_and_is_logged(loader, monkeypatch):
+    logged = []
+    monkeypatch.setattr(loader, "log", logged.append)
+    assert loader.location_section([PLACES["ET"]], "root", {"latitude": 1.0}) is None
+    people = [PEOPLE[0], {**PEOPLE[1], "geo_pcode": "ET"}]
+    sections = plan(loader, people=people)[1]["stages"][0]["sections"]
+    assert LOCATION_SECTION not in sections and any("no Location section" in line for line in logged)
