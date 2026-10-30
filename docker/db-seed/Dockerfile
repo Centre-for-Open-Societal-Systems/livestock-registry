@@ -22,7 +22,7 @@ COPY --chmod=755 docker/db-seed/apply-migrations.sh /seed/apply-migrations.sh
 # (samples/individuals.json, samples/livestock.json, LOAD_SAMPLE_DATA=true) and
 # the OAN staff-portal theme (themes/oan_theme: palette and background image).
 ARG OPENG2P_DATA_REPO=https://github.com/Centre-for-Open-Societal-Systems/openg2p-data.git
-ARG OPENG2P_DATA_REF=2614a3252a078d8c24f1d982d6e3e702d56b5de7
+ARG OPENG2P_DATA_REF=5a8291769a395c78ea5b6625513a7f951595a51f
 RUN rm -rf /openg2p-data && mkdir -p /openg2p-data && cd /openg2p-data     && git init -q && git remote add origin ${OPENG2P_DATA_REPO}     && git fetch -q --depth 1 origin ${OPENG2P_DATA_REF} && git checkout -q FETCH_HEAD     && rm -rf .git
 COPY --chmod=755 docker/db-seed/load_sample_data.py /seed/
 # The image is the platform's db-seed with the Livestock extension's metadata,
