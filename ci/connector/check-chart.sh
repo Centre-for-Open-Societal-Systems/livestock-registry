@@ -7,9 +7,9 @@ out=$(mktemp)
 trap 'rm -f "$out"' EXIT
 helm lint chart -f livestock-connector.values.yaml > /dev/null
 helm template livestock-connector chart -n livestock -f livestock-connector.values.yaml > "$out"
-digest=sha256:691557460a40b49ed291775a3d380bbb60f343b9911943380e85c6f328ac76af
+digest=sha256:138d7ec301963da9b75cd4111ec2a8f393f56a44165580f4ba38ddcf05fc3236
 test "$(grep -c "image: \"379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector@$digest\"" "$out")" -eq 3
-ui_digest=sha256:5fbf270849c43bde8ce5722581476fbaa20c54c06acb07e3f3b2d10c1c029e6a
+ui_digest=sha256:9b49598c2f02c01a967cb5b2ec2be4ff43048261bf8de26b21f05439613b1fb0
 grep -q "image: \"379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector-ui@$ui_digest\"" "$out"
 for name in CONNECTOR_VALIDATE_MAPPED_PAYLOAD CONNECTOR_SIGNING_KID CONNECTOR_SIGNING_KEY_PEM; do
   # api, worker and beat each render it in the container and in the postgres-checker init container.
