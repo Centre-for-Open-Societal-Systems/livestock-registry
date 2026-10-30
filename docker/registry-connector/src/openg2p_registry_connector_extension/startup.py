@@ -9,6 +9,8 @@ failing .pth line, so each wrap waits for its module's own import instead:
   ``__main__``; uvicorn then imports ``openg2p_connector_service.main:app``, the app it
   serves, through this hook. The same hook adds ``webhook_signature``, which makes
   ``X-Hub-Signature`` and ``X-Hub-Signature-256`` interchangeable on ``/webhook`` paths.
+* ``...worker``: the beat task that re-drives deliveries which failed for want of a signing key
+  (``worker_hook``, ``requeue``).
 """
 
 import importlib.abc
@@ -29,9 +31,16 @@ def _api(module) -> None:
     webhook_signature.install(module.app)  # added last, so it wraps the app outermost
 
 
+def _worker(module) -> None:
+    from .worker_hook import install
+
+    install(module)
+
+
 TARGETS = {
     "openg2p_connector_service.services.ingestion_service": _ingestion,
     "openg2p_connector_service.main": _api,
+    "openg2p_connector_service.worker": _worker,
 }
 
 
