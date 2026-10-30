@@ -62,3 +62,11 @@ the `registry-connector` service account.
 
 - The chart has no `extraEnv`, so `CONNECTOR_VALIDATE_MAPPED_PAYLOAD` stays off.
 - The poll worker advances its watermark past a failed record.
+
+**Webhook signature header.** WebSub deliveries are verified upstream from
+`X-Hub-Signature-256: sha256=<hex hmac>`, but a hub on older connector code signs with
+`X-Hub-Signature: sha256=<hex hmac>` and the receiver answers
+`401 {"detail":"Missing X-Hub-Signature-256 header"}`. `webhook_signature.py` is an ASGI
+middleware (installed beside `admin_auth`) that, for paths under `/webhook`, copies either header
+to the other when only one is present and its value starts with `sha256=`. Both names are
+accepted; the HMAC is still verified by the upstream code.

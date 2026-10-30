@@ -7,7 +7,8 @@ failing .pth line, so each wrap waits for its module's own import instead:
 * ``...services.ingestion_service``: registry signature and WebSub content (``install``).
 * ``...main``: admin-only API (``admin_auth``). ``python -m ...main`` runs that file as
   ``__main__``; uvicorn then imports ``openg2p_connector_service.main:app``, the app it
-  serves, through this hook.
+  serves, through this hook. The same hook adds ``webhook_signature``, which makes
+  ``X-Hub-Signature`` and ``X-Hub-Signature-256`` interchangeable on ``/webhook`` paths.
 """
 
 import importlib.abc
@@ -22,9 +23,10 @@ def _ingestion(module) -> None:
 
 
 def _api(module) -> None:
-    from .admin_auth import install
+    from . import admin_auth, webhook_signature
 
-    install(module.app)
+    admin_auth.install(module.app)
+    webhook_signature.install(module.app)  # added last, so it wraps the app outermost
 
 
 TARGETS = {
