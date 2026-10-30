@@ -59,6 +59,14 @@ test "$status" = "deployed openg2p-connector-0.1.0"
 helm history "$RELEASE" -n "$NAMESPACE" --max 5
 kubectl get secret -n "$NAMESPACE" commons-postgresql -o name > /dev/null
 
+# The final verification reads the Keycloak client secret from commons/registry-connector. Check that access
+# now, before anything is changed, so a missing RBAC grant fails fast instead of after the upgrade.
+if ! rbac_out=$(kubectl auth can-i get secret/registry-connector -n commons 2>&1) || [[ "$rbac_out" != yes* ]]; then
+  echo "The CI service account cannot get Secret commons/registry-connector (kubectl auth can-i: ${rbac_out})." >&2
+  echo "Apply ci/k8s/livestock-deploy-rbac.yaml as cluster admin first; it grants get on exactly that Secret." >&2
+  exit 1
+fi
+
 plan() {
   helm lint "$CHART" -f "$VALUES"
   helm get manifest "$RELEASE" -n "$NAMESPACE" > "$STATE/current.yaml"
@@ -178,7 +186,15 @@ API_POD=$(kubectl get pod -n "$NAMESPACE" -l app.kubernetes.io/instance=$RELEASE
 KEYCLOAK_URL="${KEYCLOAK_URL:-https://keycloak.development.oanstaging.com}"
 TOKEN_URL="${KEYCLOAK_URL%/}/realms/staff/protocol/openid-connect/token"
 set +x
-client_secret=$(kubectl get secret registry-connector -n commons -o jsonpath='{.data.client_secret}' | base64 -d)
+# One read, no retry. If the CI service account cannot read the Secret, say exactly why and fail:
+# the admin lock stays unverified, so this must not pass.
+if ! secret_b64=$(kubectl get secret registry-connector -n commons -o jsonpath='{.data.client_secret}' 2>&1); then
+  echo "Cannot read Secret commons/registry-connector, so the admin-only API cannot be verified: ${secret_b64}" >&2
+  echo "The CI service account needs the ci-read-connector-client-secret Role in commons (ci/k8s/livestock-deploy-rbac.yaml); see its header." >&2
+  exit 1
+fi
+client_secret=$(printf '%s' "$secret_b64" | base64 -d)
+unset secret_b64
 [[ -n "$client_secret" ]] || { echo "Secret commons/registry-connector has no client_secret; cannot verify the admin-only API." >&2; exit 1; }
 ADMIN_TOKEN=$(CLIENT_SECRET="$client_secret" TOKEN_URL="$TOKEN_URL" python3 -c '
 import json, os, sys, urllib.error, urllib.parse, urllib.request

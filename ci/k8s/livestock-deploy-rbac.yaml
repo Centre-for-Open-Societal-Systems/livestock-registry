@@ -85,3 +85,32 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: ci-deploy-istio
+---
+# The connector upgrade's final check mints a Keycloak client-credentials token for the admin-only
+# connector API, and reads the client secret from Secret commons/registry-connector. Grant the CI
+# service account get on exactly that one Secret in commons, and nothing else there.
+# Apply as cluster admin, like the rest of this file.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-read-connector-client-secret
+  namespace: commons
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["registry-connector"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: livestock-ci-connector-client-secret
+  namespace: commons
+subjects:
+  - kind: ServiceAccount
+    name: livestock-ci
+    namespace: live
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ci-read-connector-client-secret
