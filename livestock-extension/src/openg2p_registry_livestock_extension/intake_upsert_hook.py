@@ -14,8 +14,8 @@ which the platform no longer calls:
 - the Livestock row's admin area names and farmer identity.
 
 This mixin calls it right after the platform has upserted the section's rows,
-in the same session, with the submission's intake rows of that register. A
-refusal raised there rolls the whole section save back, because the platform
+in the same session, with the rows of that register this save added or
+changed. A refusal raised there rolls the whole section save back, because the platform
 commits only after this method returns. Web, ODK and partner ingestion all
 save sections through this service, so every channel gets the same checks.
 
@@ -38,15 +38,26 @@ class IntakeUpsertHook:
         # animals).
         token = ingest_session.set(session)
         try:
+            existing = await self._existing_row_ids(submission_id, section_register_id, session)
             submission = await super().save_intake_form_submission_with_session(
                 submission_id, section_id, section_payload, section_register_id,
                 form_id, register_id, created_by, session, documents=documents)
-            await self._run_post_intake_upsert(submission, section_register_id, session)
+            await self._run_post_intake_upsert(
+                submission, section_register_id, session, saved_row_ids(section_payload), existing)
             return submission
         finally:
             ingest_session.reset(token)
 
-    async def _run_post_intake_upsert(self, submission, section_register_id, session) -> None:
+    async def _existing_row_ids(self, submission_id, section_register_id, session) -> set:
+        """internal_record_id of the submission's rows of this register before the save."""
+        if not submission_id:
+            return set()
+        intake_class = await self._resolve_intake_form_class(section_register_id, session)
+        return set(await self._get_intake_rows(intake_class, submission_id, session))
+
+    async def _run_post_intake_upsert(
+        self, submission, section_register_id, session, saved_ids=None, existing=None
+    ) -> None:
         definition = await self._get_register_definition(section_register_id, session)
         factory = G2PRegisterDomainFactory.get_component() or G2PRegisterDomainFactory()
         domain_service = factory.get_domain_service(definition.register_mnemonic)
@@ -55,7 +66,24 @@ class IntakeUpsertHook:
             return
         intake_class = await self._resolve_intake_form_class(section_register_id, session)
         rows = list(await self._get_intake_rows_list(intake_class, submission.submission_id, session))
+        if saved_ids is not None:
+            # Only the rows this save sent back or inserted: every check opens
+            # a query per row, so re-checking the whole herd on each Next would
+            # cost two queries per animal.
+            existing = existing or set()
+            rows = [row for row in rows
+                    if getattr(row, "internal_record_id", None) in saved_ids
+                    or getattr(row, "internal_record_id", None) not in existing]
         if not rows:
             return
         await hook(rows, session)
         await session.flush()
+
+
+def saved_row_ids(section_payload) -> set:
+    """internal_record_id of the existing rows a section save sends back (deleted ones excluded)."""
+    return {
+        record["internal_record_id"]
+        for record in section_payload or []
+        if isinstance(record, dict) and record.get("internal_record_id") and record.get("edit_action") != "DELETE"
+    }

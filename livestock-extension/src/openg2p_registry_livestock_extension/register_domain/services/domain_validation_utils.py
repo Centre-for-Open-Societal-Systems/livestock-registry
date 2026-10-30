@@ -190,8 +190,10 @@ def animal_identified_by(model, identifier: str):
     return or_(model.ear_tag_id == identifier, model.secondary_identifier == identifier)
 
 
-# The ingest worker's database session while it saves an ingested submission
-# (ODK, File Import); None everywhere else. Set by odk_ingest_hooks.
+# The session of the intake section save in progress, so checks see the rows
+# the same transaction already wrote: the ingest worker (ODK, File Import,
+# partner) commits only after the whole submission is saved. Set by
+# IntakeUpsertHook (intake_upsert_hook.py); None outside a section save.
 ingest_session: ContextVar = ContextVar("livestock_ingest_session", default=None)
 
 
