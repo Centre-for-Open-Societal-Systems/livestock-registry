@@ -285,9 +285,14 @@ class NativeNotificationTests(NativeReferenceTests):
                                               section_id=self.section_id, section_order=1)])
                 await session.flush()
             service = native.G2PIntakeFormDataService.get_component()
-            submission = await service.create_submission_with_session(
-                form_id="test_notice_form", register_id=self.farmer_id, submission_source=source, partner_id=partner,
-                section_payloads=None, created_by="system", session=session)
+            # The default reference is the day plus the second of the day plus one digit: two
+            # submissions made within a second would collide, so give each its own.
+            from unittest.mock import patch
+            with patch("openg2p_registry_core.helpers.application_reference_generator.generate_application_reference",
+                       side_effect=lambda *_: "notice-" + uuid4().hex):
+                submission = await service.create_submission_with_session(
+                    form_id="test_notice_form", register_id=self.farmer_id, submission_source=source, partner_id=partner,
+                    section_payloads=None, created_by="system", session=session)
             row = {"internal_record_id": str(uuid4()), "farmer_id": self.snapshot.profile["farmer_id"],
                    "fayda_fan_id": self.snapshot.profile["fayda_fan_id"], **identity}
             await service.save_intake_form_submission_with_session(

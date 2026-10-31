@@ -85,7 +85,8 @@ class FarmerLookupSectionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(ordered[0], LOOKUP, tab_id)
             self.assertEqual(sorted(order for tab, _, order in first if tab == tab_id),
                              list(range(1, len(ordered) + 1)))
-        self.assertFalse(OLD & {section for _, section, _ in first})
+        # The pipeline-only Farmer notice form (zz-oan/93) is the one intake that carries the Farmer section.
+        self.assertFalse(OLD & {section for tab, section, _ in first if tab in TABS})
 
         native = importlib.import_module("openg2p_registry_extensions.farmer_reference.native")
         service = native.G2PIntakeFormDataService.get_component()
