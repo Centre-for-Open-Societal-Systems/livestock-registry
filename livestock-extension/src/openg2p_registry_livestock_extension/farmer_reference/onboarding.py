@@ -153,6 +153,24 @@ class OnboardingService:
             return existing
         return await self._create_request(session, reference, source, "UPDATE")
 
+    async def queue_first_reference(self, session, source: VerifiedFarmer):
+        """The ADD for a farmer first seen through a Farmer Registry notice: the same reference and
+        request an intake's ensure_dependency makes, without an intake. Returns (reference, request);
+        request is None when the farmer is already approved here, and a repeated notice returns the
+        ADD that is still awaiting approval instead of making another."""
+        reference = await self._reference(session, source, allow_create=True)
+        if reference.state == "REJECTED":
+            raise FarmerReferenceError("FARMER_REFERENCE_DEPENDENCY_REJECTED")
+        if reference.state == "APPROVED":
+            return reference, None
+        request = (await session.get(FarmerReferenceRequest, reference.pending_add_request_id)
+                   if reference.pending_add_request_id else None)
+        if request is None:
+            request = await self._create_request(session, reference, source, "ADD")
+            reference.pending_add_request_id = request.request_id
+            await session.flush()
+        return reference, request
+
     async def require_approved_dependency(self, session, submission_id: str):
         dependency = await session.get(FarmerSubmissionDependency, submission_id)
         if not dependency:

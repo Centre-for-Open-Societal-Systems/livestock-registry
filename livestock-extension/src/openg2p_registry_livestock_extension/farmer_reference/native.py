@@ -496,19 +496,19 @@ class ReferenceIngestionService(G2PChangeRequestWorkerService):
         expected_partner = os.environ.get("COSS_FARMER_SOURCE_PARTNER_ID", "").strip()
         if not expected_partner or source_partner_id != expected_partner or change_request_source != INGESTION_PIPELINE_SOURCE:
             raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_PARTNER_REQUIRED")
-        reference = (await session.execute(select(FarmerReference).where(
-            FarmerReference.local_farmer_id == payload.internal_record_id))).scalar_one_or_none()
-        if not reference or reference.state != "APPROVED":
-            raise FarmerReferenceError("FARMER_REFERENCE_UNREFERENCED_NOTIFICATION")
-        from .notification import notification_change_identity
-        notification_pair = notification_change_identity(payload)
-        if notification_pair[0] != reference.farmer_id:
-            raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
         section = await session.get(G2PRegisterSection, payload.section_id)
         if (payload.register_id != definition.register_id or not section or
                 section.register_id != definition.register_id or section.section_register_id != definition.register_id or
                 "identity" not in section.section_id):
             raise FarmerReferenceError("FARMER_REFERENCE_INVALID_NOTIFICATION_SECTION")
+        from .notification import notification_change_identity
+        notification_pair = notification_change_identity(payload)
+        reference = (await session.execute(select(FarmerReference).where(
+            FarmerReference.local_farmer_id == payload.internal_record_id))).scalar_one_or_none()
+        if not reference or reference.state != "APPROVED":
+            return await self._queue_first_reference(session, notification_pair)
+        if notification_pair[0] != reference.farmer_id:
+            raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
         client = configured_lookup()
         if client.config.source_id != reference.source_system:
             raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_ID_MISMATCH")
@@ -521,6 +521,31 @@ class ReferenceIngestionService(G2PChangeRequestWorkerService):
         # person can establish that correction; the event cannot authorize it.
         if notification_pair[1] not in {reference.uid, current.profile.get("fayda_fan_id"), current.profile.get("fayda_fin")}:
             raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
+        return await self._queue_update(session, reference, current)
+
+    async def _queue_first_reference(self, session, notification_pair):
+        """A notice for a farmer with no approved reference starts the same ADD an intake
+        with the typed Farmer ID would: signed, consented lookup, then the normal approval.
+        Only the notice's IDs are used; its demographic values never are."""
+        farmer_id, identifier = notification_pair
+        declared = intake_identity({"farmer_id": farmer_id,
+                                    "fayda_fin" if len(identifier) == 12 else "fayda_fan_id": identifier})
+        client = configured_lookup()
+        if declared.get("fayda_fin"):
+            source = await client.lookup(declared["farmer_id"], None, fin=declared["fayda_fin"])
+        else:
+            source = await client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
+        if not matches_declared_identity(declared, source.profile):
+            raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
+        # A failed orchestration may have flushed a partial CR; keep it out of the worker transaction.
+        async with session.begin_nested():
+            reference, request = await onboarding_service().queue_first_reference(session, source)
+        if request is None:
+            # The farmer is already approved here under another local id: this notice is an ordinary update.
+            return await self._queue_update(session, reference, source)
+        return await session.get(G2PRegisterChangeRequest, request.native_cr_id)
+
+    async def _queue_update(self, session, reference, current):
         request = await onboarding_service().queue_current_update(session, current)
         if request is None:
             request = (await session.execute(select(FarmerReferenceRequest).where(
