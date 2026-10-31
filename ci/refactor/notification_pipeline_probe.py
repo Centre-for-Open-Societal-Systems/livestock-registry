@@ -77,7 +77,7 @@ with Session(engine) as session:
     session.commit()
 engine.dispose()
 result={'registry':domain,'result':'PASS','installed_platform':'1.2.2-rc.614',
-    'native_helpers':['two-pass classification','unreferenced ADD rejection','native enricher factory','native TemplateHelper Jinja environment',
+    'native_helpers':['two-pass classification','unreferenced ADD creation','native enricher factory','native TemplateHelper Jinja environment',
                       'native UPDATE transform validation','native asynchronous CR payload builder'],
     'worker_replaced':False,'existing_environment_modified':False,
     'not_proved':['partner signature validation','MinIO stored-template download','Kafka delivery','real Farmer lookup','live AWE task']}
