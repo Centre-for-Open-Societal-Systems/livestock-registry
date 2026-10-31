@@ -11,8 +11,14 @@ Use the standard outgestion and ingestion pipelines. Source approval publishes
 through native outgestion, WebSub/Kafka and the independently operated receiving
 connector. The configured native key paths retain signed payload verification.
 The first classification pass resolves the Farmer's native functional ID; the
-second selects the existing Farmer identity section only for UPDATE. There is
-no matching ADD form, so unknown Farmers cannot onboard through notifications.
+second selects the existing Farmer identity section for UPDATE. A notice for a Farmer
+with no live record classifies as ADD onto the pipeline-only intake form
+`farmer_registry_notice_to_farmer_reference_form` (the same identity section, nothing
+else; zz-oan/93_farmer_notice_first_reference.sql). The ingest worker saves the Farmer ID
+and Fayda ID as a Farmer intake, and the registered intake service, instead of starting
+an approval, repeats the signed, consented lookup and queues the Farmer reference ADD
+for the normal two-stage approval; the intake is closed as cancelled with the change
+request id in its remarks, so no approval, deduplication or register write follows from it.
 
 The registered native enricher validates the event type, event ID and string
 Farmer ID plus Fayda ID pair (the 16-digit FAN or the 12-digit FIN, whichever the

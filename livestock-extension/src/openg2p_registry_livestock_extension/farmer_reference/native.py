@@ -323,7 +323,9 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, IntakeUpsertHook
         await session.refresh(submission, with_for_update=True)
         definition = await self._get_register_definition(submission.register_id, session)
         if definition.register_mnemonic == "Farmer":
-            raise FarmerReferenceError("FARMER_REFERENCE_CHANGE_REQUEST_REQUIRED")
+            if submission.submission_source != INGESTION_PIPELINE_SOURCE:
+                raise FarmerReferenceError("FARMER_REFERENCE_CHANGE_REQUEST_REQUIRED")
+            return await self._finalize_farmer_notice(submission, session)
         if definition.register_mnemonic in {"CropSown", "Livestock"}:
             models = domain_models()
             root = getattr(models, "G2PIntakeForm" + definition.register_mnemonic)
@@ -387,6 +389,25 @@ class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, IntakeUpsertHook
             bearer_token = await service_bearer()
         return await super().finalize_submission_with_session(submission_id, session, finalized_by,
             bearer_token=bearer_token, requester_sub=requester_sub, required_checked=True)
+
+    async def _finalize_farmer_notice(self, submission, session):
+        """A Farmer Registry change notice for a farmer first seen here reaches the platform as a
+        Farmer intake from the ingestion pipeline (the ADD the classifier assigns when no local
+        Farmer row exists). Nothing is approved through that intake: its Farmer ID and Fayda ID
+        start the Farmer reference ADD, exactly as the same notice does for an unreferenced
+        farmer, and the intake is closed as cancelled with a pointer to the change request. It
+        stays a draft, so no approval, deduplication or register ingest ever picks it up."""
+        expected_partner = os.environ.get("COSS_FARMER_SOURCE_PARTNER_ID", "").strip()
+        if not expected_partner or submission.partner_id != expected_partner:
+            raise FarmerReferenceError("FARMER_REFERENCE_SOURCE_PARTNER_REQUIRED")
+        root = getattr(domain_models(), "G2PIntakeFormFarmer")
+        rows = (await session.execute(select(root).where(root.submission_id == submission.submission_id))).scalars().all()
+        if len(rows) != 1:
+            raise FarmerReferenceError("FARMER_REFERENCE_INVALID_NOTIFICATION")
+        request = await first_reference_from_notice(session, reference_identity(model_identity(rows[0])))
+        submission.remarks = "Farmer reference requested: change request " + request.change_request_id
+        await self.cancel_submission_with_session(submission.submission_id, session, cancelled_by="system")
+        return submission
 
     async def _insert_live_register_row(self, submission, section, register_definition,
                                         schema_class, register_class, intake_row, session):
@@ -524,34 +545,42 @@ class ReferenceIngestionService(G2PChangeRequestWorkerService):
         return await self._queue_update(session, reference, current)
 
     async def _queue_first_reference(self, session, notification_pair):
-        """A notice for a farmer with no approved reference starts the same ADD an intake
-        with the typed Farmer ID would: signed, consented lookup, then the normal approval.
-        Only the notice's IDs are used; its demographic values never are."""
-        farmer_id, identifier = notification_pair
-        declared = intake_identity({"farmer_id": farmer_id,
-                                    "fayda_fin" if len(identifier) == 12 else "fayda_fan_id": identifier})
-        client = configured_lookup()
-        if declared.get("fayda_fin"):
-            source = await client.lookup(declared["farmer_id"], None, fin=declared["fayda_fin"])
-        else:
-            source = await client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
-        if not matches_declared_identity(declared, source.profile):
-            raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
-        # A failed orchestration may have flushed a partial CR; keep it out of the worker transaction.
-        async with session.begin_nested():
-            reference, request = await onboarding_service().queue_first_reference(session, source)
-        if request is None:
-            # The farmer is already approved here under another local id: this notice is an ordinary update.
-            return await self._queue_update(session, reference, source)
-        return await session.get(G2PRegisterChangeRequest, request.native_cr_id)
+        return await first_reference_from_notice(session, notification_pair)
 
     async def _queue_update(self, session, reference, current):
-        request = await onboarding_service().queue_current_update(session, current)
-        if request is None:
-            request = (await session.execute(select(FarmerReferenceRequest).where(
-                FarmerReferenceRequest.reference_id == reference.reference_id,
-                FarmerReferenceRequest.source_version == current.source_version,
-                FarmerReferenceRequest.state == "APPROVED"))).scalar_one_or_none()
-            if not request:
-                raise FarmerReferenceError("FARMER_REFERENCE_STALE_SOURCE_VERSION")
-        return await session.get(G2PRegisterChangeRequest, request.native_cr_id)
+        return await queue_update_request(session, reference, current)
+
+
+async def first_reference_from_notice(session, notification_pair):
+    """A notice for a farmer with no approved reference starts the same ADD an intake
+    with the typed Farmer ID would: signed, consented lookup, then the normal approval.
+    Only the notice's IDs are used; its demographic values never are."""
+    farmer_id, identifier = notification_pair
+    declared = intake_identity({"farmer_id": farmer_id,
+                                "fayda_fin" if len(identifier) == 12 else "fayda_fan_id": identifier})
+    client = configured_lookup()
+    if declared.get("fayda_fin"):
+        source = await client.lookup(declared["farmer_id"], None, fin=declared["fayda_fin"])
+    else:
+        source = await client.lookup(declared["farmer_id"], declared["fayda_fan_id"])
+    if not matches_declared_identity(declared, source.profile):
+        raise FarmerReferenceError("FARMER_REFERENCE_IDENTITY_MISMATCH")
+    # A failed orchestration may have flushed a partial CR; keep it out of the worker transaction.
+    async with session.begin_nested():
+        reference, request = await onboarding_service().queue_first_reference(session, source)
+    if request is None:
+        # The farmer is already approved here under another local id: this notice is an ordinary update.
+        return await queue_update_request(session, reference, source)
+    return await session.get(G2PRegisterChangeRequest, request.native_cr_id)
+
+
+async def queue_update_request(session, reference, current):
+    request = await onboarding_service().queue_current_update(session, current)
+    if request is None:
+        request = (await session.execute(select(FarmerReferenceRequest).where(
+            FarmerReferenceRequest.reference_id == reference.reference_id,
+            FarmerReferenceRequest.source_version == current.source_version,
+            FarmerReferenceRequest.state == "APPROVED"))).scalar_one_or_none()
+        if not request:
+            raise FarmerReferenceError("FARMER_REFERENCE_STALE_SOURCE_VERSION")
+    return await session.get(G2PRegisterChangeRequest, request.native_cr_id)
