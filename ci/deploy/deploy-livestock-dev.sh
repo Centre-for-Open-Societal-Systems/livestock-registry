@@ -80,22 +80,22 @@ if [ -n "$PREV" ]; then echo "rollback target: revision ${PREV}"; else echo "rol
 
 IMAGE_SET_FLAGS=(
   --set "registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/staff-api"
-  --set "registry.staffApi.image.tag=${IMAGE_TAG}"
+  --set-string "registry.staffApi.image.tag=${IMAGE_TAG}"
   --set "registry.partnerApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/partner-api"
-  --set "registry.partnerApi.image.tag=${IMAGE_TAG}"
+  --set-string "registry.partnerApi.image.tag=${IMAGE_TAG}"
   --set "registry.celeryWorker.image.repository=${ECR_REGISTRY}/${ECR_PATH}/celery"
-  --set "registry.celeryWorker.image.tag=${IMAGE_TAG}"
+  --set-string "registry.celeryWorker.image.tag=${IMAGE_TAG}"
   --set "registry.celeryBeat.image.repository=${ECR_REGISTRY}/${ECR_PATH}/celery"
-  --set "registry.celeryBeat.image.tag=${IMAGE_TAG}"
+  --set-string "registry.celeryBeat.image.tag=${IMAGE_TAG}"
   --set "registry.dbSeed.image.repository=${ECR_REGISTRY}/${ECR_PATH}/db-seed"
-  --set "registry.dbSeed.image.tag=${IMAGE_TAG}"
+  --set-string "registry.dbSeed.image.tag=${IMAGE_TAG}"
   --set "registry.staffUi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/staff-ui"
-  --set "registry.staffUi.image.tag=${IMAGE_TAG}"
+  --set-string "registry.staffUi.image.tag=${IMAGE_TAG}"
   --set "registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_PATH}/sanity-tests"
-  --set "registry.sanity.image.tag=${IMAGE_TAG}"
+  --set-string "registry.sanity.image.tag=${IMAGE_TAG}"
   --set dashboardApi.enabled=true
   --set "dashboardApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/dashboard-api"
-  --set "dashboardApi.image.tag=${IMAGE_TAG}"
+  --set-string "dashboardApi.image.tag=${IMAGE_TAG}"
   --set reporting.views.enabled=true
 )
 
