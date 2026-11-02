@@ -22,8 +22,9 @@ EVENTS = "11111111-0000-4000-8000-000000000001"
 class PlatformStandIn:
     """The platform save, reduced to what the hook reads around it."""
 
-    def __init__(self, rows):
+    def __init__(self, rows, existing=()):
         self.rows = rows
+        self.existing = {row_id: object() for row_id in existing}
         self.saved = []
 
     async def save_intake_form_submission_with_session(
@@ -42,6 +43,9 @@ class PlatformStandIn:
     async def _get_intake_rows_list(self, intake_class, submission_id, session):
         assert submission_id == SUBMISSION
         return self.rows
+
+    async def _get_intake_rows(self, intake_class, submission_id, session):
+        return dict(self.existing)
 
 
 class Service(hook_module.IntakeUpsertHook, PlatformStandIn):
@@ -97,6 +101,31 @@ def test_no_rows_left_after_the_save_skips_the_hook():
     with with_domain_service(domain_service):
         save(Service([]), session())
     domain_service.post_intake_upsert.assert_not_awaited()
+
+
+def test_only_the_rows_of_this_save_reach_the_hook():
+    # r-old was there before and is not in this save; r-sent comes back in the
+    # payload; r-new is inserted by this save.
+    def row(row_id):
+        return SimpleNamespace(submission_id=SUBMISSION, internal_record_id=row_id)
+
+    domain_service = SimpleNamespace(post_intake_upsert=AsyncMock())
+    service = Service([row("r-old"), row("r-sent"), row("r-new")], existing=("r-old", "r-sent"))
+    payload = [{"internal_record_id": "r-sent", "ear_tag_id": "ET0101010101", "edit_action": "UPDATE"},
+               {"ear_tag_id": "ET0101010102", "edit_action": "ADD"}]
+    with with_domain_service(domain_service):
+        asyncio.run(service.save_intake_form_submission_with_session(
+            SUBMISSION, "health", payload, EVENTS, "form", "root", "user", session()))
+    sent = domain_service.post_intake_upsert.await_args.args[0]
+    assert [r.internal_record_id for r in sent] == ["r-sent", "r-new"]
+
+
+def test_a_deleted_row_is_not_counted_as_saved():
+    assert hook_module.saved_row_ids([
+        {"internal_record_id": "a", "edit_action": "UPDATE"},
+        {"internal_record_id": "b", "edit_action": "DELETE"},
+        {"ear_tag_id": "ET0101010101", "edit_action": "ADD"},
+    ]) == {"a"}
 
 
 def test_the_intake_service_runs_the_hook_after_the_required_field_check():
