@@ -1,36 +1,29 @@
-"""Put this build's images into the oan-helm Livestock chart and wait for the chart release that carries them.
+"""After a successful deploy: put this build's images into the oan-helm Livestock chart through a pull request.
 
-Run by the "Release images to oan-helm" stage of every develop build, after the images are pushed and before the
-deploy. The stage turns a build into a Helm release that the deploy then uses:
+Run by the stage "Open oan-helm image PR" of every develop build, after the images were pushed to ECR and deployed to New Dev
+(with a rollback if that failed, in which case this stage does not run). It does not wait for the pull request to be merged:
+the stage, and the build, are a success once the pull request is open.
 
   1. Read the ECR digests of the build (.build/image-digests.tsv: component<TAB>sha256:...).
   2. Rewrite the image tags in charts/openg2p-livestock-registry/values.yaml of oan-helm to
      <commit12>@sha256:<digest> (staffApi, partnerApi, celeryWorker, celeryBeat, dbSeed, staffUi, sanity) and the
      tag and digest of dashboardApi. Only those lines change; the file is edited as text.
-  3. Open a pull request to oan-helm main from bot/livestock-images-<commit12>, wait for its checks, merge it.
-  4. oan-helm's release workflow gives the chart its next version, packages it and updates releases/current.yaml.
-     Wait until the archive at the head of main carries exactly these images.
-  5. Write the pin of that release to .build/oan-chart-candidate.json. The deploy reads it (OAN_CHART_PIN_FILE),
-     verifies the archive by SHA-256, deploys it and, if the deploy fails, rolls Helm back to the previous revision,
-     i.e. the previous release. Nothing here deploys, and the pin in this repository is not changed.
+  3. Put that change on the branch bot/livestock-images-<commit12> of the FORK of oan-helm (GH_USER/oan-helm), created from
+     the current head of the org repo's main, and open a pull request from it into
+     Centre-for-Open-Societal-Systems/oan-helm main (or update the open one for the same commit).
 
-No candidate is written (the stage is UNSTABLE and the deploy stage upgrades nothing) when there is no credential, GitHub refuses, a check fails, the pull request needs a person, or the release does not
-appear in time. Skipped without a candidate, and without an error, (a) for a commit that only changes the pin
-(ci/deploy/oan-chart.json): such a commit comes from the pin pull request and must not start the cycle again, and
-(b) for a commit whose images oan-helm main already carries: a re-run, Replay or rebuild of a commit that an earlier build
-released would only produce new digests for the same tag, another chart version and another CHANGELOG entry. One chart
-release per commit merged to develop. (If that earlier release failed after the oan-helm pull request merged, the next
-new commit picks the release up.) In both skips the reason is written to .build/release-note.txt.
+A person with write access reviews and merges that pull request. oan-helm's release workflow then publishes the next
+chart version and writes the CHANGELOG entry. Nothing here touches the cluster; the chart pin of this repository
+moves in the separate "Propose chart pin update" stage.
 
-Without a candidate the deploy stage does NOT upgrade: images reach New Dev only through a chart release, so New Dev
-stays on the last working release (a failed stage leaves the build UNSTABLE, a deliberate skip does not).
+A commit whose images oan-helm main already carries is left alone (a re-run, Replay or rebuild would only give new digests
+for the same tag): one pull request per commit merged to develop.
 
-Needs GH_TOKEN: a GitHub App installation token for oan-helm with Contents and Pull requests write and Checks read,
-and permission to merge a pull request there. DRY_RUN=1 prints the change and touches nothing.
+Needs GH_USER (the account that owns the fork) and GH_TOKEN (a classic token of that account with the public_repo scope;
+the oan-helm repository is public, so any account can open a pull request from its fork). OAN_HELM_FORK is the name of the
+fork (default oan-helm). DRY_RUN=1 prints the change and touches nothing.
 
-Exit codes: 0 candidate written (or skipped on purpose), 1 unexpected failure, 3 no token, 4 GitHub refused,
-6 a check on the oan-helm pull request failed, 7 the pull request could not be merged (a person must), 8 the release
-did not appear in time.
+Exit codes: 0 pull request open (or nothing to do), 1 unexpected failure, 3 no credential, 4 GitHub refused.
 
 Standard library only; runs on the deploy node's stock Python (3.7 or later).
 """
@@ -41,10 +34,8 @@ import json
 import os
 from pathlib import Path
 import re
-import subprocess
 import sys
 import tarfile
-import time
 import urllib.error
 import urllib.request
 
@@ -54,13 +45,11 @@ SLUG = "Centre-for-Open-Societal-Systems/oan-helm"
 CHART = "openg2p-livestock-registry"
 VALUES_PATH = "charts/%s/values.yaml" % CHART
 DIGESTS = ".build/image-digests.tsv"
-CANDIDATE = ".build/oan-chart-candidate.json"
-NOTE = ".build/release-note.txt"
+PR_FILE = ".build/oan-helm-pr.txt"
 # chart values section under `registry:` -> ECR component name
 REGISTRY = (("staffApi", "staff-api"), ("partnerApi", "partner-api"), ("celeryWorker", "celery"),
             ("celeryBeat", "celery"), ("dbSeed", "db-seed"), ("staffUi", "staff-ui"), ("sanity", "sanity-tests"))
 DASHBOARD = "dashboard-api"
-PIN_ONLY = {"ci/deploy/oan-chart.json"}
 
 
 class Stop(Exception):
@@ -171,6 +160,46 @@ def released_before(text, image_tag):
     return re.search(r"(?m)^\s+tag: %s@sha256:[0-9a-f]{64}\s*$" % re.escape(image_tag), text) is not None
 
 
+def _image_block(lines, section):
+    """(start, end) of the lines inside the image block of a registry section, or of dashboardApi (section=None)."""
+    if section is None:
+        header = _find(lines, r"dashboardApi:\s*", 0, len(lines))
+        end = _block_end(lines, header, 0)
+        image = _find(lines, r" {2}image:\s*", header + 1, end)
+        return image + 1, _block_end(lines, image, 2), 4
+    top = _find(lines, r"registry:\s*", 0, len(lines))
+    top_end = _block_end(lines, top, 0)
+    header = _find(lines, r" {2}%s:\s*" % section, top + 1, top_end)
+    end = _block_end(lines, header, 2)
+    image = _find(lines, r" {4}image:\s*", header + 1, end)
+    return image + 1, _block_end(lines, image, 4), 6
+
+
+def _get_value(lines, start, end, key, indent):
+    found = _find(lines, r" {%d}%s: \S.*" % (indent, key), start, end)
+    return lines[found].split(": ", 1)[1].strip().strip("'\"")
+
+
+def read_images(text):
+    """The images a chart's values hold: ({section: 'commit@sha256:..'}, (dashboard tag, dashboard digest)).
+
+    The inverse of rewrite_values; it refuses a tag that is not pinned by digest.
+    """
+    lines = text.split("\n")
+    tags = {}
+    for section, _ in REGISTRY:
+        start, end, indent = _image_block(lines, section)
+        tag = _get_value(lines, start, end, "tag", indent)
+        if not re.fullmatch(r"[0-9a-f]{12}@sha256:[0-9a-f]{64}", tag):
+            raise ValueError("%s image tag %r is not <commit12>@sha256:<digest>" % (section, tag))
+        tags[section] = tag
+    start, end, indent = _image_block(lines, None)
+    dashboard = (_get_value(lines, start, end, "tag", indent), _get_value(lines, start, end, "digest", indent))
+    if not re.fullmatch(r"[0-9a-f]{12}", dashboard[0]) or not re.fullmatch(r"sha256:[0-9a-f]{64}", dashboard[1]):
+        raise ValueError("dashboardApi image is not <commit12> with a sha256 digest: %s %s" % dashboard)
+    return tags, dashboard
+
+
 def expected_repositories(registry, path):
     result = dict((section, "%s/%s/%s" % (registry, path, component)) for section, component in REGISTRY)
     result["dashboardApi"] = "%s/%s/%s" % (registry, path, DASHBOARD)
@@ -210,152 +239,101 @@ def api(method, path, token, payload=None):
         return error.code, body
 
 
-def refused(status, body, doing):
+def refused(status, body, doing, repo=SLUG):
     message = (body or {}).get("message", "")
     if status in (401, 403, 404):
-        raise Stop(4, "GitHub refused to %s on %s (HTTP %s: %s). The credential needs Contents and Pull requests write and "
-                      "Checks read on that repository." % (doing, SLUG, status, message))
-    raise Stop(1, "GitHub could not %s (HTTP %s: %s)" % (doing, status, message))
+        raise Stop(4, "GitHub refused to %s on %s (HTTP %s: %s). The token needs the public_repo scope (classic token of the "
+                      "account that owns the fork), and the fork must exist." % (doing, repo, status, message))
+    raise Stop(1, "GitHub could not %s on %s (HTTP %s: %s)" % (doing, repo, status, message))
 
 
-def settled(runs):
-    """(done, failed names) for a list of check runs."""
-    failed = [r.get("name", "?") for r in runs if r.get("status") == "completed"
-              and r.get("conclusion") not in ("success", "neutral", "skipped")]
-    done = all(r.get("status") == "completed" for r in runs)
-    return done, failed
+class Proposal(object):
+    """Opens (or updates) the pull request from the fork's branch into oan-helm main."""
 
-
-class Release(object):
-    def __init__(self, token, call=api, fetch=None, sleep=time.sleep, clock=time.time, bump=None, out=print):
-        self.token, self.call, self.sleep, self.clock, self.out = token, call, sleep, clock, out
-        self.bump = bump or load_bump()
-        self.fetch = fetch or self.bump.get
-        self.poll = 20
-        self.checks_timeout = 25 * 60
-        self.release_timeout = 30 * 60
+    def __init__(self, token, owner, fork_name="oan-helm", call=api, out=print):
+        self.token, self.owner, self.call, self.out = token, owner, call, out
+        self.fork = "%s/%s" % (owner, fork_name)
         self.note = None
 
-    def gh(self, method, path, payload=None):
+    def upstream(self, method, path, payload=None):
         return self.call(method, "/repos/%s%s" % (SLUG, path), self.token, payload)
+
+    def mine(self, method, path, payload=None):
+        return self.call(method, "/repos/%s%s" % (self.fork, path), self.token, payload)
 
     # -- steps
     def main_head(self):
-        status, body = self.gh("GET", "/git/ref/heads/main")
+        status, body = self.upstream("GET", "/git/ref/heads/main")
         if status != 200:
             refused(status, body, "read oan-helm main")
         return body["object"]["sha"]
 
-    def contents(self, ref):
-        status, body = self.gh("GET", "/contents/%s?ref=%s" % (VALUES_PATH, ref))
+    def contents(self, repo_call, ref, repo):
+        status, body = repo_call("GET", "/contents/%s?ref=%s" % (VALUES_PATH, ref))
         if status != 200:
-            refused(status, body, "read " + VALUES_PATH)
+            refused(status, body, "read " + VALUES_PATH, repo)
         return base64.b64decode(body["content"]).decode("utf-8"), body["sha"]
 
-    def open_pull_request(self, branch, title, body_text, new_text, main_sha, message):
-        status, body = self.gh("POST", "/git/refs", {"ref": "refs/heads/" + branch, "sha": main_sha})
-        if status not in (200, 201) and not (status == 422 and "exists" in str((body or {}).get("message", ""))):
-            refused(status, body, "create the branch " + branch)
-        text, blob = self.contents(branch)
+    def prepare_branch(self, branch, main_sha):
+        """The fork's branch starts from the head of the org repo's main (created, or reset when it is left over)."""
+        status, body = self.mine("POST", "/git/refs", {"ref": "refs/heads/" + branch, "sha": main_sha})
+        if status in (200, 201):
+            return
+        message = str((body or {}).get("message", ""))
+        if status == 422 and "already exists" in message:
+            status, body = self.mine("PATCH", "/git/refs/heads/" + branch, {"sha": main_sha, "force": True})
+            if status != 200:
+                refused(status, body, "reset the branch " + branch, self.fork)
+            return
+        if status in (404, 422):
+            # The fork cannot see that commit yet: bring the fork's main up to date with the org repo, then try again.
+            self.out("The fork does not have oan-helm commit %s yet; syncing its main." % main_sha[:12])
+            sync_status, sync_body = self.mine("POST", "/merge-upstream", {"branch": "main"})
+            if sync_status not in (200, 201):
+                raise Stop(4, "The fork %s cannot be brought up to date with %s (HTTP %s: %s). Use 'Sync fork' on GitHub, "
+                              "then rerun the build." % (self.fork, SLUG, sync_status, (sync_body or {}).get("message", "")))
+            status, body = self.mine("POST", "/git/refs", {"ref": "refs/heads/" + branch, "sha": main_sha})
+            if status in (200, 201):
+                return
+            if status == 422 and "already exists" in str((body or {}).get("message", "")):
+                status, body = self.mine("PATCH", "/git/refs/heads/" + branch, {"sha": main_sha, "force": True})
+                if status == 200:
+                    return
+        refused(status, body, "create the branch " + branch, self.fork)
+
+    def commit_values(self, branch, new_text, message):
+        text, blob = self.contents(self.mine, branch, self.fork)
         if text != new_text:
-            status, body = self.gh("PUT", "/contents/" + VALUES_PATH, {
+            status, body = self.mine("PUT", "/contents/" + VALUES_PATH, {
                 "message": message, "branch": branch, "sha": blob,
                 "content": base64.b64encode(new_text.encode("utf-8")).decode("ascii")})
             if status not in (200, 201):
-                refused(status, body, "commit the new image tags")
-        status, ref = self.gh("GET", "/git/ref/heads/" + branch)
-        if status != 200:
-            refused(status, ref, "read the branch " + branch)
-        head_sha = ref["object"]["sha"]
-        owner = SLUG.split("/")[0]
-        status, pulls = self.gh("GET", "/pulls?state=open&head=%s:%s" % (owner, branch))
+                refused(status, body, "commit the new image tags", self.fork)
+
+    def open_pull_request(self, branch, title, body_text):
+        head = "%s:%s" % (self.owner, branch)
+        status, pulls = self.upstream("GET", "/pulls?state=open&head=%s" % head)
         if status != 200:
             refused(status, pulls, "list pull requests")
         if pulls:
-            return pulls[0]["number"], pulls[0]["html_url"], head_sha
-        status, created = self.gh("POST", "/pulls", {"title": title, "head": branch, "base": "main", "body": body_text})
+            number = pulls[0]["number"]
+            status, body = self.upstream("PATCH", "/pulls/%d" % number, {"title": title, "body": body_text})
+            if status != 200:
+                refused(status, body, "update the pull request")
+            return pulls[0]["html_url"], False
+        status, created = self.upstream("POST", "/pulls", {"title": title, "head": head, "base": "main",
+                                                           "body": body_text, "maintainer_can_modify": True})
         if status not in (200, 201):
             refused(status, created, "open the pull request")
-        return created["number"], created["html_url"], head_sha
-
-    def wait_for_checks(self, head_sha, url):
-        deadline = self.clock() + self.checks_timeout
-        seen = 0
-        while True:
-            status, body = self.gh("GET", "/commits/%s/check-runs" % head_sha)
-            if status != 200:
-                refused(status, body, "read the checks of the pull request")
-            runs = (body or {}).get("check_runs", [])
-            done, failed = settled(runs)
-            if failed:
-                raise Stop(6, "These checks failed on %s: %s. The images were not released; fix oan-helm or the images and "
-                              "rerun the build." % (url, ", ".join(failed)))
-            if runs and done:
-                return
-            if not runs:
-                seen += 1
-                if seen >= 9:        # no workflow reported in three minutes: let the merge decide
-                    self.out("No checks reported for %s; trying the merge." % url)
-                    return
-            if self.clock() > deadline:
-                raise Stop(8, "The checks on %s did not finish in time." % url)
-            self.sleep(self.poll if runs else 20)
-
-    def merge(self, number, url, head_sha, title, message):
-        status, body = self.gh("PUT", "/pulls/%d/merge" % number, {
-            "merge_method": "squash", "sha": head_sha, "commit_title": title, "commit_message": message})
-        if status == 200:
-            return
-        text = (body or {}).get("message", "")
-        if status in (403, 405, 409, 422):
-            raise Stop(7, "%s could not be merged automatically (HTTP %s: %s). A person must merge it (a review may be "
-                          "required, or the App may lack permission to merge there); the release then carries these images "
-                          "and the next build deploys it." % (url, status, text))
-        refused(status, body, "merge the pull request")
-
-    def drop_branch(self, branch):
-        self.gh("DELETE", "/git/refs/heads/" + branch)       # best effort; the squash merge made it redundant
-
-    def release_for(self, tags, dashboard, old_version):
-        """Wait for the chart at the head of main that carries these images; return its pin profiles."""
-        deadline = self.clock() + self.release_timeout
-        last = "no release yet"
-        key = self.bump.version_key
-        while True:
-            try:
-                head = self.main_head()
-                captured = {}
-
-                def fetch(uri):
-                    data = self.fetch(uri)
-                    if uri.endswith(".tgz"):
-                        captured["archive"] = data
-                    return data
-
-                profiles = self.bump.new_pin(head, None, fetch)
-                pin = profiles["registry"]
-                if key(pin["version"]) < key(old_version):
-                    raise Stop(1, "oan-helm main has chart %s, older than the pinned %s" % (pin["version"], old_version))
-                if carries(archive_values(captured["archive"]), tags, dashboard):
-                    return profiles
-                last = "chart %s on oan-helm main does not carry these images yet" % pin["version"]
-            except Stop:
-                raise
-            except (ValueError, KeyError, OSError, tarfile.TarError) as error:
-                last = "%s: %s" % (error.__class__.__name__, error)
-            if self.clock() > deadline:
-                raise Stop(8, "The chart release with these images did not appear in time (%s). Check the Release Helm "
-                              "charts workflow in oan-helm; the next build picks the release up." % last)
-            self.sleep(self.poll)
+        return created["html_url"], True
 
     # -- the whole stage
     def run(self, env, root, digests_text):
         image_tag = env["IMAGE_TAG"]
         tags, dashboard = wanted(image_tag, read_digests(digests_text))
         repositories = expected_repositories(env["ECR_REGISTRY"], env.get("ECR_PATH", "openg2p/livestock-registry"))
-        old = json.loads((root / "ci/deploy/oan-chart.json").read_text(encoding="utf-8"))["registry"]
         main_sha = self.main_head()
-        text, _ = self.contents("main")
+        text, _ = self.contents(self.upstream, "main", SLUG)
         new_text = rewrite_values(text, tags, dashboard, repositories)
         subject = env.get("COMMIT_SUBJECT", "").strip()[:100]
         self.out("images of build %s:" % image_tag)
@@ -363,13 +341,12 @@ class Release(object):
             self.out("  %-13s %s" % (section, tag))
         self.out("  %-13s %s %s" % ("dashboardApi", dashboard[0], dashboard[1]))
         if released_before(text, image_tag):
-            self.note = ("Commit %s was already released to oan-helm by an earlier build: a re-run or rebuild of the same "
-                         "commit does not create another chart release, so nothing is deployed and New Dev stays on the "
-                         "last working release." % image_tag)
+            self.note = ("Commit %s is already in oan-helm main: a re-run or rebuild of the same commit opens no new pull "
+                         "request." % image_tag)
             self.out(self.note)
             return None
         if env.get("DRY_RUN"):
-            self.out("DRY_RUN: %s would change." % VALUES_PATH)
+            self.out("DRY_RUN: %s would change on %s." % (VALUES_PATH, SLUG))
             return None
         branch = "bot/livestock-images-" + image_tag
         title = "Livestock registry images %s%s" % (image_tag, (": " + subject) if subject else "")
@@ -377,65 +354,35 @@ class Release(object):
             "Image tags and digests of Livestock Registry develop build `%s` (source commit `%s`)." % (
                 image_tag, env.get("SOURCE_COMMIT", image_tag)),
             "", "Jenkins build: %s" % env.get("BUILD_URL", "(unknown)"), "",
-            "Opened by the develop Jenkins build of livestock-registry. Only the image `tag` (and the dashboard `digest`) "
-            "lines of `%s` change. Merging releases the next `%s` chart, which the same build then deploys to New Dev; if "
-            "that fails the build rolls Helm back to the previous release." % (VALUES_PATH, CHART), ""])
-        number, url, head_sha = self.open_pull_request(branch, title, body, new_text, main_sha, title)
-        self.out("pull request: " + url)
-        self.wait_for_checks(head_sha, url)
-        self.merge(number, url, head_sha, title, "Livestock develop commit %s." % env.get("SOURCE_COMMIT", image_tag))
-        self.out("merged " + url)
-        self.drop_branch(branch)
-        profiles = self.release_for(tags, dashboard, old["version"])
-        pin = profiles["registry"]
-        self.out("released chart %s (oan-helm %s)" % (pin["version"], pin["repository"].split("/oan-helm/")[1][:12]))
-        return profiles
-
-
-def pin_only_commit(root, runner=None):
-    """True when the checked-out commit changes nothing but the chart pin (it is the pin pull request merged)."""
-    runner = runner or (lambda cmd: subprocess.run(cmd, cwd=str(root), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                                   universal_newlines=True))
-    done = runner(["git", "diff", "--name-only", "HEAD~1", "HEAD"])
-    if done.returncode != 0:
-        return False
-    names = set(n for n in done.stdout.split("\n") if n.strip())
-    return bool(names) and names <= PIN_ONLY
-
-
-def write_note(root, message):
-    """Why there is no candidate on purpose; the deploy stage prints it and does not mark the build UNSTABLE."""
-    target = Path(root) / NOTE
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(message + "\n", encoding="utf-8")
+            "Opened by the develop Jenkins build of livestock-registry after it pushed these images to ECR and deployed them to "
+            "New Dev successfully. Only the image `tag` (and the dashboard `digest`) lines of `%s` change. Merging releases "
+            "the next `%s` chart." % (VALUES_PATH, CHART), ""])
+        self.prepare_branch(branch, main_sha)
+        self.commit_values(branch, new_text, title)
+        url, created = self.open_pull_request(branch, title, body)
+        self.out(("pull request opened: " if created else "pull request updated: ") + url)
+        return url
 
 
 def main(env=None, root=ROOT, call=api):
     env = dict(os.environ if env is None else env)
     root = Path(root)
     try:
-        if pin_only_commit(root):
-            note = ("This commit only changes the chart pin: its images are not released again (that would start the "
-                    "cycle over), so nothing is deployed and New Dev stays on the last working release.")
-            print(note)
-            write_note(root, note)
-            return 0
         for name in ("IMAGE_TAG", "ECR_REGISTRY"):
             if not env.get(name):
                 raise Stop(1, name + " is not set")
-        if not env.get("GH_TOKEN") and not env.get("DRY_RUN"):
-            raise Stop(3, "No GitHub credential (GH_TOKEN): the images were not released to oan-helm.")
+        dry = bool(env.get("DRY_RUN"))
+        if not dry and not (env.get("GH_TOKEN") and env.get("GH_USER")):
+            raise Stop(3, "No GitHub credential (GH_USER = the account that owns the oan-helm fork, GH_TOKEN = its token): "
+                          "no pull request was opened.")
         digests = (root / DIGESTS).read_text(encoding="utf-8")
-        release = Release(env.get("GH_TOKEN", ""), call=call)
-        profiles = release.run(env, root, digests)
-        if profiles is None:
-            if release.note:
-                write_note(root, release.note)
-            return 0
-        target = root / CANDIDATE
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(profiles, indent=2) + "\n", encoding="utf-8")
-        print("candidate pin written to " + CANDIDATE)
+        proposal = Proposal(env.get("GH_TOKEN", ""), env.get("GH_USER", "dry-run"), env.get("OAN_HELM_FORK", "oan-helm"),
+                            call=call)
+        url = proposal.run(env, root, digests)
+        if url:
+            target = root / PR_FILE
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(url + "\n", encoding="utf-8")
         return 0
     except Stop as stop:
         print("FAIL: %s" % stop)
