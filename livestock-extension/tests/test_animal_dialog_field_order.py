@@ -1,5 +1,5 @@
-"""The Livestock Details dialog asks Species and Breed before the Ear Tag
-(G2R-229 point 18): a zz-oan patch reorders the animal table's columns."""
+"""The Livestock Details dialog asks Species and Breed before the Ear Tag:
+a zz-oan patch reorders the animal table's columns."""
 
 import pathlib
 import re

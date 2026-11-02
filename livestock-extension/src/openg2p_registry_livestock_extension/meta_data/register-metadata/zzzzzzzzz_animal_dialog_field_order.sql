@@ -1,5 +1,5 @@
 -- The Livestock Details dialog asks Species and Breed before the Ear Tag
--- (G2R-229 point 18): which identifier an animal carries depends on its species
+-- because which identifier an animal carries depends on its species
 -- (an ear tag, or a secondary identifier for poultry and beehives).
 --
 -- Only the order of the animal table's columns changes, found by its widget-id

@@ -1,5 +1,5 @@
 """A Birth event can record the offspring's breed (a cross) and birth weight;
-both are optional and reach the newborns' Animal rows (G2R-145 point 4)."""
+both are optional and reach the newborns' Animal rows."""
 
 import asyncio
 import json
