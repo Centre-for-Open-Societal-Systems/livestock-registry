@@ -10,6 +10,7 @@ import {
     useWidgetContext,
 } from '@openg2p/registry-widgets';
 import { formatAge } from './age';
+import { dialogSiblingId } from './dialog';
 
 type Config = Record<string, any>;
 type AnimalRow = Record<string, any>;
@@ -20,16 +21,19 @@ type Handler = (service: string, endpoint: string, method: string, params: Recor
  * picked from the animals already saved in this intake form.
  *
  * The platform's dialog cannot list another section's rows, so the column
- * used to be a typed text box. This widget reads the form's animals through
- * the portal's own intake-form endpoint and offers them as a dropdown; when
- * there are none yet (or the dialog is not on an intake form), it falls back
- * to the typed text box. The server still checks that the ear tag is an
- * animal of this submission.
+ * used to be a typed text box. This widget offers the animals as a dropdown,
+ * read through the portal's own endpoints: on an intake form, the animals
+ * saved in that submission; on a registered Livestock record (its Edit
+ * dialogs, which raise a change request), the record's animals. When there
+ * are none yet, it falls back to the typed text box. The server still checks
+ * that the ear tag is an animal of the submission or the holding.
  *
  * Metadata (on the ear tag column):
  *   "widget": "oan-animal-picker",
  *   "widget-autofill": {
- *     "sourceSectionId": "livestock_animal_details_section_01",
+ *     "sourceSectionId": "livestock_animal_details_section_01",   // intake form
+ *     "subjectRegisterId": "<Livestock register id>",              // record page
+ *     "sourceRegisterId": "<Animal register id>",
  *     "matchField": "ear_tag_id",
  *     "fields": { "species": "species", "age": "age" }   // dialog column <- animal field
  *   }
@@ -59,11 +63,41 @@ const identifierOf = (row: AnimalRow, matchField: string): string =>
 // The submission id: ?sid= on a new form after its first save, or the path of a reopened draft.
 const currentSubmissionId = (): string | null => {
     if (typeof window === 'undefined') return null;
+    if (!window.location.pathname.includes('/intake-form/')) return null;
     const sid = new URLSearchParams(window.location.search).get('sid');
     if (sid) return sid;
     const match = window.location.pathname.match(/\/submission\/([0-9a-fA-F-]{36})/);
     return match ? match[1] : null;
 };
+
+// The internal id of a registered record page: /register/<type>/<id>.
+const currentRecordId = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    const match = window.location.pathname.match(/\/register\/[^/]+\/([0-9a-fA-F-]{36})(?:\/|$)/);
+    return match ? match[1] : null;
+};
+
+async function loadAnimals(handler: Handler, autofill: Config): Promise<AnimalRow[]> {
+    const submissionId = currentSubmissionId();
+    if (submissionId) {
+        const payload = await handler('intake-form', 'get-intake-form-submission', 'POST', { submission_id: submissionId });
+        const sections: any[] = payload?.section_payloads || [];
+        const section = sections.find((s) => s.section_id === autofill.sourceSectionId)
+            || sections.find((s) => /animal_details/.test(String(s.section_id || '')));
+        return section?.records || [];
+    }
+    const recordId = currentRecordId();
+    if (recordId && autofill.subjectRegisterId && autofill.sourceRegisterId) {
+        const rows = await handler('register', 'section-data', 'POST', {
+            register_id: autofill.subjectRegisterId,
+            internal_record_id: recordId,
+            section_register_id: autofill.sourceRegisterId,
+            page_size: 500,
+        });
+        return Array.isArray(rows) ? rows : [];
+    }
+    return [];
+}
 
 export function AnimalPickerWidget({ config }: { config: Config }) {
     const dispatch = useDispatch();
@@ -76,16 +110,10 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
     const lastFilled = useRef<string | null>(null);
 
     useEffect(() => {
-        const submissionId = currentSubmissionId();
-        if (!submissionId || !dataSourceRequestHandler) return;
+        if (!dataSourceRequestHandler) return;
         let cancelled = false;
         (async () => {
-            const payload = await (dataSourceRequestHandler as Handler)(
-                'intake-form', 'get-intake-form-submission', 'POST', { submission_id: submissionId });
-            const sections: any[] = payload?.section_payloads || [];
-            const section = sections.find((s) => s.section_id === autofill.sourceSectionId)
-                || sections.find((s) => /animal_details/.test(String(s.section_id || '')));
-            const rows: AnimalRow[] = (section?.records || []).filter(
+            const rows = (await loadAnimals(dataSourceRequestHandler as Handler, autofill)).filter(
                 (row: AnimalRow) => identifierOf(row, matchField) && row.record_status !== 'DELETED');
             if (!cancelled) setAnimals(rows);
         })();
@@ -111,15 +139,14 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
 
     // Fill the dialog's own columns (Species, Age) from the chosen animal.
     useEffect(() => {
-        const columnKey = String(config['column-key'] || '');
-        if (!value || value === lastFilled.current || !widgetId.includes('-dlg-') || !widgetId.endsWith(columnKey)) return;
+        if (!value || value === lastFilled.current) return;
         const animal = animals.find((row) => identifierOf(row, matchField) === value);
         if (!animal) return;
-        const prefix = widgetId.slice(0, widgetId.length - columnKey.length);
         const updates: Record<string, unknown> = {};
         for (const [column, source] of Object.entries(fields)) {
+            const target = dialogSiblingId(widgetId, config['column-key'], column);
             const filled = source === 'age' ? formatAge(animal.date_of_birth) || animal.age : animal[source];
-            if (filled !== undefined && filled !== null && filled !== '') updates[prefix + column] = filled;
+            if (target && filled !== undefined && filled !== null && filled !== '') updates[target] = filled;
         }
         lastFilled.current = String(value);
         if (Object.keys(updates).length) dispatch(setValues(updates));

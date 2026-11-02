@@ -41,11 +41,29 @@ def tables(path):
     return found
 
 
+LIVESTOCK = "997676d3-7008-59f9-b23e-613ad79bbb08"
+ANIMAL = "041a9f79-2142-548a-a15b-a4c76fc9f6f7"
+
+
 def assert_picker(column):
     assert column["widget"] == "oan-animal-picker"
     autofill = column["widget-autofill"]
     assert autofill["sourceSectionId"] == "livestock_animal_details_section_01"
+    # A registered record's Edit dialogs read the animals of the record.
+    assert (autofill["subjectRegisterId"], autofill["sourceRegisterId"]) == (LIVESTOCK, ANIMAL)
     assert autofill["fields"] == {"age": "age", "species": "species"}
+
+
+def assert_vaccination_columns(columns):
+    vaccine = columns["vaccine_type"]
+    assert vaccine["widget"] == "oan-vaccine-select"
+    assert vaccine["widget-filter-by"] == {"field": "species", "attribute": "species"}
+    # The Master Data list stays on the column, so the server still checks the code.
+    assert vaccine["widget-data-source"]["params"]["attribute_id"] == "VACCINE_TYPE"
+    due = columns["next_due_date"]
+    assert due["widget"] == "oan-next-due-date"
+    assert due["widget-date-offset"] == {"daysKey": "interval_days", "baseField": "vaccination_date",
+                                         "optionsField": "vaccine_type", "listCode": "VACCINE_TYPE"}
 
 
 def assert_animal_columns(columns):
@@ -61,6 +79,11 @@ def test_event_dialog_ear_tag_is_the_animal_picker(filename):
     assert_picker(tables(METADATA / filename)[EVENT_TABLES[filename]]["ear_tag_id"])
 
 
+def test_vaccination_dialog_narrows_vaccines_and_fills_the_due_date():
+    found = tables(METADATA / "patch_ls_vaccination_details_sync_ui_schema.sql")
+    assert_vaccination_columns(found["ls_vaccination_details_table"])
+
+
 def test_animal_dialog_has_live_age_and_the_ear_tag_format():
     assert_animal_columns(tables(METADATA / "patch_ls_animal_details_sync_ui_schema.sql")["ls_animal_details_table"])
 
@@ -70,6 +93,7 @@ def test_the_canonical_sections_use_the_same_widgets():
     for table in EVENT_TABLES.values():
         assert_picker(found[table]["ear_tag_id"])
     assert_animal_columns(found["ls_animal_details_table"])
+    assert_vaccination_columns(found["ls_vaccination_details_table"])
 
 
 def test_every_oan_widget_in_the_metadata_is_registered():
