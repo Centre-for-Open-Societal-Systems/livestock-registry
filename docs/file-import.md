@@ -21,7 +21,7 @@ The Livestock registry takes intakes from a CSV or Excel file through the staff 
 
 ## Livestock intake (`livestock_intake_import_template.csv`)
 
-Import configuration: `file_import_to_livestock_intake`.
+Import configuration: shown as **Livestock intake** under Import from file (data model `file_import_to_livestock_intake`).
 
 | Column | Maps to | Required | Format or allowed codes |
 |---|---|---|---|
