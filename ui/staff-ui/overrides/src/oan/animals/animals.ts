@@ -73,6 +73,16 @@ export function toAnimalRow(record: any): AnimalRow {
     };
 }
 
+// The Livestock record's number and farmer ("LS-... · Sara Alemu") for the list;
+// the animal search gives only the record's internal id.
+export async function holdingNumber(link: string): Promise<string> {
+    const { ok, json } = await postJson('/api/register/subject-record', {
+        subject_register_id: LIVESTOCK_REGISTER, subject_record_id: link,
+    });
+    if (!ok || !json) return '';
+    return [json.functional_record_id, json.record_name].filter(Boolean).join(' · ');
+}
+
 const isDeceased = (value: unknown) => String(value || '').trim().toUpperCase() === 'DECEASED';
 
 // One change request per Livestock record, holding the chosen animals' rows with

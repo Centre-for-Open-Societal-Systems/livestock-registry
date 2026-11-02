@@ -17,6 +17,7 @@ import {
     ANIMAL_REGISTER,
     ANIMAL_TAB,
     bulkUpdate,
+    holdingNumber,
     listValues,
     toAnimalRow,
     type AnimalRow,
@@ -51,6 +52,7 @@ export default function AnimalsPage() {
     const [setHealth, setSetHealth] = useState('');
     const [setVaccination, setSetVaccination] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [holdings, setHoldings] = useState<Record<string, string>>({});
 
     useEffect(() => {
         let cancelled = false;
@@ -85,6 +87,19 @@ export default function AnimalsPage() {
     });
     const rows = useMemo(() => (data?.records || []).map(toAnimalRow), [data]);
     const totalPages = Math.max(1, data?.pagination?.number_of_pages || 1);
+
+    // The LS number of each Livestock record on this page, read once per record.
+    useEffect(() => {
+        const missing = Array.from(new Set(rows.map((row) => row.link))).filter((link) => link && !(link in holdings));
+        if (!missing.length) return;
+        let cancelled = false;
+        Promise.all(missing.map(async (link) => [link, await holdingNumber(link)] as const)).then((found) => {
+            if (!cancelled) setHoldings((prev) => ({ ...prev, ...Object.fromEntries(found) }));
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [rows, holdings]);
     const { pageStart, pageEnd, total } = usePagination({
         totalItems: data?.pagination?.number_of_items ?? 0,
         currentPage: page,
@@ -259,7 +274,7 @@ export default function AnimalsPage() {
                                         {row.link ? (
                                             <Link className="text-primary-second underline"
                                                 href={`/register/livestock/${row.link}?tab=${ANIMAL_TAB}`}>
-                                                {row.holding || text('oan_animals_open', 'Open')}
+                                                {holdings[row.link] || row.holding || text('oan_animals_open', 'Open')}
                                             </Link>
                                         ) : '-'}
                                     </td>
