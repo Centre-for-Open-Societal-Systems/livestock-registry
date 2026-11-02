@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import {
     SelectWidget,
     TextInputWidget,
+    setDataSource,
     setValues,
     useBaseWidget,
     useWidgetContext,
+    type WidgetRootState,
 } from '@openg2p/registry-widgets';
 import { formatAge } from './age';
 import { dialogSiblingId } from './dialog';
@@ -36,9 +38,16 @@ type Handler = (service: string, endpoint: string, method: string, params: Recor
  *     "sourceRegisterId": "<Animal register id>",
  *     "matchField": "ear_tag_id",
  *     "fields": { "species": "species", "age": "age" }   // dialog column <- animal field
- *   }
+ *   },
+ *   "widget-option-filter": [                              // optional: which animals are listed
+ *     { "field": "health_status", "operator": "notIn", "value": ["DECEASED"] },
+ *     { "field": "gender", "operator": "in", "value": ["SEX_FEMALE"],
+ *       "when": { "field": "event_type", "operator": "equals", "value": "BIRTH" } }
+ *   ]
  * Choosing an animal fills those dialog columns (age from the date of birth,
- * the way the server writes it on save).
+ * the way the server writes it on save). A filter compares an animal field;
+ * its "when" compares a column of the dialog row, and the list follows that
+ * column as it changes.
  */
 
 const LIST_PREFIXES = ['LIVESTOCK_SPECIES_', 'BREED_', 'LIVESTOCK_'];
@@ -55,6 +64,17 @@ const plain = (code: unknown): string => {
     }
     const words = text.replace(/_/g, ' ').toLowerCase();
     return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+type Condition = { field: string; operator: 'equals' | 'notEquals' | 'in' | 'notIn'; value: unknown };
+type OptionFilter = Condition & { when?: Condition };
+
+const holds = (actual: unknown, { operator, value }: Condition): boolean => {
+    const text = String(actual ?? '').trim().toUpperCase();
+    const wanted = (Array.isArray(value) ? value : [value]).map((v) => String(v ?? '').trim().toUpperCase());
+    if (operator === 'equals' || operator === 'in') return wanted.includes(text);
+    if (operator === 'notEquals' || operator === 'notIn') return !wanted.includes(text);
+    return true;
 };
 
 const identifierOf = (row: AnimalRow, matchField: string): string =>
@@ -106,7 +126,18 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
     const autofill = (config['widget-autofill'] || {}) as Config;
     const matchField: string = autofill.matchField || 'ear_tag_id';
     const fields: Record<string, string> = autofill.fields || {};
+    const columnKey = String(config['column-key'] || '');
+    const filtersKey = JSON.stringify(config['widget-option-filter'] || []);
+    const filters = useMemo(() => JSON.parse(filtersKey) as OptionFilter[], [filtersKey]);
+    // The dialog row's columns the filters' "when" compare, read as one string
+    // so the list follows them and nothing else.
+    const whenIds = useMemo(
+        () => filters.map((f) => (f.when ? dialogSiblingId(widgetId, columnKey, f.when.field) : null)),
+        [columnKey, filters, widgetId]);
+    const whenKey = useSelector((state: WidgetRootState) =>
+        JSON.stringify(whenIds.map((id) => (id ? state.widget?.values?.[id] ?? null : null))));
     const [animals, setAnimals] = useState<AnimalRow[]>([]);
+    const [loaded, setLoaded] = useState(false);
     const lastFilled = useRef<string | null>(null);
 
     useEffect(() => {
@@ -115,7 +146,10 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
         (async () => {
             const rows = (await loadAnimals(dataSourceRequestHandler as Handler, autofill)).filter(
                 (row: AnimalRow) => identifierOf(row, matchField) && row.record_status !== 'DELETED');
-            if (!cancelled) setAnimals(rows);
+            if (!cancelled) {
+                setAnimals(rows);
+                setLoaded(true);
+            }
         })();
         return () => {
             cancelled = true;
@@ -125,7 +159,10 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
     }, [dataSourceRequestHandler]);
 
     const options = useMemo(() => {
-        const list = animals.map((row) => {
+        const whenValues = JSON.parse(whenKey) as unknown[];
+        const active = filters.filter((f, i) => !f.when || holds(whenValues[i], f.when));
+        const listed = animals.filter((row) => active.every((f) => holds(row[f.field], f)));
+        const list = listed.map((row) => {
             const id = identifierOf(row, matchField);
             const facts = [plain(row.species), plain(row.breed), plain(row.gender), formatAge(row.date_of_birth)]
                 .filter(Boolean)
@@ -135,7 +172,13 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
         // An edited row keeps its ear tag even when that animal is no longer listed.
         if (value && !list.some((o) => o.value === value)) list.unshift({ label: String(value), value: String(value) });
         return list;
-    }, [animals, matchField, value]);
+    }, [animals, filters, matchField, value, whenKey]);
+
+    // The platform's select reads its options from the store and loads a static
+    // list only once, so the filtered list is written there whenever it changes.
+    useEffect(() => {
+        if (loaded && animals.length) dispatch(setDataSource({ widgetId, data: options }));
+    }, [animals.length, dispatch, loaded, options, widgetId]);
 
     // Fill the dialog's own columns (Species, Age) from the chosen animal.
     useEffect(() => {
@@ -152,7 +195,9 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
         if (Object.keys(updates).length) dispatch(setValues(updates));
     }, [animals, config, dispatch, fields, matchField, value, widgetId]);
 
-    if (!options.length) {
+    // No animals saved yet: the typed text box. Animals but none passing the
+    // filters (no female for a birth): an empty list, not a free text box.
+    if (!animals.length) {
         return <TextInputWidget config={{ ...config, widget: 'text' } as never} />;
     }
     return (

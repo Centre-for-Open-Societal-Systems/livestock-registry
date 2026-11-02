@@ -45,8 +45,22 @@ LIVESTOCK = "997676d3-7008-59f9-b23e-613ad79bbb08"
 ANIMAL = "041a9f79-2142-548a-a15b-a4c76fc9f6f7"
 
 
-def assert_picker(column):
+NOT_DEAD = {"field": "health_status", "operator": "notIn", "value": ["DECEASED"]}
+FEMALE = {"field": "gender", "operator": "in", "value": ["SEX_FEMALE", "FEMALE"]}
+# Which animals each event dialog lists: never a dead one; only a female for
+# breeding, and for a birth once Event Type is BIRTH.
+PICKER_FILTERS = {
+    "ls_health_event_details_table": [NOT_DEAD],
+    "ls_vaccination_details_table": [NOT_DEAD],
+    "ls_breeding_details_table": [NOT_DEAD, FEMALE],
+    "ls_vital_event_details_table": [NOT_DEAD, {**FEMALE, "when": {"field": "event_type", "operator": "equals",
+                                                                     "value": "BIRTH"}}],
+}
+
+
+def assert_picker(column, table):
     assert column["widget"] == "oan-animal-picker"
+    assert column["widget-option-filter"] == PICKER_FILTERS[table]
     autofill = column["widget-autofill"]
     assert autofill["sourceSectionId"] == "livestock_animal_details_section_01"
     # A registered record's Edit dialogs read the animals of the record.
@@ -76,7 +90,7 @@ def assert_animal_columns(columns):
 
 @pytest.mark.parametrize("filename", sorted(EVENT_TABLES))
 def test_event_dialog_ear_tag_is_the_animal_picker(filename):
-    assert_picker(tables(METADATA / filename)[EVENT_TABLES[filename]]["ear_tag_id"])
+    assert_picker(tables(METADATA / filename)[EVENT_TABLES[filename]]["ear_tag_id"], EVENT_TABLES[filename])
 
 
 def test_vaccination_dialog_narrows_vaccines_and_fills_the_due_date():
@@ -91,7 +105,7 @@ def test_animal_dialog_has_live_age_and_the_ear_tag_format():
 def test_the_canonical_sections_use_the_same_widgets():
     found = tables(METADATA / "g2p_register_sections.sql")
     for table in EVENT_TABLES.values():
-        assert_picker(found[table]["ear_tag_id"])
+        assert_picker(found[table]["ear_tag_id"], table)
     assert_animal_columns(found["ls_animal_details_table"])
     assert_vaccination_columns(found["ls_vaccination_details_table"])
 
