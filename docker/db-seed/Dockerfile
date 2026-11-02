@@ -6,11 +6,13 @@ COPY livestock-extension/src/openg2p_registry_livestock_extension/meta_data/ /se
 COPY livestock-extension/src/openg2p_registry_livestock_extension/templates/ /seed/templates/
 COPY livestock-extension/src/openg2p_registry_livestock_extension/awe_meta_data/ /seed/awe_meta_data/
 # Reporting layer applied by the chart's lr-reporting-views hook (post-install and
-# post-upgrade): the Master Data geography copy and the lr_rpt_* views the
-# dashboard API reads. The hook runs these two paths from this image.
+# post-upgrade): the Master Data geography copy, the code-list labels and the
+# lr_rpt_* views the dashboard API reads. The hook runs these paths from this image.
 COPY docker/db-seed/reporting_views.sql /seed/reporting_views.sql
 COPY docker/db-seed/reporting-geo-sync.sh /seed/reporting-geo-sync.sh
 RUN chmod +x /seed/reporting-geo-sync.sh
+# The labels of the code lists the views name, from the Master Data catalogue API.
+COPY --chmod=755 docker/db-seed/reporting-label-sync.py /seed/reporting-label-sync.py
 # Schema and data migrations for databases created before the models gained
 # a column (never seed configuration). The chart's lr-schema-migrations hook
 # runs apply-migrations.sh, which applies each file once.

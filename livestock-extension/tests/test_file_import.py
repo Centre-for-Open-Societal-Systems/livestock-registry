@@ -70,7 +70,8 @@ def sha256(path):
 
 def test_import_configuration_has_a_fixed_id_and_points_at_the_form_own_data_model():
     text = sql('registry-configurations', 'g2p_registry_import_file_configurations.sql')
-    assert re.search(rf"'{CONFIG}',\s*'{REGISTER}',\s*'{FORM}',\s*'{MODEL}',\s*'{MODEL}',\s*'Import livestock intakes", text)
+    # The mnemonic is the name staff see under Import from file; the data model routes the import.
+    assert re.search(rf"'{CONFIG}',\s*'{REGISTER}',\s*'{FORM}',\s*'{MODEL}',\s*'Livestock intake',\s*'Import livestock intakes", text)
     assert 'ON CONFLICT (import_file_configuration_id) DO UPDATE' in text
     assert 'data_model_id = EXCLUDED.data_model_id' in text and 'import_file_template_mnemonic = EXCLUDED' in text
     assert 'odk_to_livestock_intake' not in re.sub(r'^--.*$', '', text, flags=re.MULTILINE)
