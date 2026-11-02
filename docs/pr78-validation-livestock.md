@@ -11,11 +11,11 @@ This is the "what we had / what is broken or missing / what comes next" list ask
 | Approval chain (finalize → signed farmer lookup → Farmer ADD CR → AWE 2 stages → farmer + livestock in the register) | **Works** via API and browser |
 | Web intake form in the browser, end to end | **Works**: farmer lookup, survey, location, livestock, health and vaccination saved in the browser (vital event and breeding checked through the API), Submit starts the approval, approved records reach the register with location names |
 | Intake duplicate and animal-ownership checks across drafts | **Restored**: #163 and #172 merged; #176 (follow-up) in review |
-| Holding state after approval | Blank on 1.2; **fix in review** (B17) |
+| Holding state after approval | Blank on 1.2; **fix in review** (B17, #177) |
 | File import | **Works** (native, #135); needs the `Staff Portal` partner in Partner Management |
 | ODK | In progress (Megha) |
 | Reminders / outbreak alert | Scheduled and running (B13 was not a bug); mails with real data not checked |
-| Dropdowns from Master Data | Species, breed, vaccine, disease, location from Master Data; **13 dropdowns still hardcoded** in the section metadata (B16) |
+| Dropdowns from Master Data | Species, breed, vaccine, disease, location from Master Data; **13 dropdowns still hardcoded** in the section metadata (B16); 11 of them move to Master Data lists in #178 (after openg2p-data #45), sex and offspring sex stay |
 
 ## How it was tested
 
@@ -66,9 +66,9 @@ No registry code was modified in runs 1 and 2. Fixes found in run 3 are in their
 | B12 | #88 added `geo_hierarchy.py` to copy the widget's hierarchy into `region_id`…`kebele_id` and fill the names, but calls it only from `post_intake_upsert` (dead, B2) and `post_approve` (change requests). The intake → register path (`post_ingest`) never calls it | `g2p_register_domain_service_livestock.py` | Drafts from the browser have no region/woreda ids; register rows have no Region/Zone/Woreda/Kebele names | **Fixed** on develop: register rows carry Oromia / East Shewa / Ada'a / Ude Denkaka 01 from a single kebele code |
 | B13 | Livestock beat producers (vaccination, calving and approval reminders, outbreak alert, audit retention) are imported through `CELERY_IMPORTS` and registered on the worker, but never enter beat's schedule (17 platform entries only) | `tasks/__init__.py` sets the schedule before beat is configured | Reminders and outbreak alerts never run | **Not a bug.** The producers are in beat's schedule; the run 2 check imported beat without `CELERY_IMPORTS`. The outbreak alert runs every 900 s |
 | B14 | No vaccine list and no disease list in Master Data (Vaccine dropdown empty). Age stays blank in the Livestock dialog. Ear tag is a typed field in every event dialog | Master Data pack, UI | Vaccinations cannot be entered in the browser | **Lists fixed** by openg2p-data #24/#27. Age auto-fill and the ear-tag picker remain (section 4, dialogs) |
-| B15 | The `lr-reporting-views` job fails: `reporting_views.sql` (line 212) still joins `g2p_attribute_values`, which 1.2 no longer has | `docker/db-seed/reporting_views.sql` | Dashboard views not created | **New**, asked Asmit |
-| B16 | 13 dropdowns hold hardcoded static options in the section metadata, and the register schemas type them as Enums: sex, health and vaccination status, event types, location, cause, outcome, retag reason. Nothing checks them on save, so an API, ODK or import value such as `Disease` for `DISEASE` is accepted, then fails the approval webhook and the change request stays pending | section metadata, `register_domain/schemas` | Stuck change requests; values not from Master Data | **New.** Planned fix: Master Data lists through openg2p-data (`LIVESTOCK_SEX` exists, with no value for a flock), widgets on those lists, schema fields as text, data migration |
-| B17 | `post_approval_stage` (dead, B2) set the holding state; every approved holding is stored with a blank state | `g2p_register_domain_service_livestock.py` | State empty on records and in reports | **Fix in review** (`fix/holding-state-verified`): VERIFIED on ingest, migration 0011 for existing rows |
+| B15 | (Fixed by #90.) The `lr-reporting-views` job failed: `reporting_views.sql` (line 212) still joins `g2p_attribute_values`, which 1.2 no longer has | `docker/db-seed/reporting_views.sql` | Dashboard views not created | **Fixed by #90** (reporting views restored) |
+| B16 | 13 dropdowns hold hardcoded static options in the section metadata, and the register schemas type them as Enums: sex, health and vaccination status, event types, location, cause, outcome, retag reason. Nothing checks them on save, so an API, ODK or import value such as `Disease` for `DISEASE` is accepted, then fails the approval webhook and the change request stays pending | section metadata, `register_domain/schemas` | Stuck change requests; values not from Master Data | **New.** Fix in review: Master Data lists through openg2p-data #45 and widgets on those lists in #178 (11 of the 13; sex and offspring sex wait for the `LIVESTOCK_SEX` codes and a value for a flock) |
+| B17 | `post_approval_stage` (dead, B2) set the holding state; every approved holding is stored with a blank state | `g2p_register_domain_service_livestock.py` | State empty on records and in reports | **Fix in review** (#177, `fix/holding-state-verified`): VERIFIED on ingest, migration 0011 for existing rows |
 | B18 | The platform's default `application_reference_format` is `{DATE}-{SECONDS:5}{RAND:1}`: two intakes created in the same second get the same reference about one time in ten, and the second save fails on the unique index | `registry_core_application_reference_format` (deployment setting) | Lost submissions in ODK or File Import bursts; seen in CI on #176 | **New** (platform default). A longer random part, e.g. `{RAND:4}`, avoids it |
 
 ## 4. Missing (removed, to be rebuilt the supported way)
@@ -81,7 +81,7 @@ No registry code was modified in runs 1 and 2. Fixes found in run 3 are in their
 
 ## 5. Dependencies and environment
 
-- Master Data: the platform needs develop.118 (new geo and attribute endpoints). Asmit's stack has it; dev still runs the old Master Data, so dropdowns will be empty there until it is upgraded.
+- Master Data: the platform needs develop.118 (new geo and attribute endpoints). Asmit's stack has it. The Commons chart in oan-helm ships develop.118; an environment that still runs an older Master Data has empty dropdowns until it is upgraded.
 - Geography: P-codes from the ETH-OAN pack. Dev data uses older ids (`kebele-ET…`); the pack's `migration/id_map.csv` maps them.
 - Farmer lookup (`COSS_FARMER_*`, keys, record contract, AWE client) is mandatory for Submit; there is no local skip. #81 wires it on New Dev to the real Farmer partner API.
 - Reviewers: `alex.carter` / `nina.patel` are example users; real reviewers and roles must be configured in AWE and Keycloak on each environment, otherwise requests stall (`on_empty=block`).
