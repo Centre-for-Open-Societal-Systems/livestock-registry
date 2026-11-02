@@ -4,18 +4,18 @@ Yash Sontakke · 26–30 October 2026 · findings checked against COSS `develop`
 
 This is the "what we had / what is broken or missing / what comes next" list asked for on 27 October. It is updated as items are fixed.
 
-## Status on develop head (30 Oct)
+## Status on develop head (2 Nov)
 
 | Area | State |
 |---|---|
 | Approval chain (finalize → signed farmer lookup → Farmer ADD CR → AWE 2 stages → farmer + livestock in the register) | **Works** via API and browser |
 | Web intake form in the browser, end to end | **Works**: farmer lookup, survey, location, livestock, health and vaccination saved in the browser (vital event and breeding checked through the API), Submit starts the approval, approved records reach the register with location names |
-| Intake duplicate and animal-ownership checks across drafts | **Restored**: #163 and #172 merged; #176 (follow-up) in review |
-| Holding state after approval | Blank on 1.2; **fix in review** (B17, #177) |
+| Intake duplicate and animal-ownership checks across drafts | **Restored**: #163, #172 and #176 merged |
+| Holding state after approval | **Fixed** by #177: an approved holding is VERIFIED |
 | File import | **Works** (native, #135); needs the `Staff Portal` partner in Partner Management |
 | ODK | In progress (Megha) |
 | Reminders / outbreak alert | Scheduled and running (B13 was not a bug); mails with real data not checked |
-| Dropdowns from Master Data | Species, breed, vaccine, disease, location from Master Data; **13 dropdowns still hardcoded** in the section metadata (B16); 11 of them move to Master Data lists in #178 (after openg2p-data #45), sex and offspring sex stay |
+| Dropdowns from Master Data | 11 of the 13 hardcoded dropdowns moved by #178 (openg2p-data #45). Sex, offspring sex and the farmer's gender: PR "Master Data codes" (`LIVESTOCK_SEX` with `SEX_MIXED` from openg2p-data, the farmer registry's `GENDER`) |
 
 ## How it was tested
 
@@ -66,18 +66,18 @@ No registry code was modified in runs 1 and 2. Fixes found in run 3 are in their
 | B12 | #88 added `geo_hierarchy.py` to copy the widget's hierarchy into `region_id`…`kebele_id` and fill the names, but calls it only from `post_intake_upsert` (dead, B2) and `post_approve` (change requests). The intake → register path (`post_ingest`) never calls it | `g2p_register_domain_service_livestock.py` | Drafts from the browser have no region/woreda ids; register rows have no Region/Zone/Woreda/Kebele names | **Fixed** on develop: register rows carry Oromia / East Shewa / Ada'a / Ude Denkaka 01 from a single kebele code |
 | B13 | Livestock beat producers (vaccination, calving and approval reminders, outbreak alert, audit retention) are imported through `CELERY_IMPORTS` and registered on the worker, but never enter beat's schedule (17 platform entries only) | `tasks/__init__.py` sets the schedule before beat is configured | Reminders and outbreak alerts never run | **Not a bug.** The producers are in beat's schedule; the run 2 check imported beat without `CELERY_IMPORTS`. The outbreak alert runs every 900 s |
 | B14 | No vaccine list and no disease list in Master Data (Vaccine dropdown empty). Age stays blank in the Livestock dialog. Ear tag is a typed field in every event dialog | Master Data pack, UI | Vaccinations cannot be entered in the browser | **Lists fixed** by openg2p-data #24/#27. Age auto-fill and the ear-tag picker remain (section 4, dialogs) |
-| B15 | (Fixed by #90.) The `lr-reporting-views` job failed: `reporting_views.sql` (line 212) still joins `g2p_attribute_values`, which 1.2 no longer has | `docker/db-seed/reporting_views.sql` | Dashboard views not created | **Fixed by #90** (reporting views restored) |
-| B16 | 13 dropdowns hold hardcoded static options in the section metadata, and the register schemas type them as Enums: sex, health and vaccination status, event types, location, cause, outcome, retag reason. Nothing checks them on save, so an API, ODK or import value such as `Disease` for `DISEASE` is accepted, then fails the approval webhook and the change request stays pending | section metadata, `register_domain/schemas` | Stuck change requests; values not from Master Data | **New.** Fix in review: Master Data lists through openg2p-data #45 and widgets on those lists in #178 (11 of the 13; sex and offspring sex wait for the `LIVESTOCK_SEX` codes and a value for a flock) |
-| B17 | `post_approval_stage` (dead, B2) set the holding state; every approved holding is stored with a blank state | `g2p_register_domain_service_livestock.py` | State empty on records and in reports | **Fix in review** (#177, `fix/holding-state-verified`): VERIFIED on ingest, migration 0011 for existing rows |
-| B18 | The platform's default `application_reference_format` is `{DATE}-{SECONDS:5}{RAND:1}`: two intakes created in the same second get the same reference about one time in ten, and the second save fails on the unique index | `registry_core_application_reference_format` (deployment setting) | Lost submissions in ODK or File Import bursts; seen in CI on #176 | **New** (platform default). A longer random part, e.g. `{RAND:4}`, avoids it |
+| B15 | The `lr-reporting-views` job fails: `reporting_views.sql` still joins `g2p_attribute_values` (species and breed names), which 1.2 no longer has. #90 (28 Oct) restored the views but kept that join; it is still on develop | `docker/db-seed/reporting_views.sql` | Dashboard views not created | **Fix in review**: PR "Reporting and small fixes" copies the names from the Master Data catalogue API (as the farmer registry's reporting does) and the oan-helm PR runs it before the views |
+| B16 | 13 dropdowns hold hardcoded static options in the section metadata, and the register schemas type them as Enums: sex, health and vaccination status, event types, location, cause, outcome, retag reason. Nothing checks them on save, so an API, ODK or import value such as `Disease` for `DISEASE` is accepted, then fails the approval webhook and the change request stays pending | section metadata, `register_domain/schemas` | Stuck change requests; values not from Master Data | **New.** Fix in review: Master Data lists through openg2p-data #45 and widgets on those lists in #178 (11 of the 13; sex and offspring sex wait for the `LIVESTOCK_SEX` codes and a value for a flock). **#178 merged**; the last two in PR "Master Data codes" |
+| B17 | `post_approval_stage` (dead, B2) set the holding state; every approved holding is stored with a blank state | `g2p_register_domain_service_livestock.py` | State empty on records and in reports | **Fixed by #177**: VERIFIED on ingest, migration 0011 for existing rows |
+| B18 | The platform's default `application_reference_format` is `{DATE}-{SECONDS:5}{RAND:1}`: two intakes created in the same second get the same reference about one time in ten, and the second save fails on the unique index | `registry_core_application_reference_format` (deployment setting) | Lost submissions in ODK or File Import bursts; seen in CI on #176 | **Fix in review** (oan-helm PR): the livestock chart sets `{DATE:%Y%b%d|upper}-{SECONDS:5}{RAND:4}` on the staff API, partner API and workers |
 
 ## 4. Missing (removed, to be rebuilt the supported way)
 
-- Dialog behaviour: ear-tag picker, Species/Age auto-fill, live age, ear-tag format check, mandatory approve/reject comment. Date defaults are available as metadata (`widget-data-default`). Breed and vaccine by species work.
-- File import: **rebuilt by #135** and verified through the portal (Livestock records → Import from file): rows become intakes, the farmer is linked, the approval starts, an approved row reaches the register as a VERIFIED holding with location names. Notes: one row is one holding (three rows of one farmer gave three holdings); the menu shows the configuration's code `file_import_to_livestock_intake`; without the `Staff Portal` partner the queue stops at `PARTNER_NOT_REGISTERED` and does not retry.
+- Dialog behaviour: **rebuilt** in `ui/staff-ui/overrides` (PR "Livestock form dialogs"): ear-tag picker of the form's or record's animals (no deceased animal; females only for breeding and births), Species/Age auto-fill, live age, ear-tag format check, vaccines of the animal's species, Next Due Date on screen; Species and Breed asked before the Ear Tag; a birth's offspring breed and weight. Mandatory approve/reject comment: PR "Staff portal pages". Date defaults are available as metadata (`widget-data-default`).
+- File import: **rebuilt by #135** and verified through the portal (Livestock records → Import from file): rows become intakes, the farmer is linked, the approval starts, an approved row reaches the register as a VERIFIED holding with location names. Notes: one row is one holding (three rows of one farmer gave three holdings); the menu showed the configuration's code `file_import_to_livestock_intake` ("Livestock intake" in PR "Reporting and small fixes"); without the `Staff Portal` partner the queue stops at `PARTNER_NOT_REGISTERED` and does not retry.
 - DCI search: by Farmer ID worked in run 1. Not re-run in run 3: the local partner API now enforces signatures and consent. Search by ear tag needs the `dci_id_type_columns` setting (deployment values) and a DCI response template for the Animal register; whether any consumer needs it is to be confirmed.
-- Animals finder with bulk status update: animals are a table of the Livestock register on 1.2, so there is no country-wide list. Asked Asmit whether Animal becomes its own register or a `ui/` override.
-- The repository's own local compose stack and the vendored ODK connector. Reporting views were restored by #90 (B15).
+- Animals finder with bulk status update: **rebuilt** as a `ui/` override page (PR "Staff portal pages"): every animal through the platform's own search on the Animal register, filters by species and statuses, and a bulk Health / Vaccination Status update sent as change requests. No model change.
+- The repository's own local compose stack and the vendored ODK connector. Reporting views: restored by #90, names fixed in B15.
 
 ## 5. Dependencies and environment
 
@@ -100,11 +100,10 @@ Found while running Asmit's `openg2p-developer` on a laptop; worth fixing in tha
 - The farmer `db-seed` Dockerfile uses `COPY --chmod`, which needs BuildKit (`docker buildx`).
 - First login of each seeded user forces a password change.
 
-## 8. Next (order = priority; one PR each)
+## 8. Next (order = priority)
 
-1. **#176** (B2 follow-up) and **B17** (holding state): review and merge.
-2. **Dialog behaviour** under `ui/staff-ui/overrides`: ear-tag picker, auto-fill, live age, ear-tag format check, mandatory approve/reject comment.
-3. **B16**: the 13 hardcoded dropdowns to Master Data lists (openg2p-data PR first), after Asmit's go-ahead.
-4. **Animals finder**, once the approach is decided.
-5. **B15**, **B18**, file import "one row = one holding", DCI by ear tag: decisions pending.
+1. openg2p-data `SEX_MIXED`, then its Master Data seed image pinned in Commons, before PR "Master Data codes".
+2. PRs "Livestock form dialogs", "Master Data codes", "Staff portal pages", "Reporting and small fixes" and the oan-helm PR (B15 job, B18): review and merge. The first two touch the same section metadata; the second to merge needs a rebase.
+3. File import "one row = one holding", DCI by ear tag: decisions pending.
+4. A livestock staging profile in oan-helm (staging deploys are skipped until it exists).
 6. After each PR: re-run this validation on develop head; then test on New Dev with the real Farmer Registry.
