@@ -54,7 +54,7 @@ class GenderEnum(StrEnum):
     # A _FLOCK_SPECIES row (poultry, beehive — see
     # G2PRegisterDomainServiceAnimal) stands for a whole flock/hive, not one
     # sexed individual, so male/female alone can't honestly answer Sex there.
-    # Lets Sex stay required everywhere (G2R-135) without forcing a fake single
+    # Lets Sex stay required everywhere without forcing a fake single
     # sex onto a mixed group; also a Birth's offspring_gender when the newborns
     # are of both sexes.
     SEX_MIXED = "SEX_MIXED"
