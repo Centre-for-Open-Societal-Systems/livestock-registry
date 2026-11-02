@@ -20,12 +20,14 @@ from .domain_validation_utils import (
     validate_known_code,
     animal_identified_by,
     _animal_models,
+    as_float,
     as_int,
     ear_tag_exists,
     get_animal_gender,
     is_blank,
     parse_date,
     resolve_today_default,
+    validate_belongs_to_species,
     validate_species_matches,
     validation_error,
     fill_species_and_age_from_animal,
@@ -92,6 +94,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             self._validate_date_order(record, "date_onset", "date_resolution")
             self._validate_not_in_future(record, "date_resolution")
             self._validate_offspring_count(record)
+            await self._validate_offspring_breed_and_weight(record)
             await self._validate_birth_female_only(record)
         # Run only once every record above has passed — so by this point
         # every ear_tag_id/event_type/disease_type used below is known
@@ -152,6 +155,20 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         end = parse_date(record.get(later))
         if start and end and end < start:
             validation_error(f"{field_label(later)} must not be before {field_label(earlier).lower()}.")
+
+    async def _validate_offspring_breed_and_weight(self, record: dict) -> None:
+        """Both optional, and only for a birth: the breed a Master Data breed of
+        the dam's species, the birth weight above zero."""
+        breed, weight = record.get("offspring_breed"), as_float(record.get("offspring_weight"))
+        if is_blank(breed) and weight is None:
+            return
+        if str(record.get("event_type") or "").upper() != "BIRTH":
+            validation_error("Breed and birth weight of the offspring are only recorded for a birth.")
+        if weight is not None and weight <= 0:
+            validation_error("Birth weight must be greater than zero.")
+        if not is_blank(breed):
+            await validate_known_code(record, "offspring_breed", "LIVESTOCK_BREED", "Breed of offspring")
+            await validate_belongs_to_species(breed, record.get("species"), "Breed of offspring", "LIVESTOCK_BREED")
 
     def _validate_offspring_count(self, record: dict) -> None:
         is_birth = str(record.get("event_type") or "").upper() == "BIRTH"
@@ -527,7 +544,8 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 )
             )
         ).scalar()
-        breed = dam.breed if dam else None
+        # A breed recorded on the birth (a cross) wins over the dam's.
+        breed = vital_event.offspring_breed or (dam.breed if dam else None)
 
         # Reuse the tag(s) already reserved at intake-save time
         # (post_intake_upsert, above) when they're there and match this
@@ -554,6 +572,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 "ear_tag_id": ear_tag_id,
                 "species": vital_event.species,
                 "breed": breed,
+                "weight": vital_event.offspring_weight,
                 # validate_domain_attributes requires the offspring sex on a
                 # Birth event; a Birth approved before that rule existed may
                 # still have none, and the animal's gender is not nullable.
