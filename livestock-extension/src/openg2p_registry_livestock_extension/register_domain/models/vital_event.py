@@ -8,7 +8,7 @@ single table still covers all three event types.
 
 from openg2p_registry_core.models.g2p_intake_form import G2PIntakeForm
 from openg2p_registry_core.models import G2PRegister, G2PRegisterHistory
-from sqlalchemy import Boolean, Date, Integer, String, Text, select
+from sqlalchemy import Boolean, Date, Float, Integer, String, Text, select
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..services import G2PRegisterDomainServiceVitalEvent
@@ -43,6 +43,11 @@ class G2PVitalEvent:
     # a newborn's sex isn't the dam's, so it can't be copied off her Animal
     # row the way _create_offspring_profiles copies breed in the Odoo module.
     offspring_gender: Mapped[GenderEnum] = mapped_column(String, nullable=True)  # GenderEnum
+    # Optional. A cross-bred litter (an improved sire on a local dam) is not the
+    # dam's breed; left blank, the offspring take the dam's breed as before.
+    offspring_breed: Mapped[str] = mapped_column(String, nullable=True)  # Attribute lookup (LIVESTOCK_BREED)
+    # Optional birth weight (kg), copied onto each newborn's Animal row.
+    offspring_weight: Mapped[float] = mapped_column(Float, nullable=True)
     # Set once post_approve has generated this Birth event's offspring Animal
     # rows, so re-approving (or re-running post_approve) never double-creates
     # them — mirrors g2p.livestock.vital.event.created_offspring_ids, simplified
