@@ -176,6 +176,14 @@ STAGES = (
       ("livestock_breeding_details_section_01", "breeding"))),
 )
 LOCATION = "livestock_livestock_location_section_03"
+# A pack written before the registry read the Master Data LIVESTOCK_SEX list carries MALE / FEMALE / MIXED.
+SEX_CODES = {"MALE": "SEX_MALE", "FEMALE": "SEX_FEMALE", "MIXED": "SEX_MIXED"}
+SEX_FIELDS = ("gender", "offspring_gender")
+
+
+def sex_codes(line: dict) -> dict:
+    return {key: SEX_CODES.get(str(value).strip().upper(), value) if key in SEX_FIELDS and value else value
+            for key, value in line.items()}
 
 
 class IngestFailed(RuntimeError):
@@ -277,7 +285,7 @@ def plan(people: list[dict], herds: list[dict], places: dict,
             elif sample.get("location"):
                 sections[LOCATION] = [{"internal_record_id": root, **sample["location"]}]
             for section, key in lists:
-                rows = [{"internal_record_id": new_id(), "link_internal_record_id": root, **line}
+                rows = [{"internal_record_id": new_id(), "link_internal_record_id": root, **sex_codes(line)}
                         for line in sample.get(key) or []]
                 if rows:
                     sections[section] = rows

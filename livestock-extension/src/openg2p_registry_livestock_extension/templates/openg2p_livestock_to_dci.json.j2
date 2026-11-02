@@ -9,8 +9,9 @@
 
 {%- macro sex(value) -%}
 {%- set v = norm(value) -%}
-{%- if v == 'MALE' -%}Male
-{%- elif v == 'FEMALE' -%}Female
+{#- Farmer gender (MALE / FEMALE) and animal sex (LIVESTOCK_SEX codes; a neutered animal keeps its sex). -#}
+{%- if v in ['MALE', 'SEX_MALE', 'SEX_MALE_NEUTER'] -%}Male
+{%- elif v in ['FEMALE', 'SEX_FEMALE', 'SEX_FEMALE_NEUTER'] -%}Female
 {%- else -%}{{ value or '' }}
 {%- endif -%}
 {%- endmacro -%}

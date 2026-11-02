@@ -6,6 +6,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 from .local_date import local_today
 from .plain_text import plain_code_text
 from .audit_snapshot import AuditSnapshotMixin
+from .animal_sex import ANIMAL_SEX_VALUES, SEX_MIXED, normalize_sex, sex_code
 
 from .domain_validation_utils import (
     field_label,
@@ -65,12 +66,13 @@ _REQUIRED_FIELDS = {
 }
 
 
-# The values of models/enums.py GenderEnum. Not imported from there: this
-# module is loaded under the extension's real package name while the platform
-# loads the models through the "openg2p_registry_extensions" alias, and
-# importing ..models here would declare every table a second time (see
-# _extension_models in g2p_register_domain_service_livestock.py).
-_ANIMAL_SEX_VALUES = frozenset({"MALE", "FEMALE", "MIXED"})
+# The values of models/enums.py GenderEnum (animal_sex.ANIMAL_SEX_VALUES). Not
+# imported from there: this module is loaded under the extension's real package
+# name while the platform loads the models through the
+# "openg2p_registry_extensions" alias, and importing ..models here would declare
+# every table a second time (see _extension_models in
+# g2p_register_domain_service_livestock.py).
+_ANIMAL_SEX_VALUES = ANIMAL_SEX_VALUES
 
 
 class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainService):
@@ -102,6 +104,10 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
 
     async def validate_domain_attributes(self, records: list[dict]):
         from .field_rules import validate_record_fields
+        for record in records:
+            # MALE / FEMALE / MIXED from before the Master Data list; see animal_sex.
+            if isinstance(record, dict):
+                normalize_sex(record, "gender")
         await validate_record_fields(records, table=True)
         records = live_rows(records)
         for record in records:
@@ -190,25 +196,23 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             validation_error(f"Breed '{breed}' is not in the breed list.")
 
     def _validate_gender_for_species(self, record: dict, requires_ear_tag: bool) -> None:
-        """Sex is Male or Female for every ear-tagged species; "Mixed / Not
-        Applicable" (GenderEnum.MIXED) exists for the species that have no ear
-        tag (poultry, beehive, ...), where one record stands for a whole
-        flock/hive. The Livestock Details dialog only offers Mixed for those
-        species (livestock-dialog-overlay.js); this is the same rule for API
-        and bulk-import clients."""
-        gender = str(record.get("gender") or "").strip().upper()
+        """Sex is one of the LIVESTOCK_SEX codes; "Mixed / Not Applicable"
+        (SEX_MIXED) only for the species that have no ear tag (poultry,
+        beehive, ...), where one record stands for a whole flock/hive. The
+        dialog lists every code, so this is the rule for the dialog as much as
+        for ODK, File Import and API clients."""
+        gender = sex_code(record.get("gender")) or ""
         if gender and gender not in _ANIMAL_SEX_VALUES:
-            # The dialog only offers Male / Female / Mixed; this is the same
-            # rule for ODK, File Import and API clients ("other" came from an
-            # ODK form whose animal list was copied from the farmer gender list).
+            # "other" came from an ODK form whose animal list was copied from
+            # the farmer gender list.
             validation_error(
                 f"Sex '{record.get('gender')}' is not allowed for an animal — "
-                "use Male, Female or Mixed / Not Applicable."
+                "use Male, Female, Castrated male, Female neuter or Mixed / Not Applicable."
             )
-        if gender == "MIXED" and requires_ear_tag:
+        if gender == SEX_MIXED and requires_ear_tag:
             validation_error(
                 "Sex 'Mixed / Not Applicable' is only for species without an ear tag "
-                "(poultry, beehive, ...) — choose Male or Female for this species."
+                "(poultry, beehive, ...) — choose Male, Female, Castrated male or Female neuter for this species."
             )
 
     def _validate_quantity(self, record: dict, is_flock_species: bool) -> None:

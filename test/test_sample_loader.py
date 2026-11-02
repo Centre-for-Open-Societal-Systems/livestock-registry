@@ -121,6 +121,8 @@ def test_each_person_is_one_livestock_intake_with_their_animals_and_events(loade
     assert sections["livestock_survey_personnel_section_02"][0]["surveyor_name"] == "Hailu Gebre"
     animal = sections["livestock_animal_details_section_01"][0]
     assert animal["link_internal_record_id"] == root and animal["registration_date"] == "2026-03-01"
+    # The pack's FEMALE is stored as the Master Data LIVESTOCK_SEX code.
+    assert animal["gender"] == "SEX_FEMALE"
     other = planned[1]["stages"][0]["sections"]
     assert "livestock_survey_personnel_section_02" in other
     # A person without coordinates in the pack still gets the Location section: the form requires the hierarchy.
