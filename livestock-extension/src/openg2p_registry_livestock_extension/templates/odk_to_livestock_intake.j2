@@ -3,6 +3,9 @@
   Transforms ODK survey submissions into OpenG2P Livestock Registry domain & intake section payloads.
 #}
 {% set d = expanded if expanded is defined else {} %}
+{# The form's sex choices (male / female / mixed) as the Master Data LIVESTOCK_SEX codes; a form that
+   already sends the codes passes through. #}
+{% set sex_codes = {'MALE': 'SEX_MALE', 'FEMALE': 'SEX_FEMALE', 'MIXED': 'SEX_MIXED'} %}
 
 {% set f = d.get('farmer', {}) if (d.get('farmer') is mapping) else {} %}
 {% set fl = d.get('farmer_location', {}) if (d.get('farmer_location') is mapping) else {} %}
@@ -211,7 +214,7 @@
       "colour": {{ a.get('colour') | tojson }},
       "weight": {{ a.get('weight') | tojson }},
       "quantity": {{ a.get('quantity') | tojson }},
-      "gender": {{ ((a.get('gender') | upper) if a.get('gender') else none) | tojson }},
+      "gender": {{ (sex_codes.get(a.get('gender') | upper, a.get('gender') | upper) if a.get('gender') else none) | tojson }},
       "date_of_birth": {{ a.get('date_of_birth') | tojson }},
       "age": {{ a.get('age') | tojson }},
       "health_status": {{ (a.get('health_status') or 'healthy') | upper | tojson }},
@@ -379,7 +382,7 @@
           "is_notifiable": (dd.get('vital_is_notifiable') == true or dd.get('vital_is_notifiable') == 'true' or dd.get('vital_is_notifiable') == 'yes' or ve.get('is_notifiable') == true or ve.get('is_notifiable') == 'true' or ve.get('is_notifiable') == 'yes'),
           "offspring_count": bd.get('offspring_count') or ve.get('offspring_count'),
           "offspring_ear_tag_prefix": bd.get('offspring_ear_tag_prefix') or ve.get('offspring_ear_tag_prefix'),
-          "offspring_gender": ((bd.get('sex_of_offspring') or bd.get('offspring_gender') or ve.get('sex_of_offspring') or ve.get('offspring_gender')) | upper) if (bd.get('sex_of_offspring') or bd.get('offspring_gender') or ve.get('sex_of_offspring') or ve.get('offspring_gender')) else none,
+          "offspring_gender": (sex_codes.get((bd.get('sex_of_offspring') or bd.get('offspring_gender') or ve.get('sex_of_offspring') or ve.get('offspring_gender')) | upper, (bd.get('sex_of_offspring') or bd.get('offspring_gender') or ve.get('sex_of_offspring') or ve.get('offspring_gender')) | upper)) if (bd.get('sex_of_offspring') or bd.get('offspring_gender') or ve.get('sex_of_offspring') or ve.get('offspring_gender')) else none,
           "notes": ve.get('vital_event_details') or ve.get('notes')
         }) %}
       {% endfor %}

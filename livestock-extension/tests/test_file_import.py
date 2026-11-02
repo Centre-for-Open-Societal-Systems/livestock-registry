@@ -40,7 +40,7 @@ ANIMAL_ROW = {'ear_tag_id': 'ET0000000013', 'species': 'CATTLE', 'breed': 'BREED
 BASE = {**IDENTITY_ROW, **ANIMAL_ROW}
 RETIRED_REGISTER = '0fd11be9-83d7-5d2e-9dea-e0653add7059'
 ODK_SQL_SHA256 = 'e37a083e4b3d95562870d0f761a896dfd8d5c606403a1717b9bd36b92a61b4a8'
-ODK_TEMPLATE_SHA256 = '9796a7f79ba60bb2895740ffccc5e76bb0ec76612d2c5ee718820023584fbc3d'
+ODK_TEMPLATE_SHA256 = 'f4c6b7cd6e2a992bdfc657af0278433c5fc0ce673c2eb9569b20b3f82693f8c8'
 
 
 def sql(folder, name):
@@ -197,13 +197,13 @@ def test_one_row_produces_one_animal_row():
     result = render(BASE)
     assert result['ls_animal_details'] == [{
         'ear_tag_id': 'ET0000000013', 'species': 'CATTLE', 'breed': 'BREED_LOCAL', 'date_of_birth': '2020-01-01',
-        'gender': 'FEMALE', 'health_status': 'HEALTHY', 'vaccination_status': 'UP_TO_DATE',
+        'gender': 'SEX_FEMALE', 'health_status': 'HEALTHY', 'vaccination_status': 'UP_TO_DATE',
         'registration_date': '2026-10-29'}]
     assert result['livestock_farmer_lookup'][0]['total_animals'] == 1
     messy = render({**BASE, 'ear_tag_id': ' et 0000000013 ', 'species': ' cattle ', 'gender': 'female',
                     'registration_date': '2026-10-29 00:00:00'})['ls_animal_details']
     assert len(messy) == 1 and messy[0]['ear_tag_id'] == 'ET0000000013' and messy[0]['species'] == 'CATTLE'
-    assert messy[0]['gender'] == 'FEMALE' and messy[0]['registration_date'] == '2026-10-29'
+    assert messy[0]['gender'] == 'SEX_FEMALE' and messy[0]['registration_date'] == '2026-10-29'
 
 
 def test_the_rendered_intake_passes_the_finalize_rule_that_refuses_an_intake_without_an_animal():
@@ -266,7 +266,7 @@ def test_location_stops_at_the_deepest_level_given_and_numbers_become_numbers():
     ({'species': ''}, 'column species is required'),
     ({'breed': ''}, 'column breed is required'),
     ({'gender': ''}, 'column gender is required'),
-    ({'gender': 'OTHER'}, 'column gender must be one of MALE, FEMALE, MIXED'),
+    ({'gender': 'OTHER'}, 'column gender must be one of SEX_MALE, SEX_FEMALE, SEX_MALE_NEUTER, SEX_FEMALE_NEUTER, SEX_MIXED'),
     ({'health_status': 'well'}, 'column health_status must be one of'),
     ({'vaccination_status': ''}, 'column vaccination_status is required'),
     ({'registration_date': ''}, 'column registration_date is required'),
@@ -284,6 +284,12 @@ def test_location_stops_at_the_deepest_level_given_and_numbers_become_numbers():
 def test_a_value_the_register_cannot_take_fails_the_row_naming_the_column(change, message):
     with pytest.raises(UndefinedError, match=message):
         render({**BASE, **change})
+
+
+@pytest.mark.parametrize('value, code', [('MALE', 'SEX_MALE'), ('mixed', 'SEX_MIXED'), ('SEX_MALE_NEUTER', 'SEX_MALE_NEUTER'),
+                                         (' sex_female ', 'SEX_FEMALE')])
+def test_gender_is_a_master_data_code_and_the_earlier_template_codes_still_read(value, code):
+    assert render({**BASE, 'gender': value})['ls_animal_details'][0]['gender'] == code
 
 
 def test_import_batch_register_is_not_seeded_and_the_retire_patch_deletes_by_explicit_id_children_first():

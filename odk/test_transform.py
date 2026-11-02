@@ -62,7 +62,7 @@ def main():
             check("state" not in a, f"{name}: animal row carries a state ({a.get('state')!r})", failures)
             check(a["species"] in SPECIES, f"{name}: species {a['species']!r} not a LIVESTOCK_SPECIES code of the pack", failures)
             check(a["breed"] in BREEDS, f"{name}: breed {a['breed']!r} not a LIVESTOCK_BREED code of the pack", failures)
-            check(a["gender"] in ("MALE", "FEMALE", "MIXED"), f"{name}: animal gender {a['gender']!r}", failures)
+            check(a["gender"] in ("SEX_MALE", "SEX_FEMALE", "SEX_MIXED"), f"{name}: animal gender {a['gender']!r}", failures)
         for h in out["ls_health_event_details"]:
             d = h["disease_type"]
             check(d is None or d.startswith("LIVESTOCK_DISEASE_"), f"{name}: health disease {d!r} not a registry code", failures)
@@ -74,7 +74,7 @@ def main():
             d = e["disease_type"]
             check(d is None or d.startswith("LIVESTOCK_DISEASE_"), f"{name}: vital disease {d!r} not a registry code", failures)
             if e["event_type"] == "BIRTH":
-                check(e["offspring_gender"] in ("MALE", "FEMALE", "MIXED"), f"{name}: birth offspring_gender {e['offspring_gender']!r}", failures)
+                check(e["offspring_gender"] in ("SEX_MALE", "SEX_FEMALE", "SEX_MIXED"), f"{name}: birth offspring_gender {e['offspring_gender']!r}", failures)
             else:
                 check(e["offspring_gender"] is None, f"{name}: {e['event_type']} event has offspring_gender {e['offspring_gender']!r}", failures)
             check(e["location"] in LOCATIONS, f"{name}: vital location {e['location']!r}", failures)
@@ -103,7 +103,7 @@ def main():
             "LIVESTOCK_DISEASE_PPR", "LIVESTOCK_DISEASE_AFRICAN_HORSE_SICKNESS"]
     check(got == want, f"disease mapping: {got} != {want}", failures)
     birth = [e for e in out["ls_vital_event_details"] if e["event_type"] == "BIRTH"][0]
-    check(birth["offspring_gender"] == "MALE", f"sex_of_offspring male -> {birth['offspring_gender']!r}", failures)
+    check(birth["offspring_gender"] == "SEX_MALE", f"sex_of_offspring male -> {birth['offspring_gender']!r}", failures)
     check(birth["notes"] == "twins", f"vital_event_details -> notes {birth['notes']!r}", failures)
     check(out["ls_breeding_details"][0]["location"] == "FIELD", f"breeding location field -> {out['ls_breeding_details'][0]['location']!r}", failures)
     got_v = [v["vaccine_type"] for v in out["ls_vaccination_details"]]

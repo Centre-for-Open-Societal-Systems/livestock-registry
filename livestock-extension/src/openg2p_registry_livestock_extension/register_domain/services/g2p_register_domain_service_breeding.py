@@ -7,6 +7,7 @@ from sqlalchemy import and_
 from .local_date import local_today
 from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
+from .animal_sex import SEX_FEMALE, sex_code, sex_label
 
 from .domain_validation_utils import (
     field_label,
@@ -93,10 +94,10 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         if is_blank(ear_tag_id):
             return
         gender = await get_animal_gender(str(ear_tag_id).strip())
-        if gender and str(gender).upper() != "FEMALE":
+        if gender and sex_code(gender) != SEX_FEMALE:
             validation_error(
                 "Breeding can only be logged against a female animal "
-                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).lower()})."
+                f"('{str(ear_tag_id).strip()}' is on file as {sex_label(gender)})."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:

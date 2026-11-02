@@ -6,7 +6,7 @@
 -- in these two dialog-table forms (both a `sibling-table` data source
 -- reading rows already entered under Livestock Details in the same
 -- submission — see SiblingTableDataSource in ui-widgets/src/types) now
--- filters to gender = FEMALE:
+-- filters to gender = SEX_FEMALE (Master Data LIVESTOCK_SEX):
 --
 -- 1. Breeding Details: unconditional — every Breeding row is about a dam,
 --    so its Ear Tag dropdown is always female-only.
@@ -30,7 +30,7 @@ UPDATE g2p_register_sections
 SET section_ui_schema = jsonb_set(
     section_ui_schema,
     '{panels,0,panels,0,widgets,0,widget-data-columns,0,widget-data-source,optionFilter}',
-    '{"field": "gender", "operator": "equals", "value": "FEMALE"}'::jsonb
+    '{"field": "gender", "operator": "equals", "value": "SEX_FEMALE"}'::jsonb
 )
 WHERE section_id = 'livestock_breeding_details_section_01'
   AND section_ui_schema #>> '{panels,0,panels,0,widgets,0,widget-data-columns,0,column-key}' = 'ear_tag_id';
@@ -39,7 +39,7 @@ UPDATE g2p_register_sections
 SET section_ui_schema = jsonb_set(
     section_ui_schema,
     '{panels,0,panels,0,widgets,0,widget-data-columns,0,widget-data-source,optionFilter}',
-    '{"field": "gender", "operator": "equals", "value": "FEMALE", "when": {"field": "event_type", "operator": "equals", "value": "BIRTH"}}'::jsonb
+    '{"field": "gender", "operator": "equals", "value": "SEX_FEMALE", "when": {"field": "event_type", "operator": "equals", "value": "BIRTH"}}'::jsonb
 )
 WHERE section_id = 'livestock_vital_event_details_section_01'
   AND section_ui_schema #>> '{panels,0,panels,0,widgets,0,widget-data-columns,0,column-key}' = 'ear_tag_id';

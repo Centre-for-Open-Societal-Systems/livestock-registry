@@ -44,17 +44,20 @@ class AnimalStateEnum(StrEnum):
 
 
 class GenderEnum(StrEnum):
-    MALE = "MALE"
-    FEMALE = "FEMALE"
+    # The Master Data LIVESTOCK_SEX codes (ETH-OAN pack, National Livestock
+    # Data Standard for Ethiopia); services/animal_sex.py holds the same values
+    # and turns the MALE / FEMALE / MIXED stored before the list into them.
+    SEX_MALE = "SEX_MALE"
+    SEX_FEMALE = "SEX_FEMALE"
+    SEX_MALE_NEUTER = "SEX_MALE_NEUTER"
+    SEX_FEMALE_NEUTER = "SEX_FEMALE_NEUTER"
     # A _FLOCK_SPECIES row (poultry, beehive — see
     # G2PRegisterDomainServiceAnimal) stands for a whole flock/hive, not one
-    # sexed individual, so MALE/FEMALE alone can't honestly answer Gender
-    # there. Added so Gender can stay required everywhere (G2R-135) without
-    # forcing a fake single sex onto a mixed group. Available on every use of
-    # GenderEnum (also offspring_gender on Vital Events), but only offered in
-    # the Livestock Details form's Gender dropdown for now — a single
-    # newborn's offspring_gender should still just be MALE/FEMALE.
-    MIXED = "MIXED"
+    # sexed individual, so male/female alone can't honestly answer Sex there.
+    # Lets Sex stay required everywhere without forcing a fake single
+    # sex onto a mixed group; also a Birth's offspring_gender when the newborns
+    # are of both sexes.
+    SEX_MIXED = "SEX_MIXED"
 
 
 class HealthStatusEnum(StrEnum):

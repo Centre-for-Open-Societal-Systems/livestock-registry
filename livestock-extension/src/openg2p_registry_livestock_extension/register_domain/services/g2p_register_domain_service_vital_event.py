@@ -13,6 +13,7 @@ from sqlalchemy import and_, func, select
 from .local_date import local_today
 from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
+from .animal_sex import OFFSPRING_SEX_VALUES, SEX_FEMALE, normalize_sex, sex_code, sex_label
 
 from .domain_validation_utils import (
     field_label,
@@ -69,6 +70,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
 
     async def validate_domain_attributes(self, records: list[dict]):
         from .field_rules import validate_record_fields
+        for record in records:
+            # MALE / FEMALE / MIXED from before the Master Data list; see animal_sex.
+            if isinstance(record, dict):
+                normalize_sex(record, "offspring_gender")
         await validate_record_fields(records, table=True)
         records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
@@ -121,10 +126,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         if is_blank(ear_tag_id):
             return
         gender = await get_animal_gender(str(ear_tag_id).strip())
-        if gender and str(gender).upper() != "FEMALE":
+        if gender and sex_code(gender) != SEX_FEMALE:
             validation_error(
                 "A birth event can only be logged against a female animal "
-                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).lower()})."
+                f"('{str(ear_tag_id).strip()}' is on file as {sex_label(gender)})."
             )
 
     def _validate_disease_type(self, record: dict) -> None:
@@ -192,6 +197,11 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             validation_error("Please provide the number of offspring before saving the record.")
         if is_blank(record.get("offspring_gender")):
             validation_error("Please provide the sex of the offspring before saving the record.")
+        if sex_code(record.get("offspring_gender")) not in OFFSPRING_SEX_VALUES:
+            validation_error(
+                f"Sex of offspring '{sex_label(record.get('offspring_gender')).capitalize()}' is not allowed — "
+                "a newborn is Male, Female or Mixed / Not Applicable."
+            )
 
     def _vital_event_models(self):
         """The Vital Event register + intake-form models, imported the same
@@ -576,8 +586,8 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 # validate_domain_attributes requires the offspring sex on a
                 # Birth event; a Birth approved before that rule existed may
                 # still have none, and the animal's gender is not nullable.
-                # FEMALE keeps what the ODK hooks used to set in that case.
-                "gender": vital_event.offspring_gender or "FEMALE",
+                # Female keeps what the ODK hooks used to set in that case.
+                "gender": sex_code(vital_event.offspring_gender) or SEX_FEMALE,
                 "date_of_birth": vital_event.event_date,
                 "registration_date": vital_event.event_date,
                 "health_status": "HEALTHY",
