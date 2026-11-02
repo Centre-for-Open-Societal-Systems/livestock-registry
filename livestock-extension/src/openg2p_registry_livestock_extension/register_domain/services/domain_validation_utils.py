@@ -592,11 +592,40 @@ def exclude_own_rows(model, conditions: list, exclude_internal_record_ids, exclu
     submission_id, at the moment the search runs — Previous then Next with
     no edits, or reopening a draft, must not trip over it. Intake rows carry
     submission_id; register rows don't, and never need this.
+
+    A save that sends ids but names no submission (validate_domain_attributes)
+    is either an edit of an approved record, whose ids are register rows, or a
+    section of an intake submission saved again with the ids of its own rows.
+    The ids sent back by an intake section need not be the ids the intake table
+    holds them under, so excluding them is not enough to keep a section from
+    clashing with its own earlier copy. For the intake table the search then
+    runs only when one of the ids is an approved register row; the submission's
+    other drafts are checked by post_intake_upsert, which knows the submission.
     """
     if exclude_internal_record_ids:
         conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
     if exclude_submission_ids and hasattr(model, "submission_id"):
         conditions.append(model.submission_id.not_in(exclude_submission_ids))
+    elif exclude_internal_record_ids and hasattr(model, "submission_id"):
+        register_model = register_model_of(model)
+        if register_model is not None:
+            from sqlalchemy import exists
+
+            conditions.append(exists().where(register_model.internal_record_id.in_(exclude_internal_record_ids)))
+
+
+def register_model_of(intake_model):
+    """The register model an intake model is the draft form of
+    (G2PIntakeFormAnimal -> G2PRegisterAnimal), or None when it has no such
+    pair. Looked up through the "openg2p_registry_extensions" alias, as
+    _event_models does."""
+    import importlib
+
+    name = getattr(intake_model, "__name__", "")
+    if not name.startswith("G2PIntakeForm"):
+        return None
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    return getattr(models, "G2PRegister" + name[len("G2PIntakeForm"):], None)
 
 
 class TableMatch(NamedTuple):
