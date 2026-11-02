@@ -11,9 +11,12 @@ type Config = Record<string, any>;
 /*
  * Next Due Date on the Vaccination dialog: the vaccination date plus the
  * chosen vaccine's interval (Master Data VACCINE_TYPE attribute
- * interval_days), shown as soon as both are picked. The server fills the same
- * date on save when it is left empty; a date the user typed is never
- * replaced, and a vaccine without an interval leaves it empty.
+ * interval_days), shown as soon as both are picked: the date the server
+ * writes on save, where it overwrites whatever was submitted
+ * (G2PRegisterDomainServiceVaccination._populate_next_due_date). For a
+ * vaccine without an interval the server keeps the submitted date, so a date
+ * the user typed is left alone. An approved Vaccine Schedule row, which the
+ * server prefers over the Master Data interval, is not read here.
  *
  * Metadata (on the next due date column):
  *   "widget": "oan-next-due-date",
@@ -67,12 +70,13 @@ export function NextDueDateWidget({ config }: { config: Config }) {
 
     useEffect(() => {
         if (!baseId) return;
-        // Only an empty date, or the one this widget filled, follows the inputs.
         const current = value ? String(value) : null;
-        if (current && current !== lastFilled.current) return;
         const row = rows.find((r) => matches(r, option));
         const days = Number(row?.attributes?.[offset.daysKey || 'interval_days']);
         const next = row ? addDays(base, days) : null;
+        // With an interval the date is derived, as on save. Without one, only a
+        // date this widget filled is cleared; a typed date is the user's.
+        if (next === null && (!current || current !== lastFilled.current)) return;
         if (next === current) return;
         lastFilled.current = next;
         dispatch(setValue({ widgetId, value: next }));

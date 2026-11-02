@@ -14,9 +14,6 @@ export async function POST(req: NextRequest) {
 			pagination_request: {
 				current_page: 1,
 				page_size: body.page_size ?? 1000,
-				sort_by: "",
-				filter_by: "",
-				search_text: "",
 			},
 			request_payload: {
 				list_code: body.list_code,

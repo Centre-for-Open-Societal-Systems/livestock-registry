@@ -1,8 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
-import { SelectWidget, useBaseWidget, useWidgetContext, type WidgetRootState } from '@openg2p/registry-widgets';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+    SelectWidget,
+    setDataSource,
+    useBaseWidget,
+    useWidgetContext,
+    type WidgetRootState,
+} from '@openg2p/registry-widgets';
 import { dialogSiblingId } from './dialog';
 import { listValues, matches, type ListValue } from './listValues';
 
@@ -22,8 +28,11 @@ type Config = Record<string, any>;
  * widget-data-source.valueKey (value_id or value_code).
  */
 export function VaccineSelectWidget({ config }: { config: Config }) {
+    const dispatch = useDispatch();
     const { dataSourceRequestHandler } = useWidgetContext();
-    const { widgetId, value } = useBaseWidget({ config: config as never });
+    // Without its data source: the platform would load the whole list into the
+    // store for this field and overwrite the narrowed options.
+    const { widgetId, value } = useBaseWidget({ config: { ...config, 'widget-data-source': undefined } as never });
     const source = (config['widget-data-source'] || {}) as Config;
     const listCode: string = source.params?.attribute_id || '';
     const valueKey: 'value_id' | 'value_code' = source.valueKey === 'value_code' ? 'value_code' : 'value_id';
@@ -56,6 +65,12 @@ export function VaccineSelectWidget({ config }: { config: Config }) {
         }
         return list;
     }, [filter.attribute, filter.field, filterValue, rows, value, valueKey]);
+
+    // The platform's select reads its options from the store and loads a static
+    // list only once, so the narrowed list is written there whenever it changes.
+    useEffect(() => {
+        if (rows.length) dispatch(setDataSource({ widgetId, data: options }));
+    }, [dispatch, options, rows.length, widgetId]);
 
     if (!rows.length) {
         // Master Data catalogue not reachable: the platform's own list widget.
