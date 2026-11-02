@@ -934,6 +934,13 @@ class PipelineWiringTests(unittest.TestCase):
         self.assertIn("python3 ci/deploy/propose_pin_pr.py", stage)
         self.assertNotIn("OAN_CHART_PIN_FILE", stage)
 
+    def test_the_parameter_description_is_a_valid_single_quoted_string(self):
+        # build #174 died compiling the Jenkinsfile: an apostrophe ("build's") ended the single-quoted literal early.
+        start = self.text.index("description: '") + len("description: '")
+        end = self.text.index("')\n    }\n    // Validation and image builds")
+        self.assertNotIn("'", self.text[start:end])
+        self.assertNotIn("\n", self.text[start:end])
+
     def test_braces_balance(self):
         self.assertEqual(self.text.count("{"), self.text.count("}"))
 
