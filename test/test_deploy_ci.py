@@ -299,6 +299,9 @@ class ProposePinTests(unittest.TestCase):
         self.bump.ROOT = self.root
         self.old = json.loads(self.bump.PROFILE.read_text(encoding="utf-8"))
         self.pinned = self.old["registry"]
+        # one dev release past whatever is pinned now, so the test does not age with the pin
+        base, dev = self.pinned["version"].rsplit(".", 1)
+        self.newer = "%s.%d" % (base, int(dev) + 1)
         self.files = {}
 
     def publish(self, version, app, values=b"registry: {}\n"):
@@ -327,10 +330,10 @@ class ProposePinTests(unittest.TestCase):
             key("latest")
 
     def test_newer_chart_is_proposed(self):
-        self.publish("1.0.0-dev.21", self.pinned["platformVersion"])
+        self.publish(self.newer, self.pinned["platformVersion"])
         new, why = self.propose()
         self.assertIsNotNone(new)
-        self.assertIn("newer chart 1.0.0-dev.21", why)
+        self.assertIn("newer chart %s" % self.newer, why)
         self.assertTrue(new["registry"]["repository"].endswith("/oan-helm/" + self.HEAD + "/repository/"))
 
     def test_same_chart_and_values_is_up_to_date(self):
@@ -366,13 +369,13 @@ class ProposePinTests(unittest.TestCase):
             self.bump.head_commit(run=lambda cmd: "")
 
     def test_only_the_pin_is_rewritten_even_for_a_new_platform(self):
-        self.publish("1.0.0-dev.21", "1.2.2-rc.700")
+        self.publish(self.newer, "1.2.2-rc.700")
         new, _ = self.propose()
         self.assertEqual(new["registry"]["platformVersion"], "1.2.2-rc.700")
         self.assertEqual(self.bump.update_companions(self.pinned, new["registry"], root=self.root), [])
         self.assertEqual(self.bump.apply_pin(self.old, new, self.root), ["ci/deploy/oan-chart.json"])
         written = json.loads((self.root / "ci/deploy/oan-chart.json").read_text())
-        self.assertEqual(written["registry"]["version"], "1.0.0-dev.21")
+        self.assertEqual(written["registry"]["version"], self.newer)
         self.assertEqual(written["dashboard"], self.old["dashboard"])      # the dashboard pin is never touched
 
 
