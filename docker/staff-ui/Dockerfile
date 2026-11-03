@@ -21,7 +21,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # The Next build shares the Jenkins agent with other image builds; give Node a
 # heap bound above its default so it does not die with "Reached heap limit".
 ENV NODE_OPTIONS=--max-old-space-size=3072
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm config set fetch-timeout 600000 \
+ && npm install --no-audit --no-fund
 RUN npm run build \
  && mkdir -p /out \
  && cp -a .app/.next/standalone/. /out/ \

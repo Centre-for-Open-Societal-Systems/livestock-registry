@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { DateInputWidget, setValue, useBaseWidget, useWidgetContext, type WidgetRootState } from '@openg2p/registry-widgets';
+import { setValue, useBaseWidget, useWidgetContext, type WidgetRootState } from '@openg2p/registry-widgets';
 import { dialogSiblingId } from './dialog';
+import { ETHIOPIAN_DATE_VARIANT, EthiopianDateInputWidget } from './EthiopianDateInputWidget';
 import { listValues, matches, type ListValue } from './listValues';
 
 type Config = Record<string, any>;
@@ -82,5 +83,9 @@ export function NextDueDateWidget({ config }: { config: Config }) {
         dispatch(setValue({ widgetId, value: next }));
     }, [base, baseId, dispatch, offset.daysKey, option, rows, value, widgetId]);
 
-    return <DateInputWidget config={{ ...config, widget: 'date' } as never} />;
+    return (
+        <EthiopianDateInputWidget
+            config={{ ...config, 'widget-variant': ETHIOPIAN_DATE_VARIANT } as never}
+        />
+    );
 }

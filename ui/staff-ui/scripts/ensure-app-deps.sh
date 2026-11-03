@@ -28,13 +28,16 @@ expected=""
 current=""
 [[ -f "$stamp" ]] && current=$(tr -d '[:space:]' < "$stamp")
 
-if [[ -d "$modules" && -n "$expected" && "$current" == "$expected" ]]; then
+if [[ -d "$modules" && -x "$modules/.bin/next" && -n "$expected" && "$current" == "$expected" ]]; then
     say "Dependencies already installed"
     exit 0
 fi
 
 say "Installing dependencies…"
 ( cd "$app_dir" && npm ci --no-audit --no-fund --loglevel=error )
+if [[ ! -x "$modules/.bin/next" ]]; then
+    fail "Dependency installation completed without the Next.js executable"
+fi
 say "Dependencies installed"
 if [[ -n "$expected" ]]; then
     printf '%s' "$expected" > "$stamp"
