@@ -72,7 +72,8 @@
 
 
 {# ODK species choice -> the Master Data LIVESTOCK_SPECIES code of the country
-   pack (CATTLE, GOATS, SHEEP, CAMELS, EQUINES, POULTRY, OTHER). Old-style
+   pack (CATTLE, GOATS, SHEEP, CAMELS, DONKEY, HORSE, MULE, PIG, POULTRY,
+   BEEHIVE; EQUINES and OTHER for older records). Old-style
    LIVESTOCK_SPECIES_<NAME> values are read by their name. #}
 {% set species_map = {
   'cattle': 'CATTLE',
@@ -85,14 +86,23 @@
   'caprine': 'GOATS',
   'camel': 'CAMELS',
   'camels': 'CAMELS',
-  'donkey': 'EQUINES',
-  'horse': 'EQUINES',
-  'mule': 'EQUINES',
+  'donkey': 'DONKEY',
+  'horse': 'HORSE',
+  'mule': 'MULE',
   'equine': 'EQUINES',
   'equines': 'EQUINES',
+  'pig': 'PIG',
+  'beehive': 'BEEHIVE',
   'poultry': 'POULTRY',
   'chicken': 'POULTRY',
   'other': 'OTHER'
+} %}
+
+{# The species part of a LIVESTOCK_BREED code: BREED_<species>_<breed>, the
+   form's breed choice name upper-cased (cattle "boran" -> BREED_CATTLE_BORAN). #}
+{% set breed_species_part = {
+  'CATTLE': 'CATTLE', 'SHEEP': 'SHEEP', 'GOATS': 'GOAT', 'CAMELS': 'CAMEL', 'DONKEY': 'DONKEY',
+  'HORSE': 'HORSE', 'MULE': 'MULE', 'POULTRY': 'POULTRY', 'PIG': 'PIG', 'BEEHIVE': 'BEEHIVE'
 } %}
 
 {# Form `disease` choice (choices sheet of livestock_registry.xlsx) -> registry
@@ -196,12 +206,14 @@
     {% set a_sp_raw = ((a.get('species_id') or a.get('species') or '') | string) | lower | trim %}
     {% set a_sp = (species_map.get(a_sp_raw | replace('livestock_species_', ''), a_sp_raw | replace('livestock_species_', '') | upper)) if a_sp_raw else none %}
     {% set a_br_raw = ((a.get('breed') or '') | string) | lower | trim %}
-    {# The pack's LIVESTOCK_BREED list is the breed type: Improved, Local or
-       Hybrid. An ODK breed name maps onto it: a cross is Hybrid, an exotic
-       breed Improved, an indigenous breed Local. #}
+    {# A breed choice of the form is a LIVESTOCK_BREED breed of the animal's
+       species. Without a species the list has breeds for, it falls back to the
+       breed type: a cross is Hybrid, an exotic breed Improved, an indigenous
+       breed Local. #}
     {% set improved_breeds = ['holstein', 'jersey', 'boer', 'dorper', 'bovans', 'isa_brown', 'sasso', 'koekoek', 'leghorn', 'large_white', 'landrace', 'improved', 'exotic'] %}
     {% if not a_br_raw %}{% set a_br = none %}
     {% elif a_br_raw.startswith('breed_') %}{% set a_br = a_br_raw | upper %}
+    {% elif a_sp in breed_species_part %}{% set a_br = 'BREED_' ~ breed_species_part[a_sp] ~ '_' ~ (a_br_raw | replace(' ', '_') | replace('-', '_') | upper) %}
     {% elif 'cross' in a_br_raw or 'hybrid' in a_br_raw %}{% set a_br = 'BREED_HYBRID' %}
     {% elif improved_breeds | select('in', a_br_raw) | list %}{% set a_br = 'BREED_IMPROVED' %}
     {% else %}{% set a_br = 'BREED_LOCAL' %}

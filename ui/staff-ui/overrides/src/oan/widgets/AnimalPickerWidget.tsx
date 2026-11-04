@@ -101,7 +101,9 @@ async function loadAnimals(handler: Handler, autofill: Config): Promise<AnimalRo
     const submissionId = currentSubmissionId();
     if (submissionId) {
         const payload = await handler('intake-form', 'get-intake-form-submission', 'POST', { submission_id: submissionId });
-        const sections: any[] = payload?.section_payloads || [];
+        // No sections at all is a failed read (an expired login), not a form without animals.
+        if (!Array.isArray(payload?.section_payloads)) throw new Error('intake form not loaded');
+        const sections: any[] = payload.section_payloads;
         const section = sections.find((s) => s.section_id === autofill.sourceSectionId)
             || sections.find((s) => /animal_details/.test(String(s.section_id || '')));
         return section?.records || [];
@@ -114,7 +116,8 @@ async function loadAnimals(handler: Handler, autofill: Config): Promise<AnimalRo
             section_register_id: autofill.sourceRegisterId,
             page_size: 500,
         });
-        return Array.isArray(rows) ? rows : [];
+        if (!Array.isArray(rows)) throw new Error('record animals not loaded');
+        return rows;
     }
     return [];
 }
@@ -138,17 +141,22 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
         JSON.stringify(whenIds.map((id) => (id ? state.widget?.values?.[id] ?? null : null))));
     const [animals, setAnimals] = useState<AnimalRow[]>([]);
     const [loaded, setLoaded] = useState(false);
+    const [failed, setFailed] = useState(false);
     const lastFilled = useRef<string | null>(null);
 
     useEffect(() => {
         if (!dataSourceRequestHandler) return;
         let cancelled = false;
         (async () => {
-            const rows = (await loadAnimals(dataSourceRequestHandler as Handler, autofill)).filter(
-                (row: AnimalRow) => identifierOf(row, matchField) && row.record_status !== 'DELETED');
-            if (!cancelled) {
-                setAnimals(rows);
-                setLoaded(true);
+            try {
+                const rows = (await loadAnimals(dataSourceRequestHandler as Handler, autofill)).filter(
+                    (row: AnimalRow) => identifierOf(row, matchField) && row.record_status !== 'DELETED');
+                if (!cancelled) {
+                    setAnimals(rows);
+                    setLoaded(true);
+                }
+            } catch {
+                if (!cancelled) setFailed(true);
             }
         })();
         return () => {
@@ -197,8 +205,19 @@ export function AnimalPickerWidget({ config }: { config: Config }) {
 
     // No animals saved yet: the typed text box. Animals but none passing the
     // filters (no female for a birth): an empty list, not a free text box.
+    // The animals could not be read (an expired login): the text box, saying so.
     if (!animals.length) {
-        return <TextInputWidget config={{ ...config, widget: 'text' } as never} />;
+        return (
+            <>
+                <TextInputWidget config={{ ...config, widget: 'text' } as never} />
+                {failed && (
+                    <p className="mt-1 text-sm text-red-600" role="alert">
+                        This form&apos;s animals could not be loaded. Refresh the page (you may need to log in again),
+                        or type the ear tag.
+                    </p>
+                )}
+            </>
+        );
     }
     return (
         <SelectWidget

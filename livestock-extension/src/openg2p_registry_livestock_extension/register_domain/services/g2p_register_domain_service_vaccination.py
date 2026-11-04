@@ -12,6 +12,7 @@ from .audit_snapshot import AuditSnapshotMixin
 from .domain_validation_utils import (
     field_label,
     normalize_event_ear_tag,
+    validate_animal_not_deceased,
     validate_known_code,
     animal_identified_by,
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
@@ -69,6 +70,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
+            await validate_animal_not_deceased(record, "vaccination")
             await fill_species_and_age_from_animal(record)
             resolve_today_default(record, "vaccination_date")
             self._validate_required_fields(record)
