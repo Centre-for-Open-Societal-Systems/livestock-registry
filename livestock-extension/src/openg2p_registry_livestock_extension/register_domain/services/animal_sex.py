@@ -18,6 +18,9 @@ SEX_FEMALE_NEUTER = "SEX_FEMALE_NEUTER"
 SEX_MIXED = "SEX_MIXED"
 
 ANIMAL_SEX_VALUES = frozenset({SEX_MALE, SEX_FEMALE, SEX_MALE_NEUTER, SEX_FEMALE_NEUTER, SEX_MIXED})
+# The sexes the forms offer and the registry records, as before the list moved
+# to Master Data. Castrated male and Female neuter stay in the list (MoA), unused.
+ANIMAL_SEX_OFFERED = frozenset({SEX_MALE, SEX_FEMALE, SEX_MIXED})
 # A newborn is not neutered.
 OFFSPRING_SEX_VALUES = frozenset({SEX_MALE, SEX_FEMALE, SEX_MIXED})
 

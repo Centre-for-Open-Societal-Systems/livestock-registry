@@ -40,7 +40,7 @@ ANIMAL_ROW = {'ear_tag_id': 'ET0000000013', 'species': 'CATTLE', 'breed': 'BREED
 BASE = {**IDENTITY_ROW, **ANIMAL_ROW}
 RETIRED_REGISTER = '0fd11be9-83d7-5d2e-9dea-e0653add7059'
 ODK_SQL_SHA256 = 'e37a083e4b3d95562870d0f761a896dfd8d5c606403a1717b9bd36b92a61b4a8'
-ODK_TEMPLATE_SHA256 = 'f4c6b7cd6e2a992bdfc657af0278433c5fc0ce673c2eb9569b20b3f82693f8c8'
+ODK_TEMPLATE_SHA256 = '8678edf0d050711a6b93ea2aa5ad71725a756e7aed6ac7c7e04351d5aeff1c31'
 
 
 def sql(folder, name):
@@ -266,7 +266,8 @@ def test_location_stops_at_the_deepest_level_given_and_numbers_become_numbers():
     ({'species': ''}, 'column species is required'),
     ({'breed': ''}, 'column breed is required'),
     ({'gender': ''}, 'column gender is required'),
-    ({'gender': 'OTHER'}, 'column gender must be one of SEX_MALE, SEX_FEMALE, SEX_MALE_NEUTER, SEX_FEMALE_NEUTER, SEX_MIXED'),
+    ({'gender': 'OTHER'}, 'column gender must be one of SEX_MALE, SEX_FEMALE, SEX_MIXED'),
+    ({'gender': 'SEX_MALE_NEUTER'}, 'column gender must be one of SEX_MALE, SEX_FEMALE, SEX_MIXED'),
     ({'health_status': 'well'}, 'column health_status must be one of'),
     ({'vaccination_status': ''}, 'column vaccination_status is required'),
     ({'registration_date': ''}, 'column registration_date is required'),
@@ -286,7 +287,7 @@ def test_a_value_the_register_cannot_take_fails_the_row_naming_the_column(change
         render({**BASE, **change})
 
 
-@pytest.mark.parametrize('value, code', [('MALE', 'SEX_MALE'), ('mixed', 'SEX_MIXED'), ('SEX_MALE_NEUTER', 'SEX_MALE_NEUTER'),
+@pytest.mark.parametrize('value, code', [('MALE', 'SEX_MALE'), ('mixed', 'SEX_MIXED'), ('SEX_FEMALE', 'SEX_FEMALE'),
                                          (' sex_female ', 'SEX_FEMALE')])
 def test_gender_is_a_master_data_code_and_the_earlier_template_codes_still_read(value, code):
     assert render({**BASE, 'gender': value})['ls_animal_details'][0]['gender'] == code

@@ -12,6 +12,7 @@ from .animal_sex import SEX_FEMALE, sex_code, sex_label
 from .domain_validation_utils import (
     field_label,
     normalize_event_ear_tag,
+    validate_animal_not_deceased,
     ear_tag_exists, get_animal_gender, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
@@ -57,6 +58,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
+            await validate_animal_not_deceased(record, "breeding event")
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             await self._validate_female_only(record)

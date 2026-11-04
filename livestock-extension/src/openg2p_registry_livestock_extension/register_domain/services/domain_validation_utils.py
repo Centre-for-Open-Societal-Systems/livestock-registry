@@ -895,6 +895,12 @@ async def get_animal_gender(ear_tag_id: str) -> str | None:
     logging a breeding event against a male animal (see
     G2PRegisterDomainServiceBreeding._validate_female_only).
     """
+    return await _recorded_animal_value(ear_tag_id, "gender")
+
+
+async def _recorded_animal_value(ear_tag_id: str, column: str) -> str | None:
+    """One column of the animal identified by ear_tag_id: the register's row
+    first, then the newest intake draft row; None if neither has a value."""
     if is_blank(ear_tag_id):
         return None
 
@@ -904,16 +910,17 @@ async def get_animal_gender(ear_tag_id: str) -> str | None:
 
     G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
 
-    def _has_gender(model):
-        return and_(animal_identified_by(model, ear_tag_id), model.gender.is_not(None), model.gender != "")
+    def _has_value(model):
+        field = getattr(model, column)
+        return and_(animal_identified_by(model, ear_tag_id), field.is_not(None), field != "")
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
         for model in (G2PRegisterAnimal, G2PIntakeFormAnimal):
             row = (
                 await session.execute(
-                    select(model.gender)
-                    .where(_has_gender(model))
+                    select(getattr(model, column))
+                    .where(_has_value(model))
                     .order_by(model.created_at.desc())
                     .limit(1)
                 )
@@ -921,6 +928,18 @@ async def get_animal_gender(ear_tag_id: str) -> str | None:
             if row and row[0]:
                 return row[0]
         return None
+
+
+async def validate_animal_not_deceased(record: dict, kind: str) -> None:
+    """No vaccination, health event or breeding for an animal on file as
+    DECEASED. The event dialogs never list a dead animal; ODK, File Import
+    and API rows can still name one."""
+    ear_tag_id = normalize_event_ear_tag(record)
+    if ear_tag_id is None:
+        return
+    status = await _recorded_animal_value(str(ear_tag_id).strip(), "health_status")
+    if str(status or "").strip().upper() == "DECEASED":
+        validation_error(f"Animal '{str(ear_tag_id).strip()}' is deceased; a {kind} cannot be recorded for it.")
 
 
 async def ensure_ear_tags_belong_to_submission(rows: list) -> None:

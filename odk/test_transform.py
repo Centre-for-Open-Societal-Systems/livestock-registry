@@ -28,9 +28,23 @@ SECTIONS = (
     "ls_health_event_details", "ls_vaccination_details",
     "ls_vital_event_details", "ls_breeding_details",
 )
-# The country pack's LIVESTOCK_SPECIES and LIVESTOCK_BREED codes (openg2p-data ETH-OAN).
-SPECIES = {"CATTLE", "GOATS", "SHEEP", "POULTRY", "CAMELS", "EQUINES", "OTHER"}
-BREEDS = {"BREED_IMPROVED", "BREED_LOCAL", "BREED_HYBRID"}
+# The country pack's LIVESTOCK_SPECIES and LIVESTOCK_BREED codes (openg2p-data ETH-OAN),
+# the breeds by their species attribute.
+SPECIES = {"CATTLE", "GOATS", "SHEEP", "POULTRY", "CAMELS", "DONKEY", "HORSE", "MULE", "PIG", "BEEHIVE",
+           "EQUINES", "OTHER"}
+BREEDS_BY_SPECIES = {
+    "CATTLE": {"BREED_CATTLE_BORAN", "BREED_CATTLE_FOGERA", "BREED_CATTLE_HORRO", "BREED_CATTLE_SHEKO", "BREED_CATTLE_BEGAIT", "BREED_CATTLE_ARSI", "BREED_CATTLE_BARKA", "BREED_CATTLE_LOCAL_ZEBU", "BREED_CATTLE_HOLSTEIN_FRIESIAN_CROSS", "BREED_CATTLE_JERSEY_CROSS"},
+    "SHEEP": {"BREED_SHEEP_MENZ", "BREED_SHEEP_AFAR", "BREED_SHEEP_BLACKHEAD_SOMALI", "BREED_SHEEP_HORRO", "BREED_SHEEP_BONGA", "BREED_SHEEP_WASHERA", "BREED_SHEEP_DORPER_CROSS", "BREED_SHEEP_LOCAL"},
+    "GOATS": {"BREED_GOAT_AFAR", "BREED_GOAT_ABERGELE", "BREED_GOAT_BEGAIT", "BREED_GOAT_CENTRAL_HIGHLAND", "BREED_GOAT_LONG_EARED_SOMALI", "BREED_GOAT_WOITO_GUJI", "BREED_GOAT_BOER_CROSS", "BREED_GOAT_LOCAL"},
+    "CAMELS": {"BREED_CAMEL_SOMALI", "BREED_CAMEL_AFAR", "BREED_CAMEL_LOCAL"},
+    "DONKEY": {"BREED_DONKEY_ABYSSINIAN", "BREED_DONKEY_SINNAR", "BREED_DONKEY_LOCAL"},
+    "HORSE": {"BREED_HORSE_ABYSSINIAN", "BREED_HORSE_OROMO", "BREED_HORSE_LOCAL"},
+    "MULE": {"BREED_MULE_LOCAL"},
+    "POULTRY": {"BREED_POULTRY_BOVANS_BROWN", "BREED_POULTRY_ISA_BROWN", "BREED_POULTRY_SASSO", "BREED_POULTRY_KOEKOEK", "BREED_POULTRY_WHITE_LEGHORN_CROSS", "BREED_POULTRY_LOCAL_CHICKEN"},
+    "PIG": {"BREED_PIG_LARGE_WHITE", "BREED_PIG_LANDRACE", "BREED_PIG_LOCAL"},
+    "BEEHIVE": {"BREED_BEEHIVE_APIS_MELLIFERA_SCUTELLATA"},
+}
+BREEDS = {"BREED_IMPROVED", "BREED_LOCAL", "BREED_HYBRID"} | set().union(*BREEDS_BY_SPECIES.values())
 LOCATIONS = {"HOME", "VETERINARY", "MARKET", "FIELD", "QUARANTINE_CENTER", "OTHER"}
 
 
@@ -127,8 +141,8 @@ def main():
 
 def check_breed_map(template, base, failures):
     """Every species and breed choice of the form must land on a pack code: the
-    species on LIVESTOCK_SPECIES, the breed on its LIVESTOCK_BREED type (a cross
-    is Hybrid, an exotic breed Improved, an indigenous one Local)."""
+    species on LIVESTOCK_SPECIES, the breed on the LIVESTOCK_BREED breed of that
+    species (cattle "boran" -> BREED_CATTLE_BORAN)."""
     form = os.path.join(os.path.dirname(__file__), "breed_choices.csv")
     rows = [line.strip().split(",") for line in open(form, encoding="utf-8") if line.strip() and not line.startswith("species")]
     sub = json.loads(json.dumps(base))
@@ -138,13 +152,9 @@ def check_breed_map(template, base, failures):
     for species, name in rows:
         animal["species_id"], animal["breed"] = species, name
         out = render(template, sub)["ls_animal_details"][0]
-        if species in ("pig", "beehive"):
-            check(out["species"] not in SPECIES, f"species {species} is not in the pack but mapped to {out['species']!r}", failures)
-            continue
         check(out["species"] in SPECIES, f"species choice {species} -> {out['species']!r}", failures)
-        want = "BREED_HYBRID" if "cross" in name else None
-        check(out["breed"] in BREEDS and (want is None or out["breed"] == want),
-              f"breed choice {species}/{name} -> {out['breed']!r}", failures)
+        check(out["breed"] in BREEDS_BY_SPECIES.get(out["species"], set()),
+              f"breed choice {species}/{name} -> {out['breed']!r}, not a breed of {out['species']!r}", failures)
 
 
 if __name__ == "__main__":

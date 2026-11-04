@@ -45,7 +45,7 @@ Import configuration: shown as **Livestock intake** under Import from file (data
 | `weight` | Livestock details (`ls_animal_details`) | No | Number, digits and an optional decimal point |
 | `date_of_birth` | Livestock details (`ls_animal_details`) | Conditional | YYYY-MM-DD, not in the future. Required except for a flock species |
 | `age` | Livestock details (`ls_animal_details`) | No | Text; the registry works it out from the date of birth |
-| `gender` | Livestock details (`ls_animal_details`) | Yes | A Master Data `LIVESTOCK_SEX` code: `SEX_MALE`, `SEX_FEMALE`, `SEX_MALE_NEUTER`, `SEX_FEMALE_NEUTER`, `SEX_MIXED` (`SEX_MIXED` only for a species without an ear tag). `MALE`, `FEMALE` and `MIXED` from the earlier template are still read. |
+| `gender` | Livestock details (`ls_animal_details`) | Yes | A Master Data `LIVESTOCK_SEX` code: `SEX_MALE`, `SEX_FEMALE` or `SEX_MIXED` (`SEX_MIXED` only for a species without an ear tag). The list's castrated male and female neuter codes are not recorded. `MALE`, `FEMALE` and `MIXED` from the earlier template are still read. |
 | `health_status` | Livestock details (`ls_animal_details`) | Yes | `HEALTHY`, `SICK`, `QUARANTINED`, `DECEASED` |
 | `vaccination_status` | Livestock details (`ls_animal_details`) | Yes | `UP_TO_DATE`, `OVERDUE`, `NONE` |
 | `registration_date` | Livestock details (`ls_animal_details`) | Yes | YYYY-MM-DD, not in the future |

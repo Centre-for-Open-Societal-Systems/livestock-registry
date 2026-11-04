@@ -11,6 +11,7 @@ from .audit_snapshot import AuditSnapshotMixin
 from .domain_validation_utils import (
     field_label,
     normalize_event_ear_tag,
+    validate_animal_not_deceased,
     validate_known_code,
     animal_identified_by,
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
@@ -80,6 +81,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
+            await validate_animal_not_deceased(record, "health event")
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
@@ -97,21 +99,22 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
                 validation_error(f"Please provide the {label} before saving the record.")
 
     def _validate_event_dates_required(self, record: dict) -> None:
-        """Date of Onset / Date of Resolution are mandatory exactly when the
-        Health Event Details dialog shows them for the chosen event_type
-        (see patch_ls_health_event_details_sync_ui_schema.sql):
-            DISEASE    onset + resolution required
-            INJURY     onset + resolution required
+        """Date of Onset / Date of Resolution as the Health Event Details
+        dialog asks for them (see patch_ls_health_event_details_sync_ui_schema.sql):
+            DISEASE    onset required; resolution optional (an animal still sick has none)
+            INJURY     onset required; resolution optional
             TREATMENT  onset required (the form hides resolution)
             RECOVERY   resolution required (the form hides onset)
-        Mirrors _validate_disease_type below -- the form's conditional
-        "require" action alone can't be trusted for API / bulk-import
-        clients that bypass it.
+        The resolution of a disease or an injury is optional as in the old
+        system; it is added later, or recorded as a recovery. Mirrors
+        _validate_disease_type below -- the form's conditional "require"
+        action alone can't be trusted for API / bulk-import clients that
+        bypass it.
         """
         event_type = str(record.get("event_type") or "").upper()
         if event_type != "RECOVERY" and is_blank(record.get("date_onset")):
             validation_error("Please provide the date of onset before saving the record.")
-        if event_type != "TREATMENT" and is_blank(record.get("date_resolution")):
+        if event_type == "RECOVERY" and is_blank(record.get("date_resolution")):
             validation_error("Please provide the date of resolution before saving the record.")
 
     def _validate_disease_type(self, record: dict) -> None:
