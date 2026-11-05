@@ -14,9 +14,8 @@ a deploy. The "dashboard" pin is a different chart on its own commit and is not 
 file changes in its own pull requests, without a chart release, so the commit that published the archive would
 silently drop those changes. A proposal is made only when the chart version, the archive digest or the values
 digest differs from the current pin, and never for an older chart version (no downgrade).
-The last stage of the develop Jenkins build (ci/deploy/propose_pin_pr.py) runs it after every successful deploy and opens the
-pull request, unless the platform version changes: that needs the Dockerfiles and the pipeline moved with it
-(see NOTE below), so the stage reports it and leaves the change to a person.
+A develop build deploys the chart it packaged, so this only serves a deploy by hand. A platform version change needs
+the Dockerfiles and the pipeline moved with it (see NOTE below).
 
 A new platform version is NOT propagated automatically: the images must extend the platform bundled in the chart
 (test/test_rp_pin_lockstep.py), and the platform version also appears in ci/pipelines/dev.groovy (RP_VERSION and the
