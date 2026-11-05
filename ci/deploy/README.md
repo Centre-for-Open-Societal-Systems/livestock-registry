@@ -41,43 +41,23 @@ One pipeline (`ci/pipelines/dev.groovy`). Every `develop` build runs these stage
 
 1. **Build & Push Images** pushes the images to ECR (`<commit12>` tags) and records each ECR digest in
    `.build/image-digests.tsv`. If this fails nothing after it runs and the log shows why.
-2. **Deploy to Development** (`ci/deploy/deploy-livestock-dev.sh`) records the last `deployed` Helm revision (printed
+2. **Package chart** (`ci/deploy/package-chart.sh`) packages `helm/openg2p-livestock-registry` with this
+   build's images, using `scripts/ci/package_chart.py` of oan-helm. The version comes from git:
+   `0.0.0-develop.<commit count>`. If this fails nothing is deployed.
+3. **Deploy to Development** (`ci/deploy/deploy-livestock-dev.sh`) records the last `deployed` Helm revision (printed
    with its chart, for example `rollback target: revision 49 (openg2p-livestock-registry-1.0.0-dev.19, the last working
-   release)`), upgrades the release with the pinned chart and public values and this build's image tags, waits for the
+   release)`), upgrades the release with the packaged chart and public values and this build's image tags, waits for the
    rollouts and runs the guards. If anything fails from the upgrade onwards it saves `deploy-failure-<build>.txt` (pods,
    events, hook and application logs; archived by the build), runs `helm rollback` to that revision
-   (`ci/deploy/release-rollback.sh`) and fails the build, so the next two stages do not run. A first install has nothing
+   (`ci/deploy/release-rollback.sh`) and fails the build, so the next stage does not run. A first install has nothing
    to go back to. A rollback restores the chart and values; it does not undo database changes made by hooks. There is
    no `--atomic`, so the evidence survives. A release left in a `pending-*` Helm state is refused before any change.
-3. **Open oan-helm image PR** (`ci/deploy/release_images.py`), only after a successful deploy. It writes the build's
-   `<commit12>@sha256:<digest>` into `charts/openg2p-livestock-registry/values.yaml` (the seven registry image tags, and
-   the dashboard-api tag and digest; only those lines change) on the branch `bot/livestock-images-<commit12>` of the
-   fork of oan-helm, and opens a pull request from it into `Centre-for-Open-Societal-Systems/oan-helm` `main` (the open
-   one for the same commit is updated). It does not wait for the merge: the stage, and the build, are a success once
-   the pull request is open. If it cannot be opened (no token, GitHub refuses) the stage and the build are UNSTABLE.
-   One pull request per commit merged to develop: a re-run, Replay or rebuild of a commit whose `<commit12>` tag is
-   already in oan-helm `main` opens nothing. A person with write access reviews and merges it (its checks are
-   `protected-paths` and `validate`); oan-helm's release workflow then publishes the next chart version and writes the
-   `CHANGELOG.md` entry a minute or two later. Merging never deploys by itself.
-4. **Propose chart pin update** (`ci/deploy/propose_pin_pr.py`) compares the pin with the head of oan-helm `main`. If
-   the Livestock chart is newer, or its public values changed, it opens a pull request to `develop` that rewrites only
-   the `registry` pin in `oan-chart.json`: the oan-helm commit, version, archive SHA-256, public-values SHA-256 and
-   platform version. It never deploys and never changes `develop`; a person reviews and merges it, and the next `develop`
-   build deploys the new pin (the build's own image tags still go on top of it). It needs a GitHub credential
-   (`oan-ci-app`) with Contents and Pull requests write on this repository; without it the stage is UNSTABLE and the
-   build still passes. It refuses a downgrade and a changed archive for the same version, and does not propose a chart
-   that needs another platform version: the Dockerfiles and the pipeline have to move with it (run
-   `scripts/bump-rp-version.sh`, move `RP_VERSION` and the `openg2p/openg2p-registry-*` tags in
-   `ci/pipelines/dev.groovy` and `ci/refactor`, then `python3 ci/deploy/bump_pin.py <oan-helm commit> --write`). The
-   `dashboard` pin is separate and is not touched.
+4. **Publish chart** (`ci/deploy/publish-chart.sh`), only after a successful deploy, adds that same archive to
+   `repository/develop/` of oan-helm, whose workflow updates the index, changelog and rollback history. If
+   publishing fails the stage and the build are UNSTABLE; New Dev already runs the build. No pull request is
+   involved. It uses the Jenkins credential `oan-helm-fork-token`, a maintainer's token for now.
 
-Jenkins credential for stage 3, `oan-helm-fork-token` (username/password, global): the username is the GitHub account
-that owns the fork of oan-helm, the password is a classic token of that account with the `public_repo` scope. The
-oan-helm repository is public, so any account can open a pull request from its fork; the account needs no rights on
-the org repository, and a dedicated account keeps the pull requests from carrying a person's name.
-
-`DRY_RUN=1 python3 ci/deploy/release_images.py` (with `IMAGE_TAG`, `ECR_REGISTRY` and `.build/image-digests.tsv`) prints
-the tags it would write and changes nothing.
+`oan-chart.json` stays for a deploy by hand without `BUILT_CHART_DIR`; `ci/deploy/bump_pin.py` moves it.
 
 Checks without a cluster or network:
 `python3 -m unittest discover -s test -p test_deploy_ci.py -v`.

@@ -60,7 +60,12 @@ on_exit() {
 python3 ci/deploy/oan_chart.py require-deployable registry dev
 WORK=$(mktemp -d)
 trap on_exit EXIT
-CHART=$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")
+# A develop build installs the chart it packaged; a deploy by hand uses the pinned archive.
+if [ -n "${BUILT_CHART_DIR:-}" ]; then
+  CHART=$(ls "$BUILT_CHART_DIR"/*.tgz)
+else
+  CHART=$(python3 ci/deploy/oan_chart.py fetch registry "$WORK/chart")
+fi
 CENTRAL_VALUES=$(python3 ci/deploy/oan_chart.py values registry "$WORK/public-values.yaml")
 umask 077
 # The live release's values. Only a missing release (a first install) may go

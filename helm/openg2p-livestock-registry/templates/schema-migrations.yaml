@@ -1,0 +1,56 @@
+{{- if .Values.schemaMigrations.enabled }}
+{{/*
+Apply the Livestock schema and data migrations: columns the models gained after
+a database was created, and row backfills. They ship in the registry's db-seed
+image (/seed/migrations) with apply-migrations.sh, which applies each file once
+and records it in oan_livestock_migrations, so re-running on every upgrade only
+applies new files.
+
+The register tables are created by the staff-api's migrations when it starts,
+which on a fresh install can be after this hook fires, so the job waits for
+them. It runs before the reporting views (weight 45), which read the columns.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-lr-schema-migrations
+  labels:
+    app.kubernetes.io/name: lr-schema-migrations
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "40"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lr-schema-migrations
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: schema-migrations
+          image: {{ include "livestock.reporting.image" . | quote }}
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              i=0
+              until [ "$(psql -qtAX -c "SELECT to_regclass('public.g2p_register_animals') IS NOT NULL")" = "t" ]; do
+                i=$((i + 1))
+                if [ "$i" -gt {{ div .Values.schemaMigrations.waitForSchemaSeconds 10 }} ]; then
+                  echo "[schema-migrations] register tables still missing; is staff-api running its migrations?" >&2
+                  exit 1
+                fi
+                echo "[schema-migrations] waiting for the register schema..."
+                sleep 10
+              done
+              /seed/apply-migrations.sh
+          env:
+            {{- include "livestock.reporting.dbEnv" . | nindent 12 }}
+          resources: {{- toYaml .Values.reporting.resources | nindent 12 }}
+{{- end }}

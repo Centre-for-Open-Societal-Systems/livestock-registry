@@ -379,512 +379,6 @@ class ProposePinTests(unittest.TestCase):
         self.assertEqual(written["dashboard"], self.old["dashboard"])      # the dashboard pin is never touched
 
 
-def load_propose():
-    spec = importlib.util.spec_from_file_location("propose_under_test", ROOT / "ci/deploy/propose_pin_pr.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-class ProposePullRequestTests(unittest.TestCase):
-    """The last Jenkins stage: opens the pin pull request, with a stand-in git and GitHub."""
-    TOKEN = "tok-SECRET-123"
-
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
-        (self.root / "ci/deploy").mkdir(parents=True)
-        shutil.copy(ROOT / "ci/deploy/oan-chart.json", self.root / "ci/deploy/oan-chart.json")
-        self.mod = load_propose()
-        self.bump = load_bump()
-        self.bump.PROFILE = self.root / "ci/deploy/oan-chart.json"
-        self.bump.ROOT = self.root
-        old = json.loads(self.bump.PROFILE.read_text(encoding="utf-8"))
-        new = json.loads(json.dumps(old))
-        pin = new["registry"]
-        pin["version"] = "1.0.0-dev.21"
-        pin["sha256"] = "a" * 64
-        pin["values"]["sha256"] = "b" * 64
-        pin["repository"] = "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/" + "e" * 40 + "/repository/"
-        pin["values"]["url"] = pin["repository"][:-len("repository/")] + pin["values"]["path"]
-        self.new = new
-        self.proposal_result = (new, "newer chart 1.0.0-dev.21 released (pinned 1.0.0-dev.19)")
-        self.bump.proposal = lambda old_profile: self.proposal_result
-        self.cmds = []
-        self.calls = []
-        self.exists = ""          # what `git ls-remote` prints
-        self.pulls = (200, [])    # answer to the pull request list
-        self.create = (201, {"html_url": "https://github.com/o/r/pull/7"})
-        self.fail_on = None       # a label whose command should fail
-
-    def runner(self, cmd, label=None, cwd=None, env=None, check=True):
-        self.cmds.append((label or cmd[0], cmd))
-        if label == self.fail_on:
-            raise RuntimeError("%s failed (exit 1):\nboom" % label)
-        if label == "git remote get-url":
-            return "https://github.com/o/r.git\n"
-        if label == "git rev-parse":
-            return "f" * 40 + "\n"
-        if label == "git ls-remote":
-            return self.exists
-        return ""
-
-    def call(self, method, path, token, payload=None):
-        self.calls.append((method, path, payload))
-        return self.pulls if method == "GET" else self.create
-
-    def go(self, token=None):
-        out = io.StringIO()
-        import contextlib
-        with contextlib.redirect_stdout(out):
-            code = self.mod.propose(self.TOKEN if token is None else token, bump=self.bump, runner=self.runner,
-                                    call=self.call, root=self.root)
-        return code, out.getvalue()
-
-    def labels(self):
-        return [label for label, _ in self.cmds]
-
-    def test_nothing_to_do_touches_neither_git_nor_github(self):
-        self.proposal_result = (None, "up to date: chart 1.0.0-dev.19 and its values are unchanged on oan-helm main")
-        code, out = self.go()
-        self.assertEqual((code, self.cmds, self.calls), (0, [], []))
-        self.assertIn("up to date", out)
-
-    def test_a_needed_update_without_a_credential_proposes_nothing(self):
-        code, out = self.go(token="")
-        self.assertEqual(code, 3)
-        self.assertEqual((self.cmds, self.calls), ([], []))
-        self.assertIn("no GitHub credential", out)
-
-    def test_a_new_platform_version_is_reported_and_not_proposed(self):
-        self.new["registry"]["platformVersion"] = "1.2.2-rc.700"
-        code, out = self.go()
-        self.assertEqual(code, 5)
-        self.assertEqual((self.cmds, self.calls), ([], []))
-        self.assertIn("scripts/bump-rp-version.sh", out)
-
-    def test_full_proposal_flow(self):
-        code, out = self.go()
-        self.assertEqual(code, 0, out)
-        labels = self.labels()
-        order = ["git rev-parse", "the pin tests", "verified prefetch of the new pin", "git checkout -b", "git add",
-                 "git commit", "git push", "git checkout", "git branch -D"]
-        positions = [labels.index(name) for name in order]
-        self.assertEqual(positions, sorted(positions))
-        # the pin and the files that must agree with it were rewritten on disk
-        self.assertIn("1.0.0-dev.21", (self.root / "ci/deploy/oan-chart.json").read_text())
-        add = next(cmd for label, cmd in self.cmds if label == "git add")
-        self.assertEqual(add[-1], "ci/deploy/oan-chart.json")
-        self.assertEqual(add[-2:], ["--", "ci/deploy/oan-chart.json"])
-        # the pull request goes to develop from a branch named for the version and values
-        method, path, payload = self.calls[-1]
-        self.assertEqual((method, path), ("POST", "/repos/o/r/pulls"))
-        self.assertEqual(payload["base"], "develop")
-        self.assertEqual(payload["head"], "bot/oan-chart-pin-1.0.0-dev.21-" + "b" * 8)
-        self.assertIn("Merging this deploys to New Dev", payload["body"])
-        self.assertIn("opened https://github.com/o/r/pull/7", out)
-        # the workspace is restored to the commit the build checked out
-        restore = next(cmd for label, cmd in self.cmds if label == "git checkout")
-        self.assertEqual(restore[-1], "f" * 40)
-
-    def test_the_token_is_never_printed_or_used_as_a_label(self):
-        code, out = self.go()
-        self.assertNotIn(self.TOKEN, out)
-        self.assertNotIn(self.TOKEN, " ".join(self.labels()))
-        push = next(cmd for label, cmd in self.cmds if label == "git push")
-        self.assertNotIn(self.TOKEN, " ".join(push))                  # sent only as a base64 basic-auth header
-        self.assertTrue(any(a.startswith("http.extraheader=AUTHORIZATION: basic ") for a in push))
-
-    def test_an_existing_pull_request_is_not_proposed_again(self):
-        self.pulls = (200, [{"html_url": "https://github.com/o/r/pull/3", "state": "closed"}])
-        code, out = self.go()
-        self.assertEqual(code, 0)
-        self.assertIn("Already proposed", out)
-        self.assertNotIn("git push", self.labels())
-        self.assertEqual([c[0] for c in self.calls], ["GET"])
-
-    def test_an_existing_branch_without_a_pull_request_only_opens_the_pull_request(self):
-        self.exists = "abc\trefs/heads/bot/x\n"
-        code, out = self.go()
-        self.assertEqual(code, 0)
-        self.assertNotIn("git push", self.labels())
-        self.assertEqual(self.calls[-1][0], "POST")
-
-    def test_failed_verification_pushes_nothing_and_restores_the_workspace(self):
-        self.fail_on = "the pin tests"
-        with self.assertRaisesRegex(RuntimeError, "the pin tests failed"):
-            self.go()
-        self.assertNotIn("git push", self.labels())
-        self.assertIn("git checkout", self.labels())
-        self.assertEqual([c[0] for c in self.calls], ["GET"])
-
-    def test_github_refusing_to_list_pull_requests_is_reported(self):
-        self.pulls = (403, {"message": "Resource not accessible by integration"})
-        code, out = self.go()
-        self.assertEqual(code, 4)
-        self.assertIn("Pull requests write", out)
-        self.assertNotIn("git push", self.labels())
-
-    def test_github_refusing_to_create_the_pull_request_is_reported(self):
-        self.create = (403, {"message": "Resource not accessible by integration"})
-        code, out = self.go()
-        self.assertEqual(code, 4)
-        self.assertIn("is pushed; open the pull request", out)
-
-    def test_repository_slug(self):
-        slug = self.mod.slug_of
-        self.assertEqual(slug("https://github.com/Centre-for-Open-Societal-Systems/livestock-registry.git\n"),
-                         "Centre-for-Open-Societal-Systems/livestock-registry")
-        self.assertEqual(slug("git@github.com:o/r.git"), "o/r")
-        with self.assertRaises(ValueError):
-            slug("https://gitlab.com/o/r.git")
-
-
-
-# ---- the images go into the oan-helm chart ----------------------------------------------------------------------
-
-def load_release():
-    spec = importlib.util.spec_from_file_location("release_images_under_test", ROOT / "ci/deploy/release_images.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-REG = "123456789012.dkr.ecr.ap-south-1.amazonaws.com"
-PATH_ = "openg2p/livestock-registry"
-OLD_TAG = "bf78e69a5fd6"
-
-
-def sample_values(tag=OLD_TAG, digests=None):
-    """The shape of charts/openg2p-livestock-registry/values.yaml in oan-helm, reduced."""
-    digests = digests or {}
-
-    def img(component, section_digest):
-        return ("    image:\n      repository: %s/%s/%s\n      tag: %s@sha256:%s\n" % (REG, PATH_, component, tag, section_digest))
-    old = "e" * 64
-    return (
-        "global:\n  baseDomain: development.oanstaging.com\n"
-        "registry:\n"
-        "  keycloak-init:\n    image:\n      repository: docker.io/x/y\n      tag: 1.0.0\n"
-        "  staffApi:\n" + img("staff-api", old) + "    envVars:\n      A: 'b'\n"
-        "# a comment at column 0 inside the registry block\n"
-        "  partnerApi:\n" + img("partner-api", old) +
-        "  celeryWorker:\n" + img("celery", old) +
-        "  celeryBeat:\n" + img("celery", old) +
-        "  dbSeed:\n" + img("db-seed", old) + "    loadGeoData: false\n"
-        "  staffUi:\n" + img("staff-ui", old) +
-        "  sanity:\n    enabled: true\n" + img("sanity-tests", old) + "    regType: Livestock\n"
-        "reporting:\n  image:\n    repository: ''\n    tag: ''\n"
-        "dashboardApi:\n  enabled: false\n  image:\n    digest: sha256:%s\n    repository: %s/%s/dashboard-api\n    tag: %s\n  replicas: 1\n"
-        "dashboardUi:\n  image:\n    repository: ''\n    tag: ''\n" % (old, REG, PATH_, tag))
-
-
-NEW_TAG = "0123456789ab"
-
-
-def release_digests():
-    return dict((c, "sha256:" + ("%x" % (i + 1)) * 64) for i, c in enumerate(
-        ["staff-api", "partner-api", "celery", "db-seed", "sanity-tests", "staff-ui", "dashboard-api"]))
-
-
-class ImageValuesTests(unittest.TestCase):
-    def setUp(self):
-        self.r = load_release()
-        self.tags, self.dash = self.r.wanted(NEW_TAG, release_digests())
-        self.repos = self.r.expected_repositories(REG, PATH_)
-
-    def test_only_the_image_lines_change(self):
-        old = sample_values()
-        new = self.r.rewrite_values(old, self.tags, self.dash, self.repos)
-        changed = [(a, b) for a, b in zip(old.split("\n"), new.split("\n")) if a != b]
-        self.assertEqual(len(old.split("\n")), len(new.split("\n")))
-        self.assertEqual(len(changed), 9)                          # seven registry tags + dashboard digest and tag
-        self.assertTrue(all(b.lstrip().startswith(("tag:", "digest:")) for _, b in changed))
-        self.assertIn("      tag: %s@%s" % (NEW_TAG, release_digests()["staff-api"]), new)
-        self.assertIn("    tag: '%s'\n" % NEW_TAG, new)
-        self.assertIn("    digest: %s\n" % release_digests()["dashboard-api"], new)
-        # untouched: the comment, other images, the empty reporting and dashboardUi images
-        for kept in ("# a comment at column 0 inside the registry block", "tag: 1.0.0", "    tag: ''", "      A: 'b'"):
-            self.assertIn(kept, new)
-
-    def test_an_all_digit_commit_tag_stays_a_string_in_the_values(self):
-        # Build 875427410733 made --set render image:%!s(int64=...); the same trap exists in the values file.
-        try:
-            import yaml
-        except ModuleNotFoundError:
-            sys.path.append(str(ROOT / "ci/deploy/vendor"))     # the deploy node's pure-Python PyYAML
-            import yaml
-        for tag in ("875427410733", "123456e78901", "000000000001"):
-            tags, dash = self.r.wanted(tag, release_digests())
-            new = self.r.rewrite_values(sample_values(), tags, dash, self.repos)
-            document = yaml.safe_load(new)
-            self.assertEqual(document["dashboardApi"]["image"]["tag"], tag)
-            self.assertIsInstance(document["dashboardApi"]["image"]["tag"], str)
-            self.assertIsInstance(document["registry"]["staffApi"]["image"]["tag"], str)
-            self.assertTrue(self.r.carries(new, tags, dash))
-
-    def test_both_celery_workloads_get_the_celery_digest(self):
-        new = self.r.rewrite_values(sample_values(), self.tags, self.dash, self.repos)
-        self.assertEqual(new.count("%s@%s" % (NEW_TAG, release_digests()["celery"])), 2)
-
-    def test_rewriting_twice_changes_nothing_and_carries_says_so(self):
-        once = self.r.rewrite_values(sample_values(), self.tags, self.dash, self.repos)
-        self.assertEqual(self.r.rewrite_values(once, self.tags, self.dash, self.repos), once)
-        self.assertTrue(self.r.carries(once, self.tags, self.dash))
-        self.assertFalse(self.r.carries(sample_values(), self.tags, self.dash))
-
-    def test_another_ecr_repository_is_refused(self):
-        bad = sample_values().replace("/staff-api", "/someone-elses-api")
-        with self.assertRaisesRegex(ValueError, "staffApi image repository"):
-            self.r.rewrite_values(bad, self.tags, self.dash, self.repos)
-
-    def test_a_missing_section_is_an_error_not_a_silent_skip(self):
-        with self.assertRaises(ValueError):
-            self.r.rewrite_values(sample_values().replace("  dbSeed:", "  dbSeedX:"), self.tags, self.dash, self.repos)
-
-    def test_digests_are_read_and_validated(self):
-        text = "".join("%s\t%s\n" % kv for kv in release_digests().items())
-        self.assertEqual(self.r.read_digests(text), release_digests())
-        for bad in ("staff-api\tlatest\n", "staff-api sha256:" + "a" * 64 + "\n"):
-            with self.assertRaises(ValueError):
-                self.r.read_digests(bad)
-
-    def test_every_component_needs_a_digest_and_the_tag_a_commit(self):
-        partial = dict(release_digests())
-        del partial["sanity-tests"]
-        with self.assertRaisesRegex(ValueError, "sanity-tests"):
-            self.r.wanted(NEW_TAG, partial)
-        with self.assertRaises(ValueError):
-            self.r.wanted("latest", release_digests())
-
-    def test_images_are_read_back_from_the_values(self):
-        written = self.r.rewrite_values(sample_values(), self.tags, self.dash, self.repos)
-        tags, dashboard = self.r.read_images(written)
-        self.assertEqual((tags, dashboard), (self.tags, self.dash))
-        self.assertEqual(self.r.rewrite_values(written, tags, dashboard, self.repos), written)
-        unpinned = written.replace("tag: %s@%s" % (NEW_TAG, release_digests()["staff-ui"]), "tag: latest", 1)
-        with self.assertRaisesRegex(ValueError, "staffUi"):
-            self.r.read_images(unpinned)
-
-    def test_the_archive_values_are_read_for_the_release_check(self):
-        buf = io.BytesIO()
-        with tarfile.open(fileobj=buf, mode="w:gz") as archive:
-            data = sample_values().encode()
-            info = tarfile.TarInfo("openg2p-livestock-registry/values.yaml")
-            info.size = len(data)
-            archive.addfile(info, io.BytesIO(data))
-        self.assertEqual(self.r.archive_values(buf.getvalue()), sample_values())
-
-
-FORK = "fork-owner/oan-helm"
-
-
-class FakeGitHub(object):
-    """oan-helm as pipeline 1 sees it: the org repo (main, pull requests) and the fork (branch, commit)."""
-
-    def __init__(self, release):
-        self.r = release
-        self.main_sha = "a" * 40
-        self.text = sample_values()                 # values.yaml on the org repo's main
-        self.branches = {}                          # fork branch -> text
-        self.knows_commit = True                    # False: the fork cannot see main's head until it is synced
-        self.pulls = []                             # open pull requests on the org repo
-        self.calls = []
-        self.refuse = {}                            # (method, path-prefix) -> status
-        self.synced = False
-
-    def __call__(self, method, path, token, payload=None):
-        self.calls.append((method, path, payload))
-        for (m, prefix), status in self.refuse.items():
-            if method == m and prefix in path:
-                return status, {"message": "refused"}
-        org, fork = "/repos/%s" % self.r.SLUG, "/repos/%s" % FORK
-        if path.startswith(org):
-            rest = path[len(org):]
-            if method == "GET" and rest == "/git/ref/heads/main":
-                return 200, {"object": {"sha": self.main_sha}}
-            if method == "GET" and rest.startswith("/contents/") and rest.endswith("?ref=main"):
-                return 200, {"content": base64.b64encode(self.text.encode()).decode(), "sha": "blob1"}
-            if method == "GET" and rest.startswith("/pulls?"):
-                return 200, list(self.pulls)
-            if method == "POST" and rest == "/pulls":
-                pull = {"number": 11, "html_url": "https://github.com/%s/pull/11" % self.r.SLUG, "payload": payload}
-                self.pulls.append(pull)
-                return 201, pull
-            if method == "PATCH" and rest.startswith("/pulls/"):
-                self.pulls[0]["payload"] = payload
-                return 200, {}
-        elif path.startswith(fork):
-            rest = path[len(fork):]
-            if method == "POST" and rest == "/merge-upstream":
-                self.synced = self.knows_commit = True
-                return 200, {}
-            if method == "POST" and rest == "/git/refs":
-                name = payload["ref"][len("refs/heads/"):]
-                if name in self.branches:
-                    return 422, {"message": "Reference already exists"}
-                if not self.knows_commit:
-                    return 422, {"message": "Object does not exist"}
-                self.branches[name] = self.text
-                return 201, {}
-            if method == "PATCH" and rest.startswith("/git/refs/heads/"):
-                self.branches[rest[len("/git/refs/heads/"):]] = self.text
-                return 200, {}
-            if method == "GET" and rest.startswith("/contents/"):
-                return 200, {"content": base64.b64encode(self.branches[rest.split("?ref=")[1]].encode()).decode(), "sha": "blob1"}
-            if method == "PUT" and rest.startswith("/contents/"):
-                self.branches[payload["branch"]] = base64.b64decode(payload["content"]).decode()
-                return 200, {}
-        raise AssertionError("unexpected call %s %s" % (method, path))
-
-
-class ImagePullRequestTests(unittest.TestCase):
-    """Pipeline 1: ci/deploy/release_images.py opens the pull request and stops."""
-
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
-        (self.root / ".build").mkdir()
-        (self.root / ".build/image-digests.tsv").write_text("".join("%s\t%s\n" % kv for kv in release_digests().items()))
-        self.r = load_release()
-        self.gh = FakeGitHub(self.r)
-        self.out = []
-        self.env = {"IMAGE_TAG": NEW_TAG, "ECR_REGISTRY": REG, "ECR_PATH": PATH_, "COMMIT_SUBJECT": "Add a field",
-                    "SOURCE_COMMIT": NEW_TAG + "f" * 28, "BUILD_URL": "https://jenkins/job/7/"}
-        self.tags, self.dash = self.r.wanted(NEW_TAG, release_digests())
-
-    def proposal(self):
-        return self.r.Proposal("tok", "fork-owner", "oan-helm", call=self.gh, out=self.out.append)
-
-    def run_stage(self, **overrides):
-        env = dict(self.env, **overrides)
-        return self.proposal().run(env, self.root, (self.root / ".build/image-digests.tsv").read_text())
-
-    def methods(self):
-        return [(m, p.split("?")[0].replace("/repos/%s" % self.r.SLUG, "ORG").replace("/repos/%s" % FORK, "FORK"))
-                for m, p, _ in self.gh.calls]
-
-    def test_the_branch_goes_to_the_fork_and_the_pull_request_to_the_org_main(self):
-        url = self.run_stage()
-        self.assertEqual(url, "https://github.com/%s/pull/11" % self.r.SLUG)
-        calls = self.methods()
-        order = [("POST", "FORK/git/refs"), ("PUT", "FORK/contents/charts/openg2p-livestock-registry/values.yaml"),
-                 ("POST", "ORG/pulls")]
-        positions = [calls.index(c) for c in order]
-        self.assertEqual(positions, sorted(positions))
-        branch = "bot/livestock-images-" + NEW_TAG
-        self.assertIn("%s@%s" % (NEW_TAG, release_digests()["staff-api"]), self.gh.branches[branch])
-        _, _, body = next(c for c in self.gh.calls if c[0] == "POST" and c[1].endswith("/pulls"))
-        self.assertEqual((body["base"], body["head"]), ("main", "fork-owner:" + branch))
-        self.assertIn("Livestock registry images %s: Add a field" % NEW_TAG, body["title"])
-        self.assertIn("https://jenkins/job/7/", body["body"])
-        # nothing in the org repo is written, merged or waited for
-        self.assertEqual([m for m, p in calls if p.startswith("ORG") and m not in ("GET", "POST")], [])
-        self.assertFalse([c for c in calls if "merge" in c[1] or "check-runs" in c[1]])
-
-    def test_only_the_image_lines_of_the_chart_are_changed_on_the_branch(self):
-        self.run_stage()
-        old = sample_values().split("\n")
-        new = self.gh.branches["bot/livestock-images-" + NEW_TAG].split("\n")
-        changed = [b for a, b in zip(old, new) if a != b]
-        self.assertEqual(len(old), len(new))
-        self.assertEqual(len(changed), 9)
-        self.assertTrue(all(c.lstrip().startswith(("tag:", "digest:")) for c in changed))
-
-    def test_a_commit_that_oan_helm_main_already_carries_opens_nothing(self):
-        self.gh.text = self.r.rewrite_values(sample_values(), self.tags, self.dash)
-        self.assertIsNone(self.run_stage())
-        calls = self.methods()
-        self.assertNotIn(("POST", "ORG/pulls"), calls)
-        self.assertNotIn(("POST", "FORK/git/refs"), calls)
-        self.assertIn("already in oan-helm main", self.proposal_note())
-
-    def proposal_note(self):
-        p = self.proposal()
-        p.run(dict(self.env), self.root, (self.root / ".build/image-digests.tsv").read_text())
-        return p.note
-
-    def test_a_rebuild_with_new_digests_for_the_same_commit_is_still_skipped(self):
-        other = dict(release_digests(), **{"staff-api": "sha256:" + "9" * 64})
-        self.gh.text = self.r.rewrite_values(sample_values(), *self.r.wanted(NEW_TAG, other))
-        self.assertIsNone(self.run_stage())
-        self.assertNotIn(("POST", "ORG/pulls"), self.methods())
-
-    def test_a_left_over_branch_is_reset_and_the_open_pull_request_is_updated_not_duplicated(self):
-        self.gh.branches["bot/livestock-images-" + NEW_TAG] = "stale"
-        self.gh.pulls.append({"number": 5, "html_url": "https://github.com/%s/pull/5" % self.r.SLUG, "payload": {}})
-        url = self.run_stage()
-        self.assertEqual(url, "https://github.com/%s/pull/5" % self.r.SLUG)
-        calls = self.methods()
-        self.assertIn(("PATCH", "FORK/git/refs/heads/bot/livestock-images-" + NEW_TAG), calls)
-        self.assertIn(("PATCH", "ORG/pulls/5"), calls)
-        self.assertNotIn(("POST", "ORG/pulls"), calls)
-        self.assertIn(NEW_TAG, self.gh.branches["bot/livestock-images-" + NEW_TAG])
-
-    def test_a_fork_that_has_not_seen_main_yet_is_synced_first(self):
-        self.gh.knows_commit = False
-        self.run_stage()
-        self.assertTrue(self.gh.synced)
-        self.assertIn(("POST", "ORG/pulls"), self.methods())
-        self.assertIn("syncing", "\n".join(self.out))
-
-    def test_a_fork_that_cannot_be_synced_is_reported(self):
-        self.gh.knows_commit = False
-        self.gh.refuse[("POST", "/merge-upstream")] = 409
-        with self.assertRaises(self.r.Stop) as caught:
-            self.run_stage()
-        self.assertEqual(caught.exception.code, 4)
-        self.assertIn("Sync fork", str(caught.exception))
-
-    def test_a_token_without_access_is_reported_as_such(self):
-        self.gh.refuse[("POST", "/git/refs")] = 403
-        with self.assertRaises(self.r.Stop) as caught:
-            self.run_stage()
-        self.assertEqual(caught.exception.code, 4)
-        self.assertIn("public_repo", str(caught.exception))
-        self.assertNotIn("tok", str(caught.exception).replace("token", ""))
-
-    def test_refused_pull_request_is_reported(self):
-        self.gh.refuse[("POST", "/pulls")] = 403
-        with self.assertRaises(self.r.Stop) as caught:
-            self.run_stage()
-        self.assertEqual(caught.exception.code, 4)
-
-    def test_dry_run_changes_nothing(self):
-        self.assertIsNone(self.run_stage(DRY_RUN="1"))
-        self.assertEqual([m for m, _ in self.methods() if m != "GET"], [])
-
-    def test_main_writes_the_pull_request_url_and_nothing_else(self):
-        import contextlib
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            code = self.r.main(env=dict(self.env, GH_TOKEN="tok", GH_USER="fork-owner"), root=self.root, call=self.gh)
-        self.assertEqual(code, 0, out.getvalue())
-        self.assertEqual((self.root / ".build/oan-helm-pr.txt").read_text().strip(), "https://github.com/%s/pull/11" % self.r.SLUG)
-        self.assertNotIn("tok", out.getvalue().replace("token", ""))
-
-    def test_main_without_a_credential_is_exit_3_and_opens_nothing(self):
-        import contextlib
-        for env in (dict(self.env), dict(self.env, GH_TOKEN="tok"), dict(self.env, GH_USER="fork-owner")):
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out):
-                code = self.r.main(env=env, root=self.root, call=self.gh)
-            self.assertEqual(code, 3)
-        self.assertEqual(self.gh.calls, [])
-        self.assertFalse((self.root / ".build/oan-helm-pr.txt").exists())
-
-    def test_main_leaves_no_pull_request_file_when_the_commit_was_already_taken(self):
-        import contextlib
-        self.gh.text = self.r.rewrite_values(sample_values(), self.tags, self.dash)
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            code = self.r.main(env=dict(self.env, GH_TOKEN="tok", GH_USER="fork-owner"), root=self.root, call=self.gh)
-        self.assertEqual(code, 0)
-        self.assertFalse((self.root / ".build/oan-helm-pr.txt").exists())
-
-
 class PipelineWiringTests(unittest.TestCase):
     """ci/pipelines/dev.groovy: one pipeline, images -> deploy (with rollback) -> oan-helm pull request."""
 
@@ -894,18 +388,20 @@ class PipelineWiringTests(unittest.TestCase):
     def stage(self, name, following):
         return self.text.split("stage('%s')" % name, 1)[1].split("stage('%s')" % following, 1)[0]
 
-    def test_stages_run_in_the_order_images_deploy_pull_request_pin(self):
+    def test_stages_run_in_the_order_images_chart_deploy_publish(self):
         order = [self.text.index("stage('%s')" % n) for n in
-                 ("Build & Push Images", "Deploy to Development", "Open oan-helm image PR", "Propose chart pin update")]
+                 ("Build & Push Images", "Package chart", "Deploy to Development", "Publish chart", "Deploy to Live")]
         self.assertEqual(order, sorted(order))
 
     def test_there_is_one_pipeline_file_for_the_normal_flow(self):
         self.assertFalse((ROOT / "ci/pipelines/deploy-newdev.groovy").exists())
         self.assertFalse((ROOT / "ci/deploy/latest_release.py").exists())
 
-    def test_the_deploy_stage_still_fails_the_build_and_uses_the_pinned_chart_with_this_builds_images(self):
+    def test_the_deploy_stage_still_fails_the_build_and_uses_the_chart_this_build_packaged(self):
         stage = self.stage("Deploy to Development", "Upgrade connector (New Dev)")
         self.assertIn("bash ci/deploy/deploy-livestock-dev.sh", stage)
+        self.assertIn("unstash 'built-chart'", stage)
+        self.assertIn("BUILT_CHART_DIR=${env.WORKSPACE}/built-chart", stage)
         self.assertIn("IMAGE_TAG=${env.IMAGE_TAG}", stage)
         self.assertNotIn("catchError(", stage)                              # a failed deploy fails the build
         for gone in ("OAN_CHART_PIN_FILE", "candidate", "NEWDEV_SKIP_DEPLOY"):
@@ -917,25 +413,30 @@ class PipelineWiringTests(unittest.TestCase):
         self.assertIn("stash name: 'image-digests'", build)
         self.assertLess(build.index("docker push ${api}"), build.index("describe-images"))
 
-    def test_the_pull_request_stage_follows_the_deploy_and_cannot_fail_the_build(self):
-        stage = self.stage("Open oan-helm image PR", "Propose chart pin update")
-        self.assertIn("catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE')", stage)
-        self.assertIn("python3 ci/deploy/release_images.py", stage)
-        self.assertIn("agent { label 'vpn-agent2' }", stage)
-        self.assertIn("branch 'develop'", stage)
+    def test_the_chart_is_packaged_from_the_digests_before_the_deploy(self):
+        stage = self.stage("Package chart", "Deploy to Development")
         self.assertIn("unstash 'image-digests'", stage)
+        self.assertIn("bash ci/deploy/package-chart.sh", stage)
+        self.assertIn("stash name: 'built-chart'", stage)
+        self.assertNotIn("catchError", stage)                               # no chart, no deploy
+
+    def test_the_publish_stage_follows_the_deploy_and_cannot_fail_the_build(self):
+        stage = self.stage("Publish chart", "Deploy to Live")
+        self.assertIn("catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE')", stage)
+        self.assertIn("bash ci/deploy/publish-chart.sh", stage)
+        self.assertIn("unstash 'built-chart'", stage)
         self.assertIn("OAN_HELM_FORK_CRED_ID", stage)
-        self.assertIn("rm -f .build/oan-helm-pr.txt", stage)
+        self.assertIn("['fresh-install', 'connector-plan', 'connector-upgrade']", stage)
         for absent in ("KUBECONFIG", "helm upgrade", "stash name"):
             self.assertNotIn(absent, stage)
-        self.assertIn("OAN_HELM_FORK_CRED_ID    = 'oan-helm-fork-token'", self.text)
-        # no maintenance run opens an image pull request
-        self.assertIn("['fresh-install', 'connector-plan', 'connector-upgrade']", stage)
 
-    def test_the_pin_stage_is_the_one_that_was_already_there(self):
-        stage = self.text.split("stage('Propose chart pin update')", 1)[1].split("stage('Deploy to Live')", 1)[0]
-        self.assertIn("python3 ci/deploy/propose_pin_pr.py", stage)
-        self.assertNotIn("OAN_CHART_PIN_FILE", stage)
+    def test_the_pull_request_stages_are_gone(self):
+        self.assertNotIn("Open oan-helm image PR", self.text)
+        self.assertNotIn("Propose chart pin update", self.text)
+
+    def test_the_chart_has_no_fixed_version(self):
+        chart = (ROOT / "helm/openg2p-livestock-registry/Chart.yaml").read_text(encoding="utf-8")
+        self.assertIn("version: 0.0.0\n", chart)
 
     def test_the_parameter_description_is_a_valid_single_quoted_string(self):
         # build #174 died compiling the Jenkinsfile: an apostrophe ("build's") ended the single-quoted literal early.
