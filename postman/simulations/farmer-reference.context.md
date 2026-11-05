@@ -60,7 +60,7 @@ and timeout evidence explicitly remains verification_complete=false.
 
 ## Bounded hosted HTTP gate, 26 October
 
-`COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python
+`OAN_REFACTOR_TEST_IMAGE=registry-reference-tests python
 ci/refactor/verify_onboarding.py livestock --http-only` reuses the built native
 profile image on a disposable Linux CI runner. Postman CLI 1.73.0 is installed
 under RUNNER_TEMP (global system man-page links failed with EACCES). The server

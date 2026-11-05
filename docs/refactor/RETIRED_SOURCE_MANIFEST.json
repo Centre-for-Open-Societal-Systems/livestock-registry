@@ -931,7 +931,7 @@
   ],
   "recovery": "git show <source_commit>:<path>; commit is retained on the published develop-refactor ancestry",
   "external_connectors": "Not changed: existing releases, images, checkpoints and subscriptions remain independently operated",
-  "central_charts": "COSS oan-helm develop-refactor; exact commit/version/archive checksum in ci/deploy/oan-chart.json",
+  "central_charts": "OAN oan-helm develop-refactor; exact commit/version/archive checksum in ci/deploy/oan-chart.json",
   "connector_source_owner": "Canonical standalone source/artifact handoff remains unverified; no replacement repository or image is invented",
   "existing_environment_modified": false,
   "physical_local_remnants": "Ignored hash-verified files remain in isolated directories because automatic approval review rejected deletion. All tracked source and build inputs were retired through Git."

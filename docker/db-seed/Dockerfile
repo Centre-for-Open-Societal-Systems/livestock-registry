@@ -18,7 +18,7 @@ COPY --chmod=755 docker/db-seed/reporting-label-sync.py /seed/reporting-label-sy
 # runs apply-migrations.sh, which applies each file once.
 COPY docker/db-seed/migrations/ /seed/migrations/
 COPY --chmod=755 docker/db-seed/apply-migrations.sh /seed/apply-migrations.sh
-# openg2p-data: the COSS repository at a pinned commit, checked out at
+# openg2p-data: the OAN repository at a pinned commit, checked out at
 # /openg2p-data in place of the platform's copy. It is the only source of seed
 # data in this image: the ETH-OAN pack's sample people and their livestock
 # (samples/individuals.json, samples/livestock.json, LOAD_SAMPLE_DATA=true) and

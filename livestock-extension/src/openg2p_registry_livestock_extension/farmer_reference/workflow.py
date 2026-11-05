@@ -15,7 +15,7 @@ from .geography import approver_context
 from .models import FarmerReference, FarmerReferenceRequest, FarmerWorkflowOutbox
 from .profile import FarmerReferenceError
 
-_logger = logging.getLogger("coss-farmer-reference-workflow")
+_logger = logging.getLogger("oan-farmer-reference-workflow")
 
 
 async def service_bearer():

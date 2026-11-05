@@ -7,7 +7,7 @@
 > See [default approval configuration](refactor/DEFAULT_APPROVALS.md).
 
 This review branch composes native extension source `08c4e53b61a1f492e918bca5a0b89e023bfc3a73` with the existing
-COSS delivery base `35d21bbe07853324d9493279630fe35600d98c0f` and the changes described here. It does not merge
+OAN delivery base `35d21bbe07853324d9493279630fe35600d98c0f` and the changes described here. It does not merge
 legacy core/worker implementations into the native refactor source branch.
 Working primary checkouts and the local runtime worktrees remain separate.
 
@@ -16,10 +16,10 @@ Working primary checkouts and the local runtime worktrees remain separate.
 The candidate uses OpenG2P rc.557 extension contracts, registered widgets and
 metadata. No platform source, worker replacement or compiled-asset patch is
 introduced. Runtime selection must be identical in APIs, ingestion workers and
-beat. Dashboard UI/API are independently owned COSS repositories; connector
+beat. Dashboard UI/API are independently owned OAN repositories; connector
 source retirement does not remove its running release or checkpoints.
 
-Helm is owned by COSS oan-helm. The candidate profile pins dev.14 at
+Helm is owned by OAN oan-helm. The candidate profile pins dev.14 at
 `c08497721ec93eda0b19c2a504255b1ea8a00d8f`, including the chart archive SHA-256.
 The three archives were fetched from that immutable URL and their hashes verified
 on 26 October 2026. All registry promotion flags remain false.

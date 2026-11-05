@@ -12,7 +12,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-_logger = logging.getLogger("coss-registry-schema")
+_logger = logging.getLogger("oan-registry-schema")
 
 
 async def add_missing_mapped_columns(

@@ -1,6 +1,6 @@
 # Livestock Registry – validation of the native refactor
 
-Yash Sontakke · 26–30 October 2026 · findings checked against COSS `develop` @ ed27841 (platform 1.2.2-rc.614, 30 Oct)
+Yash Sontakke · 26–30 October 2026 · findings checked against OAN `develop` @ ed27841 (platform 1.2.2-rc.614, 30 Oct)
 
 This is the "what we had / what is broken or missing / what comes next" list asked for on 27 October. It is updated as items are fixed.
 
@@ -21,7 +21,7 @@ This is the "what we had / what is broken or missing / what comes next" list ask
 
 **Run 1 – refactor snapshot 5db011b, 26–27 Oct.** Laptop docker compose with develop's commons (Keycloak, IAM, AWE, ID generator, old Master Data plus a small shim for the new endpoints), the five registry images built from the PR on the public rc.557 base images, and a mock Farmer Registry for the signed lookup. Test assets: API chain scripts, a 54-case validation matrix (51 pass), Playwright browser runs with screenshots, the DCI sanity test.
 
-**Run 2 – develop head 3f2deb6 (#88), 29 Oct.** Asmit's `openg2p-developer` stack (`oan-developer` branch): livestock built from COSS `develop`, commons from the pinned charts, Master Data develop.118 seeded from the ETH-OAN pack (21 037 locations, P-codes), default reviewers `alex.carter` → `nina.patel`, the same mock Farmer Registry (the farmer registry alongside does not fit in the laptop's memory; Asmit: "mock is fine for now"). Local compose overrides only for the mock, the beat database settings and two stack issues listed in section 7.
+**Run 2 – develop head 3f2deb6 (#88), 29 Oct.** Asmit's `openg2p-developer` stack (`oan-developer` branch): livestock built from OAN `develop`, commons from the pinned charts, Master Data develop.118 seeded from the ETH-OAN pack (21 037 locations, P-codes), default reviewers `alex.carter` → `nina.patel`, the same mock Farmer Registry (the farmer registry alongside does not fit in the laptop's memory; Asmit: "mock is fine for now"). Local compose overrides only for the mock, the beat database settings and two stack issues listed in section 7.
 
 **Run 3 – develop head 0e10773, 30 Oct.** Same stack; re-test of every open item, plus file import and DCI.
 
