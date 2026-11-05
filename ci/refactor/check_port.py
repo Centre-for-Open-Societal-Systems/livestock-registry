@@ -54,7 +54,7 @@ def verify(repo: Path, domain: str) -> dict:
     # Farmer reference was proven end to end); the dashboard chart still is not.
     if pin["promotionReady"] is not True or profile["dashboard"]["promotionReady"] is not False:
         errors.append("chart pins do not match the accepted promotion state")
-    for name in ("helm", "openg2p-connector-service", "openg2p-connector-ui"):
+    for name in ("openg2p-connector-service", "openg2p-connector-ui"):
         if any((repo / name).rglob("Chart.yaml")) or (repo / name / "Dockerfile").exists():
             errors.append("retired vendored source remains: " + name)
     if pins != {"1.2.2-rc.614"}:

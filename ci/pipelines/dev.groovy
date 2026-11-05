@@ -37,11 +37,8 @@ pipeline {
         // stage and values-dev.yaml were removed, so there is now one dev target.
         DEV_NAMESPACE            = 'livestock'
         DEV_KUBECONFIG_CRED_ID   = 'livestock-dev-kubeconfig'
-        // Username/password credential for "Open oan-helm image PR": the GitHub account that owns the fork of oan-helm and
-        // its classic token (public_repo). The pull request goes from that fork into the org repo's main.
+        // Stage 'Publish chart': a maintainer's token for now; the GitHub App replaces this credential when it is configured.
         OAN_HELM_FORK_CRED_ID    = 'oan-helm-fork-token'
-        // GitHub App credential used by the last stage to push a branch and open the chart-pin pull request.
-        PIN_PR_CRED_ID           = 'oan-ci-app'
 
         // livestock-registry-dashboard-api lives in its own (public) repository
         // and is built here beside the registry images. Each branch builds the
@@ -210,8 +207,8 @@ pipeline {
                             """
                         }
 
-                        // The ECR digest of every image the oan-helm chart carries: the next stage writes
-                        // <commit>@<digest> into the chart.
+                        // The ECR digest of every image the chart carries: 'Package chart' writes
+                        // <commit>@<digest> into the packaged copy.
                         def digested = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui']
                         if (env.DASHBOARD_API_SHA) { digested << 'dashboard-api' }
                         sh """
@@ -294,9 +291,31 @@ EOF
             }
         }
 
+        stage('Package chart') {
+            // helm/openg2p-livestock-registry with this build's images. The deploy installs this archive and
+            // 'Publish chart' publishes the same one, so what runs on New Dev is what oan-helm lists. It needs
+            // the git history for the version, so it is not part of the deploy stash.
+            when {
+                beforeAgent true
+                branch 'develop'
+                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
+            }
+            agent { label 'vpn-agent2' }
+            options { timeout(time: 15, unit: 'MINUTES') }
+            steps {
+                checkout scm
+                sh 'mkdir -p .build && rm -f .build/image-digests.tsv'
+                unstash 'image-digests'
+                withEnv(["ECR_PATH=${ECR_PATH}"]) {
+                    sh 'bash ci/deploy/package-chart.sh'
+                }
+                stash name: 'built-chart', includes: 'built-chart/**'
+            }
+        }
+
         stage('Deploy to Development') {
             // Use the existing development job, namespace and credentials. The
-            // chart bytes and version are immutable (ci/deploy/oan-chart.json);
+            // chart is the archive of 'Package chart';
             // ci/deploy/deploy-livestock-dev.sh renders, guards and upgrades.
             when {
                 beforeAgent true
@@ -309,8 +328,9 @@ EOF
             agent { label 'vpn-agent2' }
             options { timeout(time: 60, unit: 'MINUTES') }
             steps {
-                sh 'rm -rf ci scripts .central-charts'
+                sh 'rm -rf ci scripts .central-charts built-chart'
                 unstash 'deploy'
+                unstash 'built-chart'
                 // A failed deploy is rolled back by ci/deploy/deploy-livestock-dev.sh and then fails
                 // the build: no catchError, so it is never reported as a pass.
                 withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
@@ -318,6 +338,7 @@ EOF
                         def deployEnv = [
                             "DEV_NAMESPACE=${DEV_NAMESPACE}", "ECR_REGISTRY=${env.ECR_REGISTRY}", "ECR_PATH=${ECR_PATH}",
                             "IMAGE_TAG=${env.IMAGE_TAG}", "DASHBOARD_UI_ECR=${DASHBOARD_UI_ECR}", "DASHBOARD_UI_SHA=${env.DASHBOARD_UI_SHA}",
+                            "BUILT_CHART_DIR=${env.WORKSPACE}/built-chart",
                         ]
                         withEnv(deployEnv) {
                             if (params.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
@@ -367,14 +388,11 @@ EOF
             }
         }
 
-        stage('Open oan-helm image PR') {
-            // After the images were pushed AND deployed to New Dev (a failed deploy is rolled back and fails the build, so
-            // this stage never runs for it): put this build's image tags and digests into the oan-helm Livestock chart
-            // through a pull request from the fork of oan-helm (GH_USER/oan-helm) into
-            // Centre-for-Open-Societal-Systems/oan-helm main. The stage does not wait for the merge and ends green once the
-            // pull request is open. A person with write access merges it; oan-helm's release workflow then publishes the
-            // chart and updates CHANGELOG.md. If the pull request cannot be opened the stage is UNSTABLE. One pull request
-            // per commit merged to develop: a re-run of a commit that oan-helm main already carries opens nothing.
+        stage('Publish chart') {
+            // After a successful deploy (a failed deploy is rolled back and fails the build, so this stage never runs for
+            // it): add the archive of 'Package chart' to repository/develop/ of oan-helm. Its workflow updates the index,
+            // changelog and rollback history. If publishing fails the stage is UNSTABLE and says why; New Dev already
+            // runs the build.
             when {
                 beforeAgent true
                 branch 'develop'
@@ -384,40 +402,11 @@ EOF
             options { timeout(time: 15, unit: 'MINUTES') }
             steps {
                 checkout scm
-                sh 'mkdir -p .build && rm -f .build/oan-helm-pr.txt .build/image-digests.tsv'
-                unstash 'image-digests'
-                script {
-                    def subject = sh(returnStdout: true, script: 'git log -1 --pretty=%s').trim()
-                    catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                        // Username = the GitHub account that owns the oan-helm fork; password = its classic token (public_repo).
-                        withCredentials([usernamePassword(credentialsId: "${OAN_HELM_FORK_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
-                            withEnv(["COMMIT_SUBJECT=${subject}", "SOURCE_COMMIT=${env.GIT_COMMIT}", "ECR_PATH=${ECR_PATH}"]) {
-                                sh 'python3 ci/deploy/release_images.py'
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Propose chart pin update') {
-            // After a successful deploy: if oan-helm main has a newer Livestock chart or changed
-            // public values than ci/deploy/oan-chart.json, open a pull request to develop that moves
-            // the pin (branch bot/oan-chart-pin-*). It never deploys and never changes develop; a
-            // person reviews and merges it, and the next develop build deploys the new pin. A
-            // failure here (no GitHub access, a refused push) only marks this stage UNSTABLE.
-            when {
-                beforeAgent true
-                branch 'develop'
-                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['fresh-install', 'connector-plan', 'connector-upgrade']) }
-            }
-            agent { label 'vpn-agent2' }
-            options { timeout(time: 10, unit: 'MINUTES') }
-            steps {
-                checkout scm
-                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    withCredentials([usernamePassword(credentialsId: "${PIN_PR_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
-                        sh 'python3 ci/deploy/propose_pin_pr.py'
+                sh 'rm -rf built-chart'
+                unstash 'built-chart'
+                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                    withCredentials([usernamePassword(credentialsId: "${OAN_HELM_FORK_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                        sh 'bash ci/deploy/publish-chart.sh'
                     }
                 }
             }
