@@ -1,0 +1,42 @@
+name: Checks
+on:
+  push:
+    branches: ["**", "!dependabot/**"]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest==8.4.2 ruff==0.17.2 PyYAML==6.0.2 Jinja2 httpx PyJWT cryptography 'sqlalchemy[asyncio]>=2' aiosqlite orjson
+      - name: Source and deployment contracts
+        run: bash ci/validate.sh
+      - name: livestock-connector chart renders the pinned release
+        run: bash ci/connector/check-chart.sh
+      - name: Native image extension checks
+        run: |
+          docker build -f ci/refactor/profile-tests.Dockerfile -t registry-reference-tests .
+          docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src registry-reference-tests -m pytest -q -p no:cacheprovider livestock-extension/tests
+      - name: Native metadata and notification mapping
+        run: |
+          COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/rehearse_metadata.py livestock --pipeline
+          python ci/refactor/compare_new_dev.py livestock
+      - name: Signed HTTP and native workflow dependency gate (19 executions, zero skips)
+        run: |
+          # npm has no overall time limit: a stalled download of the CLI
+          # (dl-cli.pstmn.io) otherwise holds the job until GitHub's 6 h limit.
+          install() { timeout 300 npm install --global --prefix "$RUNNER_TEMP/postman-cli" postman-cli@1.73.0; }
+          install || { echo "postman-cli install failed or timed out; retrying once" >&2; install; }
+          export PATH="$RUNNER_TEMP/postman-cli/bin:$PATH"
+          COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/verify_onboarding.py livestock --http-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registry-verification
+          path: ci-output/

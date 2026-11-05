@@ -2,15 +2,20 @@
 {{- (value or '') | string | trim | upper -}}
 {%- endmacro -%}
 
-{#- A code-list value id as a label: LIVESTOCK_SPECIES_CATTLE -> Cattle. -#}
+{#- A code-list value id as a label: BREED_LOCAL -> Local, BREED_CATTLE_BORAN -> Boran, CATTLE -> Cattle. -#}
 {%- macro title(value) -%}
-{{- (value or '') | string | trim | replace('LIVESTOCK_SPECIES_', '') | replace('LIVESTOCK_BREED_', '') | replace('LIVESTOCK_DISEASE_', '') | replace('VACCINE_TYPE_', '') | replace('_', ' ') | title -}}
+{%- set ns = namespace(text=(value or '') | string | trim) -%}
+{%- for part in ['CATTLE', 'SHEEP', 'GOAT', 'CAMEL', 'DONKEY', 'HORSE', 'MULE', 'POULTRY', 'PIG', 'BEEHIVE'] -%}
+{%- if ns.text.startswith('BREED_' ~ part ~ '_') -%}{%- set ns.text = 'BREED_' ~ ns.text[7 + part | length:] -%}{%- endif -%}
+{%- endfor -%}
+{{- ns.text | replace('LIVESTOCK_BREED_', '') | replace('BREED_', '') | replace('LIVESTOCK_DISEASE_', '') | replace('VACCINE_TYPE_', '') | replace('_', ' ') | title -}}
 {%- endmacro -%}
 
 {%- macro sex(value) -%}
 {%- set v = norm(value) -%}
-{%- if v == 'MALE' -%}Male
-{%- elif v == 'FEMALE' -%}Female
+{#- Farmer gender (MALE / FEMALE) and animal sex (LIVESTOCK_SEX codes; a neutered animal keeps its sex). -#}
+{%- if v in ['MALE', 'SEX_MALE', 'SEX_MALE_NEUTER'] -%}Male
+{%- elif v in ['FEMALE', 'SEX_FEMALE', 'SEX_FEMALE_NEUTER'] -%}Female
 {%- else -%}{{ value or '' }}
 {%- endif -%}
 {%- endmacro -%}

@@ -1,4 +1,4 @@
-"""Render ls_odk_transform.j2 against real-shaped ODK submissions and check the
+"""Render odk_to_livestock_intake.j2 against real-shaped ODK submissions and check the
 values the registry depends on. Needs only jinja2:
 
     python odk/test_transform.py
@@ -19,16 +19,32 @@ import jinja2
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE = os.path.join(
     HERE, "..", "livestock-extension", "src", "openg2p_registry_livestock_extension",
-    "templates", "ls_odk_transform.j2",
+    "templates", "odk_to_livestock_intake.j2",
 )
 SAMPLE = os.path.join(HERE, "sample_submissions.json")
 
 SECTIONS = (
-    "ls_farmer_identity", "ls_farmer_location", "ls_survey_personnel",
-    "ls_livestock_record", "ls_livestock_location", "ls_animal_details",
+    "ls_survey_personnel", "livestock_farmer_lookup", "ls_livestock_location", "ls_animal_details",
     "ls_health_event_details", "ls_vaccination_details",
     "ls_vital_event_details", "ls_breeding_details",
 )
+# The country pack's LIVESTOCK_SPECIES and LIVESTOCK_BREED codes (openg2p-data ETH-OAN),
+# the breeds by their species attribute.
+SPECIES = {"CATTLE", "GOATS", "SHEEP", "POULTRY", "CAMELS", "DONKEY", "HORSE", "MULE", "PIG", "BEEHIVE",
+           "EQUINES", "OTHER"}
+BREEDS_BY_SPECIES = {
+    "CATTLE": {"BREED_CATTLE_BORAN", "BREED_CATTLE_FOGERA", "BREED_CATTLE_HORRO", "BREED_CATTLE_SHEKO", "BREED_CATTLE_BEGAIT", "BREED_CATTLE_ARSI", "BREED_CATTLE_BARKA", "BREED_CATTLE_LOCAL_ZEBU", "BREED_CATTLE_HOLSTEIN_FRIESIAN_CROSS", "BREED_CATTLE_JERSEY_CROSS"},
+    "SHEEP": {"BREED_SHEEP_MENZ", "BREED_SHEEP_AFAR", "BREED_SHEEP_BLACKHEAD_SOMALI", "BREED_SHEEP_HORRO", "BREED_SHEEP_BONGA", "BREED_SHEEP_WASHERA", "BREED_SHEEP_DORPER_CROSS", "BREED_SHEEP_LOCAL"},
+    "GOATS": {"BREED_GOAT_AFAR", "BREED_GOAT_ABERGELE", "BREED_GOAT_BEGAIT", "BREED_GOAT_CENTRAL_HIGHLAND", "BREED_GOAT_LONG_EARED_SOMALI", "BREED_GOAT_WOITO_GUJI", "BREED_GOAT_BOER_CROSS", "BREED_GOAT_LOCAL"},
+    "CAMELS": {"BREED_CAMEL_SOMALI", "BREED_CAMEL_AFAR", "BREED_CAMEL_LOCAL"},
+    "DONKEY": {"BREED_DONKEY_ABYSSINIAN", "BREED_DONKEY_SINNAR", "BREED_DONKEY_LOCAL"},
+    "HORSE": {"BREED_HORSE_ABYSSINIAN", "BREED_HORSE_OROMO", "BREED_HORSE_LOCAL"},
+    "MULE": {"BREED_MULE_LOCAL"},
+    "POULTRY": {"BREED_POULTRY_BOVANS_BROWN", "BREED_POULTRY_ISA_BROWN", "BREED_POULTRY_SASSO", "BREED_POULTRY_KOEKOEK", "BREED_POULTRY_WHITE_LEGHORN_CROSS", "BREED_POULTRY_LOCAL_CHICKEN"},
+    "PIG": {"BREED_PIG_LARGE_WHITE", "BREED_PIG_LANDRACE", "BREED_PIG_LOCAL"},
+    "BEEHIVE": {"BREED_BEEHIVE_APIS_MELLIFERA_SCUTELLATA"},
+}
+BREEDS = {"BREED_IMPROVED", "BREED_LOCAL", "BREED_HYBRID"} | set().union(*BREEDS_BY_SPECIES.values())
 LOCATIONS = {"HOME", "VETERINARY", "MARKET", "FIELD", "QUARANTINE_CENTER", "OTHER"}
 
 
@@ -47,17 +63,20 @@ def main():
     failures = []
     for sub in subs:
         out = render(template, sub)
-        name = out["ls_farmer_identity"][0]["farmer_name"]
+        name = out["livestock_farmer_lookup"][0]["farmer_id"]
         for s in SECTIONS:
             check(s in out and isinstance(out[s], list), f"{name}: section {s} missing", failures)
-        farmer = out["ls_farmer_identity"][0]
-        check(farmer["gender"] in (None, "MALE", "FEMALE", "OTHER"), f"{name}: farmer gender {farmer['gender']!r} not upper-case", failures)
-        record = out["ls_livestock_record"][0]
+        record = out["livestock_farmer_lookup"][0]
         check(record["state"] == "DRAFT", f"{name}: livestock record state {record['state']!r}, expected DRAFT (the approval ladder starts there)", failures)
+        loc = out["ls_livestock_location"][0]
+        chain = [h["level_value_id"] for h in loc["geo_code_hierarchy_json"]["hierarchy"]]
+        want_chain = [sub["location"][k] for k in ("region_code", "zone_code", "woreda_code", "kebele_code")]
+        check(chain == want_chain, f"{name}: location hierarchy {chain} != {want_chain}", failures)
         for a in out["ls_animal_details"]:
             check("state" not in a, f"{name}: animal row carries a state ({a.get('state')!r})", failures)
-            check(a["species"].startswith("LIVESTOCK_SPECIES_"), f"{name}: species {a['species']!r}", failures)
-            check(a["gender"] in ("MALE", "FEMALE", "MIXED"), f"{name}: animal gender {a['gender']!r}", failures)
+            check(a["species"] in SPECIES, f"{name}: species {a['species']!r} not a LIVESTOCK_SPECIES code of the pack", failures)
+            check(a["breed"] in BREEDS, f"{name}: breed {a['breed']!r} not a LIVESTOCK_BREED code of the pack", failures)
+            check(a["gender"] in ("SEX_MALE", "SEX_FEMALE", "SEX_MIXED"), f"{name}: animal gender {a['gender']!r}", failures)
         for h in out["ls_health_event_details"]:
             d = h["disease_type"]
             check(d is None or d.startswith("LIVESTOCK_DISEASE_"), f"{name}: health disease {d!r} not a registry code", failures)
@@ -69,7 +88,7 @@ def main():
             d = e["disease_type"]
             check(d is None or d.startswith("LIVESTOCK_DISEASE_"), f"{name}: vital disease {d!r} not a registry code", failures)
             if e["event_type"] == "BIRTH":
-                check(e["offspring_gender"] in ("MALE", "FEMALE", "MIXED"), f"{name}: birth offspring_gender {e['offspring_gender']!r}", failures)
+                check(e["offspring_gender"] in ("SEX_MALE", "SEX_FEMALE", "SEX_MIXED"), f"{name}: birth offspring_gender {e['offspring_gender']!r}", failures)
             else:
                 check(e["offspring_gender"] is None, f"{name}: {e['event_type']} event has offspring_gender {e['offspring_gender']!r}", failures)
             check(e["location"] in LOCATIONS, f"{name}: vital location {e['location']!r}", failures)
@@ -98,7 +117,7 @@ def main():
             "LIVESTOCK_DISEASE_PPR", "LIVESTOCK_DISEASE_AFRICAN_HORSE_SICKNESS"]
     check(got == want, f"disease mapping: {got} != {want}", failures)
     birth = [e for e in out["ls_vital_event_details"] if e["event_type"] == "BIRTH"][0]
-    check(birth["offspring_gender"] == "MALE", f"sex_of_offspring male -> {birth['offspring_gender']!r}", failures)
+    check(birth["offspring_gender"] == "SEX_MALE", f"sex_of_offspring male -> {birth['offspring_gender']!r}", failures)
     check(birth["notes"] == "twins", f"vital_event_details -> notes {birth['notes']!r}", failures)
     check(out["ls_breeding_details"][0]["location"] == "FIELD", f"breeding location field -> {out['ls_breeding_details'][0]['location']!r}", failures)
     got_v = [v["vaccine_type"] for v in out["ls_vaccination_details"]]
@@ -110,7 +129,7 @@ def main():
     out = render(template, base)
     check(out["ls_vital_event_details"][0]["disease_type"] == "not_a_disease", "unknown disease was relabelled", failures)
 
-    check_breed_map(failures)
+    check_breed_map(template, base, failures)
 
     if failures:
         print("FAIL")
@@ -120,37 +139,22 @@ def main():
     print(f"OK: {len(subs)} sample submissions + targeted cases")
 
 
-def check_breed_map(failures):
-    """Every breed choice in the form must be in odk_ingest_hooks._ODK_BREED_CHOICES
-    and land on a LIVESTOCK_BREED value of the same species in the code list.
-    Read statically, so the test needs neither the platform nor openpyxl."""
-    import ast
-    import re
-
-    root = os.path.join(os.path.dirname(__file__), "..")
-    ext = os.path.join(root, "livestock-extension", "src", "openg2p_registry_livestock_extension")
-    hooks = open(os.path.join(ext, "odk_ingest_hooks.py"), encoding="utf-8").read()
-    node = next(
-        n for n in ast.parse(hooks).body
-        if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == "_ODK_BREED_CHOICES" for t in n.targets)
-    )
-    choices = ast.literal_eval(node.value)
-    values = os.path.join(ext, "meta_data", "lookup-data", "g2p_attribute_values.sql")
-    if not os.path.exists(values):
-        values = os.path.join(ext, "master_data", "code_lists", "20_g2p_attribute_values.sql")
-    parent = {}
-    for line in open(values, encoding="utf-8"):
-        m = re.match(r"\('(LIVESTOCK_BREED_[A-Z0-9_]+)','LIVESTOCK_BREED','[^']*','[^']*','([A-Z_]+)'", line)
-        if m:
-            parent[m.group(1)] = m.group(2)
+def check_breed_map(template, base, failures):
+    """Every species and breed choice of the form must land on a pack code: the
+    species on LIVESTOCK_SPECIES, the breed on the LIVESTOCK_BREED breed of that
+    species (cattle "boran" -> BREED_CATTLE_BORAN)."""
     form = os.path.join(os.path.dirname(__file__), "breed_choices.csv")
     rows = [line.strip().split(",") for line in open(form, encoding="utf-8") if line.strip() and not line.startswith("species")]
+    sub = json.loads(json.dumps(base))
+    animal = sub["livestock"][0]
+    for key in ("vital_events", "breeding_events", "vaccinations", "health_events"):
+        animal[key] = []
     for species, name in rows:
-        code = choices.get(species, {}).get(name)
-        check(code is not None, f"breed choice {species}/{name} missing from _ODK_BREED_CHOICES", failures)
-        if code:
-            check(parent.get(code) == "LIVESTOCK_SPECIES_" + species.upper(),
-                  f"breed choice {species}/{name} -> {code}, which is not a {species} breed in the code list", failures)
+        animal["species_id"], animal["breed"] = species, name
+        out = render(template, sub)["ls_animal_details"][0]
+        check(out["species"] in SPECIES, f"species choice {species} -> {out['species']!r}", failures)
+        check(out["breed"] in BREEDS_BY_SPECIES.get(out["species"], set()),
+              f"breed choice {species}/{name} -> {out['breed']!r}, not a breed of {out['species']!r}", failures)
 
 
 if __name__ == "__main__":

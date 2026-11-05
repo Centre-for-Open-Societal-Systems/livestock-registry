@@ -19,6 +19,7 @@ import logging
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from .plain_text import plain_code_text
 from .reminder_alert_utils import (
     already_sent, animal_not_deceased_sql, ensure_tracking_table, record_sent, resolve_recipients,
     send_email, today,
@@ -89,10 +90,11 @@ def _send_reminder(engine: Engine, reminder_type: str, subject_prefix: str, rec:
         return False
 
     recipients = resolve_recipients("VACCINATION_REMINDER_FALLBACK_EMAILS")
-    subject = f"{subject_prefix}: {rec['vaccine_type'] or 'vaccination'} for {rec['ear_tag_id'] or 'animal'}"
+    vaccine = plain_code_text(rec.get("vaccine_type")) or "vaccination"
+    subject = f"{subject_prefix}: {vaccine} for {rec['ear_tag_id'] or 'animal'}"
     body = (
         f"Ear tag: {rec.get('ear_tag_id') or '-'}\n"
-        f"Vaccine: {rec.get('vaccine_type') or '-'}\n"
+        f"Vaccine: {vaccine if rec.get('vaccine_type') else '-'}\n"
         f"Next due date: {rec['next_due_date']}\n\n"
         "This is an automated reminder from the Livestock Registry."
     )

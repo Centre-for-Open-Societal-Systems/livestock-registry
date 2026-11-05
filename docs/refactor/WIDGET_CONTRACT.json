@@ -1,0 +1,48 @@
+{
+  "upstream_source_commit": "4d5482dfea23d1accf98fe474fb90ed6ddb5f651",
+  "source_path": "ui/ui-widgets/src/registry/defaultWidgets.ts",
+  "source_sha256": "5cf753d51b8b635727caca0a862cee04ee3147d5133545524de3bde9a76a17e9",
+  "widget_package": "@openg2p/registry-widgets",
+  "widget_package_version": "1.1.9-dev.13",
+  "native_widget_names": [
+    "boolean",
+    "checkbox",
+    "date",
+    "datetime",
+    "dialog-table",
+    "display",
+    "file",
+    "geo-hierarchy",
+    "header-section",
+    "id-authentication",
+    "multi-select",
+    "number",
+    "parent-lookup",
+    "phone",
+    "profile",
+    "radio",
+    "register-lookup",
+    "scores-display",
+    "select",
+    "table",
+    "text",
+    "textarea"
+  ],
+  "extension_widget_names": [
+    "oan-geo-point"
+  ],
+  "seeded_section_widget_names": [
+    "date",
+    "dialog-table",
+    "geo-hierarchy",
+    "number",
+    "oan-geo-point",
+    "profile",
+    "radio",
+    "select",
+    "text"
+  ],
+  "unregistered_names": [],
+  "result": "PASS",
+  "scope": "Pinned source/package contract and seeded widget identifiers; not every live UI interaction"
+}

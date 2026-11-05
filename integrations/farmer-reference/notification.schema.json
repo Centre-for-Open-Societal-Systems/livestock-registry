@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "farmer_id"
+  ],
+  "anyOf": [
+    {
+      "required": [
+        "fayda_fan_id"
+      ]
+    },
+    {
+      "required": [
+        "fayda_fin"
+      ]
+    }
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "event_type": {
+      "enum": [
+        "farmer_reference.changed.v1",
+        "farmer-registry.farmer.changed.v1"
+      ]
+    },
+    "farmer_id": {
+      "type": "string",
+      "pattern": "^FR-[0-9]{12}$"
+    },
+    "fayda_fan_id": {
+      "type": "string",
+      "pattern": "^[0-9]{16}$"
+    },
+    "fayda_fin": {
+      "type": "string",
+      "pattern": "^[0-9]{12}$"
+    }
+  }
+}

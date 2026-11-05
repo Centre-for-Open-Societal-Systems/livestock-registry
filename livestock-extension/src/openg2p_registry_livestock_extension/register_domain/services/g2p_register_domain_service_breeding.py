@@ -4,10 +4,15 @@ from datetime import date, timedelta
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import and_
 
+from .local_date import local_today
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
+from .animal_sex import SEX_FEMALE, sex_code, sex_label
 
 from .domain_validation_utils import (
+    field_label,
     normalize_event_ear_tag,
+    validate_animal_not_deceased,
     ear_tag_exists, get_animal_gender, is_blank, parse_date, validate_species_matches, validation_error,
     fill_species_and_age_from_animal,
     first_application_reference,
@@ -41,6 +46,8 @@ _CYCLE_WINDOW_DAYS = 21
 class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records, table=True)
         records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
@@ -51,6 +58,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
+            await validate_animal_not_deceased(record, "breeding event")
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             await self._validate_female_only(record)
@@ -74,9 +82,8 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
             return
         if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
-                f"'{str(value).strip()}' does not match any registered or drafted animal's "
-                "ear tag or secondary identifier. Add it under Livestock Details first, "
-                "or check for a typo."
+                f"No animal with ear tag {str(value).strip()} in this form or the register. "
+                "Add it under Livestock details first, or check for a typo."
             )
 
     async def _validate_female_only(self, record: dict) -> None:
@@ -89,22 +96,22 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         if is_blank(ear_tag_id):
             return
         gender = await get_animal_gender(str(ear_tag_id).strip())
-        if gender and str(gender).upper() != "FEMALE":
+        if gender and sex_code(gender) != SEX_FEMALE:
             validation_error(
-                "Breeding can only be logged against a Female animal "
-                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).title()})."
+                "Breeding can only be logged against a female animal "
+                f"('{str(ear_tag_id).strip()}' is on file as {sex_label(gender)})."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+        if value is not None and value > local_today():
+            validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_date_order(self, record: dict, earlier: str, later: str) -> None:
         start = parse_date(record.get(earlier))
         end = parse_date(record.get(later))
         if start and end and end < start:
-            validation_error(f"{later} must not be before {earlier}")
+            validation_error(f"{field_label(later)} must not be before {field_label(earlier).lower()}.")
 
     def _breeding_models(self):
         """The Breeding register + intake-form models, imported the same way
@@ -246,7 +253,7 @@ class G2PRegisterDomainServiceBreeding(AuditSnapshotMixin, G2PRegisterDomainServ
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

@@ -1,0 +1,1 @@
+Historical generated evidence is preserved in workspace docs/registries/deploy-composition-20261025/livestock/refactor/. CI writes new verification receipts to ignored ci-output/refactor/ and archives them as build artifacts. The two curated metadata inputs under reference/new-dev/ are source comparison baselines, not evidence of current runtime acceptance.

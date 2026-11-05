@@ -1,14 +1,17 @@
 import logging
-from datetime import date
 
 from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import select
 
+from .local_date import local_today
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    field_label,
     normalize_event_ear_tag,
+    validate_animal_not_deceased,
     validate_known_code,
     animal_identified_by,
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
@@ -66,6 +69,8 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records, table=True)
         records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
@@ -76,6 +81,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
+            await validate_animal_not_deceased(record, "health event")
             await fill_species_and_age_from_animal(record)
             self._validate_required_fields(record)
             self._validate_disease_type(record)
@@ -93,21 +99,22 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
                 validation_error(f"Please provide the {label} before saving the record.")
 
     def _validate_event_dates_required(self, record: dict) -> None:
-        """Date of Onset / Date of Resolution are mandatory exactly when the
-        Health Event Details dialog shows them for the chosen event_type
-        (see patch_ls_health_event_details_sync_ui_schema.sql):
-            DISEASE    onset + resolution required
-            INJURY     onset + resolution required
+        """Date of Onset / Date of Resolution as the Health Event Details
+        dialog asks for them (see patch_ls_health_event_details_sync_ui_schema.sql):
+            DISEASE    onset required; resolution optional (an animal still sick has none)
+            INJURY     onset required; resolution optional
             TREATMENT  onset required (the form hides resolution)
             RECOVERY   resolution required (the form hides onset)
-        Mirrors _validate_disease_type below -- the form's conditional
-        "require" action alone can't be trusted for API / bulk-import
-        clients that bypass it.
+        The resolution of a disease or an injury is optional as in the old
+        system; it is added later, or recorded as a recovery. Mirrors
+        _validate_disease_type below -- the form's conditional "require"
+        action alone can't be trusted for API / bulk-import clients that
+        bypass it.
         """
         event_type = str(record.get("event_type") or "").upper()
         if event_type != "RECOVERY" and is_blank(record.get("date_onset")):
             validation_error("Please provide the date of onset before saving the record.")
-        if event_type != "TREATMENT" and is_blank(record.get("date_resolution")):
+        if event_type == "RECOVERY" and is_blank(record.get("date_resolution")):
             validation_error("Please provide the date of resolution before saving the record.")
 
     def _validate_disease_type(self, record: dict) -> None:
@@ -124,21 +131,20 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
             return
         if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
-                f"'{str(value).strip()}' does not match any registered or drafted animal's "
-                "ear tag or secondary identifier. Add it under Livestock Details first, "
-                "or check for a typo."
+                f"No animal with ear tag {str(value).strip()} in this form or the register. "
+                "Add it under Livestock details first, or check for a typo."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+        if value is not None and value > local_today():
+            validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_date_order(self, record: dict, earlier: str, later: str) -> None:
         start = parse_date(record.get(earlier))
         end = parse_date(record.get(later))
         if start and end and end < start:
-            validation_error(f"{later} must not be before {earlier}")
+            validation_error(f"{field_label(later)} must not be before {field_label(earlier).lower()}.")
 
     async def post_approve(self, change_request: G2PRegisterChangeRequest, session) -> None:
         """DISEASE/INJURY event -> the linked animal's Health Status becomes
@@ -263,7 +269,7 @@ class G2PRegisterDomainServiceHealthEvent(AuditSnapshotMixin, G2PRegisterDomainS
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

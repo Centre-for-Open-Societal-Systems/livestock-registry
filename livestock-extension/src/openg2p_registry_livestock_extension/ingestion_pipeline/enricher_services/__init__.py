@@ -1,7 +1,9 @@
+from .farmer_reference import FarmerChangedEnricher, G2PFarmerReferenceNotificationEnricher
 from .g2p_livestock_enricher_services import (
     G2PDciLivestockCreateEnricherService,
     G2PDciLivestockUpdateEnricherService,
     G2PDciLivestockDeleteEnricherService,
+    G2PPassThroughEnricherService,
     G2PSpdciLivestockCreateEnricherService,
     G2PSpdciLivestockUpdateEnricherService,
     G2PSpdciLivestockDeleteEnricherService,

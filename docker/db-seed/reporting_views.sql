@@ -16,6 +16,10 @@
 --                   helm/openg2p-livestock-registry/files/reporting-geo-sync.sh).
 --                   Master Data is a separate database, so it cannot be joined
 --                   directly.
+--   lr_rpt_label    a plain TABLE: the labels of the code lists the views name
+--                   (LIVESTOCK_SPECIES, LIVESTOCK_BREED), copied from the
+--                   Master Data catalogue API by reporting-label-sync.py. A
+--                   code without a label shows as the code.
 --
 -- Geography
 -- ---------
@@ -59,6 +63,16 @@ CREATE TABLE IF NOT EXISTS lr_rpt_geo (
 );
 CREATE INDEX IF NOT EXISTS lr_rpt_geo_level_name_idx ON lr_rpt_geo (level, lower(name));
 CREATE INDEX IF NOT EXISTS lr_rpt_geo_level_code_idx ON lr_rpt_geo (level, code);
+
+-- ---------------------------------------------------------------------------
+-- Code-list labels (filled by the reporting job from the Master Data API)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS lr_rpt_label (
+    list_code text NOT NULL,           -- Master Data list, e.g. LIVESTOCK_SPECIES
+    code      text NOT NULL,           -- the code the register stores, e.g. CATTLE
+    label     text NOT NULL,           -- Master Data label, e.g. Cattle
+    PRIMARY KEY (list_code, code)
+);
 
 DROP MATERIALIZED VIEW IF EXISTS lr_rpt_animal CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS lr_rpt_holding CASCADE;
@@ -196,9 +210,9 @@ SELECT
     h.keeper_key,
 
     NULLIF(TRIM(an.species), '')                            AS species,
-    COALESCE(NULLIF(TRIM(sp.value_display), ''), NULLIF(TRIM(an.species), '')) AS species_name,
+    COALESCE(NULLIF(TRIM(sp.label), ''), NULLIF(TRIM(an.species), ''))      AS species_name,
     NULLIF(TRIM(an.breed), '')                              AS breed,
-    COALESCE(NULLIF(TRIM(br.value_display), ''), NULLIF(TRIM(an.breed), ''))   AS breed_name,
+    COALESCE(NULLIF(TRIM(br.label), ''), NULLIF(TRIM(an.breed), ''))        AS breed_name,
     UPPER(NULLIF(TRIM(an.gender), ''))                      AS sex,
     UPPER(NULLIF(TRIM(an.health_status), ''))               AS health_status,
     UPPER(NULLIF(TRIM(an.vaccination_status), ''))          AS vaccination_status,
@@ -208,8 +222,8 @@ SELECT
     h.region_code, h.zone_code, h.woreda_code, h.kebele_code
 FROM g2p_register_animals an
 JOIN lr_rpt_holding h ON h.holding_id = an.link_internal_record_id
-LEFT JOIN g2p_attribute_values sp ON sp.value_id = an.species
-LEFT JOIN g2p_attribute_values br ON br.value_id = an.breed;
+LEFT JOIN lr_rpt_label sp ON sp.list_code = 'LIVESTOCK_SPECIES' AND sp.code = TRIM(an.species)
+LEFT JOIN lr_rpt_label br ON br.list_code = 'LIVESTOCK_BREED' AND br.code = TRIM(an.breed);
 
 CREATE UNIQUE INDEX lr_rpt_animal_pk ON lr_rpt_animal (animal_id);
 CREATE INDEX lr_rpt_animal_holding_idx ON lr_rpt_animal (holding_id);

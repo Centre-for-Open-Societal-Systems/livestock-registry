@@ -60,7 +60,6 @@ WHERE register_id IN (
   '76811bf6-07df-5ed4-9466-13b782f627fe',  -- VitalEvent
   '192c08b0-5403-5167-968a-2676d4af2879',  -- Breeding
   '5cdf80bf-0cdb-53e4-a4cf-71927f809250',  -- VaccineSchedule
-  '0fd11be9-83d7-5d2e-9dea-e0653add7059',  -- ImportBatch
   '6a3699f0-4b17-5d0d-b8b3-4822bfdab7aa'   -- AuditLog
 );
 

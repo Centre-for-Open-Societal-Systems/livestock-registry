@@ -21,6 +21,7 @@ from datetime import timedelta
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from .plain_text import plain_code_text
 from .reminder_alert_utils import (
     already_sent, ensure_tracking_table, record_sent, resolve_recipients, send_email, today,
 )
@@ -107,7 +108,7 @@ def check_and_send_approval_pending_reminders(
         body = (
             f"Farmer: {rec.get('farmer_name') or '-'}\n"
             f"Record: {rec.get('functional_record_id') or rec['internal_record_id']}\n"
-            f"Stuck at stage: {rec['state']}\n"
+            f"Waiting at stage: {plain_code_text(rec['state'])}\n"
             f"Since: {rec['state_date']}\n\n"
             "This record has been waiting at this approval stage for several days and needs review.\n\n"
             "This is an automated reminder from the Livestock Registry."

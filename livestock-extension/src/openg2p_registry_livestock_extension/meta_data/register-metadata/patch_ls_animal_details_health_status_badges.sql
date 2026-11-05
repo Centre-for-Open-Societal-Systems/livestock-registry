@@ -1,5 +1,5 @@
 -- Patch for already-seeded environments only (see
--- patch_ls_animal_details_dynamic_species_config.sql for the pattern this
+-- patch_ls_animal_details_sync_ui_schema.sql for the pattern this
 -- follows).
 --
 -- Adds "widget-badge-colors" to the Livestock Details animals table's

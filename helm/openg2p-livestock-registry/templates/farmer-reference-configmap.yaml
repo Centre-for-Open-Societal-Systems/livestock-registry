@@ -1,0 +1,27 @@
+{{- if .Values.farmerReference.enabled }}
+{{/*
+Farmer reference: Livestock resolves the Farmer named on an intake with a signed,
+consent-enforced DCI lookup of the Farmer registry and receives Farmer updates
+through outgestion (Kafka/WebSub) and its connector. The extension reads its
+configuration from COSS_FARMER_* and from files only: this ConfigMap carries the
+two public ones, the server-owned record contract and the Farmer partner API's
+response-signing public key. The Livestock lookup key and the AWE client secret stay
+in Secrets. Mount all three read-only on the staff API, partner API, celery
+worker and celery beat (registry.<component>.extraVolumes); the extension
+refuses to start a lookup when any file is missing.
+*/}}
+{{- $v := .Values.farmerReference }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-farmer-reference
+  labels:
+    app.kubernetes.io/name: farmer-reference
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  record-contract.json: |
+    {{- toPrettyJson $v.recordContract | nindent 4 }}
+  source-public-key.pem: |
+    {{- required "farmerReference.sourcePublicKey is required: the Farmer partner API's DCI response-signing public key (PEM)" $v.sourcePublicKey | trim | nindent 4 }}
+{{- end }}

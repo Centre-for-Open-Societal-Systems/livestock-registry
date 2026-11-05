@@ -1,0 +1,40 @@
+{
+  "platform_version": "1.2.2-rc.557",
+  "base_repo_digests": [
+    "openg2p/openg2p-registry-staff-api@sha256:1df50c69aa440a39a2fa06d62e0889d5c64e550d8f5cd04c31bba0d6a3c7c39b"
+  ],
+  "platform_source_revision": "4d5482dfea23d1accf98fe474fb90ed6ddb5f651",
+  "ui_source_revision": "4d5482dfea23d1accf98fe474fb90ed6ddb5f651",
+  "local_images": {
+    "staff-api": {
+      "tag": "oan/livestock-staff-api:refactor-ed1e70c",
+      "local_content_id": "sha256:1f015129bf193dfc95add386502633f2d408cdb7f362ce8b55a85a9e36ef3eea",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "partner-api": {
+      "tag": "oan/livestock-partner-api:refactor-ed1e70c",
+      "local_content_id": "sha256:3df199ba44f073131bfee07b6b5fd8b8f4f2db1c0c50c677f55bce07b4b1b349",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "celery": {
+      "tag": "oan/livestock-celery:refactor-ed1e70c",
+      "local_content_id": "sha256:4883018d4ad84ca168729726d124b095295d85530bda0e9f82359aeb94353533",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "db-seed": {
+      "tag": "oan/livestock-db-seed:refactor-ed1e70c",
+      "local_content_id": "sha256:6941159ff5528584171701bba0de6730d43acb6882b97888c4a981f49a109585",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "sanity-tests": {
+      "tag": "oan/livestock-sanity-tests:refactor-ed1e70c",
+      "local_content_id": "sha256:a1344150939256326ec1715c2af1091b340225e7d2d5f87ac4eb8f85bffa9305",
+      "registry_digest": "NOT PUBLISHED"
+    },
+    "staff-ui": {
+      "tag": "oan/livestock-staff-ui:refactor-ed1e70c",
+      "local_content_id": "sha256:88c2ea2f8f3025a0e83f9d57f783a08d44afb818f6137bb0c2b8ce0e5e181d4c",
+      "registry_digest": "NOT PUBLISHED"
+    }
+  }
+}

@@ -1,6 +1,2 @@
-Chart.lock
-*.tgz
-charts/*
-# Generated at package time from the pinned openg2p-registry dependency
-# (chart-inherit-questions). Never commit it — it would rot against the pin.
-questions.yaml
+# This Helm repository commits locked, bundled dependencies.
+# Environment files are excluded by the repository root and .helmignore.

@@ -1,8 +1,8 @@
 {{- if .Values.reporting.views.enabled }}
 {{/*
-Create (or re-create) the livestock reporting layer: copy the geography from
-Master Data into lr_rpt_geo, then apply reporting_views.sql. Both ship in the
-registry's db-seed image.
+Create (or re-create) the livestock reporting layer: copy the geography and
+the species and breed names from Master Data into lr_rpt_geo and lr_rpt_label,
+then apply reporting_views.sql. All three ship in the registry's db-seed image.
 
 A hook rather than a plain Job so it re-runs on every upgrade: a REFRESH does
 not pick up an edited view definition, the DDL has to be applied again.
@@ -53,6 +53,9 @@ spec:
               # Geography first: the views resolve P-codes against it. A failed
               # copy leaves the previous one in place and only costs codes.
               /seed/reporting-geo-sync.sh || echo "[reporting-views] geography copy failed; continuing with the existing lr_rpt_geo" >&2
+              # Species and breed names, the same way: a failed copy keeps the
+              # previous lr_rpt_label and the views show the code instead.
+              /seed/reporting-label-sync.py || echo "[reporting-views] label copy failed; continuing with the existing lr_rpt_label" >&2
               psql -v ON_ERROR_STOP=1 -X -f /seed/reporting_views.sql
               echo "[reporting-views] lr_rpt_* views applied"
           env:

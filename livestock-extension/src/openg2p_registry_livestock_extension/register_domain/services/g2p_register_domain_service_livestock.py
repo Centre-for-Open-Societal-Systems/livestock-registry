@@ -1,11 +1,13 @@
 import logging
 import re
-from datetime import date
 
 from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
+
+from ...farmer_reference.profile import FarmerReferenceError, normalize_uid
 from sqlalchemy import select
 
+from .local_date import local_today
 from .admin_area_sync import sync_admin_area
 from .audit_snapshot import AuditSnapshotMixin
 
@@ -46,13 +48,15 @@ def _stage_order_to_state():
     return {}
 
 
-# FR- followed by exactly 10 digits, as enforced by _check_farmer_id_format in
-# g2p_livestock_registry/models/livestock_registry.py.
-_FARMER_ID_PATTERN = re.compile(r"^FR-\d{10}$")
-# Exactly 16 digits (the Fayda FAN carries no letter prefix), as enforced by
-# _check_fayda_fan_id_format in
-# g2p_livestock_registry/models/livestock_registry.py.
-_FAYDA_FAN_ID_PATTERN = re.compile(r"^\d{16}$")
+# Farmer Registry IDs use FR- followed by exactly 12 digits.
+_FARMER_ID_PATTERN = re.compile(r"^FR-\d{12}$")
+
+
+def _label(field: str) -> str:
+    """Field name as the officer sees it: mobile_number -> Mobile Number."""
+    return field.replace("_", " ").title()
+
+
 # Ethiopian mobile numbers only, matching _check_mobile_numbers in gen1's
 # g2p_crop_registry/model/crop_registry.py: +251 or a leading 0, followed by
 # 7 or 9 (the only leading digits Ethiopian mobile numbers use) and 8 more
@@ -86,10 +90,31 @@ def _extension_models():
     return importlib.import_module("openg2p_registry_extensions.register_domain.models")
 
 
+def mark_verified(register_row) -> bool:
+    """An approved intake reaching the register is VERIFIED, dated today.
+
+    post_approval_stage used to set this on the intake draft as AWE stages
+    completed, but registry-platform 1.2 never calls it, so every approved
+    holding kept a blank state. post_ingest runs once per approved intake on
+    every channel (web, ODK, File Import), after the approval chain, which is
+    the moment a holding is verified. An ARCHIVED holding and one already
+    VERIFIED are left alone. True if the state changed.
+    """
+    enum = _extension_models().LivestockStateEnum
+    if register_row.state in (enum.VERIFIED.value, enum.ARCHIVED.value):
+        return False
+    register_row.state = enum.VERIFIED.value
+    register_row.state_date = local_today()
+    return True
+
+
 class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records)
         for record in records:
+            record.pop("farmer_reference_status", None)
             # NOT required here, unlike the Farmer register's own copy of
             # these two fields: the "Farmer Details" section's farmer_id/
             # fayda_fan_id are a display-only mirror of the linked Farmer and
@@ -111,17 +136,17 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
             return
         if not _FARMER_ID_PATTERN.match(str(value).strip().upper()):
             validation_error(
-                "farmer_id must be FR- followed by exactly 10 digits, e.g. FR-1234567890"
+                "Farmer ID: enter FR- followed by exactly 12 digits, for example FR-123456789012"
             )
 
     def _validate_fayda_fan_id(self, record: dict) -> None:
         value = record.get("fayda_fan_id")
         if value is None or str(value).strip() == "":
             return
-        if not _FAYDA_FAN_ID_PATTERN.match(str(value).strip()):
-            validation_error(
-                "fayda_fan_id must be exactly 16 digits, e.g. 1234567890123456"
-            )
+        try:
+            record["fayda_fan_id"] = normalize_uid(value)
+        except FarmerReferenceError:
+            validation_error("Fayda ID (FAN): enter exactly 16 digits, optionally spaced in four groups. Use the FIN field for a 12-digit FIN")
 
     def _validate_mobile_number(self, record: dict, field: str) -> None:
         value = record.get(field)
@@ -129,14 +154,14 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
             return
         if not _MOBILE_NUMBER_PATTERN.match(str(value).strip()):
             validation_error(
-                f"{field} must be a valid Ethiopian mobile number, "
-                "e.g. +251911223344 or 0911223344"
+                f"{_label(field)}: enter an Ethiopian mobile number, "
+                "for example +251911223344 or 0911223344"
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+        if value is not None and value > local_today():
+            validation_error(f"{_label(field)}: the date cannot be in the future")
 
     async def post_intake_upsert(self, rows: list, session) -> None:
         """Right after a Livestock-register section (Survey Personnel, Location)
@@ -228,7 +253,7 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         if livestock_row.state == verified and new_state.value != verified:
             return
         livestock_row.state = new_state.value
-        livestock_row.state_date = date.today()
+        livestock_row.state_date = local_today()
         await session.flush()
         _logger.info(
             "Submission %s: state -> %s (stage_order=%s, event_type=%s)",
@@ -236,86 +261,24 @@ class G2PRegisterDomainServiceLivestock(AuditSnapshotMixin, G2PRegisterDomainSer
         )
 
     async def post_ingest(self, register_id: str, register_row, session) -> None:
-        """Same Farmer-identity sync as post_approve, above, for a Livestock
-        record reaching the register via a still-draft submission's first
-        approval. Safe to run here: the form's own section order (section_order
-        10 for Farmer Details vs. 30+ for every Livestock section) guarantees
-        the sibling Farmer row this submission carries is already inserted —
-        and its history row already recorded — by the time this fires.
+        """Require an approved stable Farmer dependency before ingest commits.
+
+        No sibling-submission or ID-pair fallback may choose a Farmer owner.
+        Onboarding/link migration must supply the verified farmer_uuid first.
         """
         if register_id != LIVESTOCK_REGISTER_ID:
             return
+        mark_verified(register_row)
+        await sync_admin_area(register_row)
         await self._sync_farmer_identity(register_row, session)
         from .domain_validation_utils import refresh_total_animals
 
         await refresh_total_animals(session, register_row.internal_record_id)
 
     async def _sync_farmer_identity(self, livestock, session) -> None:
-        G2PRegisterFarmer = _extension_models().G2PRegisterFarmer
-
-        farmer_internal_id = livestock.farmer_uuid or await self._find_sibling_farmer_internal_record_id(
-            livestock, session
-        )
-        if not farmer_internal_id:
-            return
-
-        farmer = (
-            await session.execute(
-                select(G2PRegisterFarmer).where(
-                    G2PRegisterFarmer.internal_record_id == farmer_internal_id
-                )
-            )
-        ).scalar_one_or_none()
-        if not farmer:
-            return
-
-        livestock.farmer_uuid = farmer_internal_id
-        livestock.farmer_id = farmer.farmer_id
-        livestock.fayda_fan_id = farmer.fayda_fan_id
-        # Farmer rows registered before farmer_name was composed at intake
-        # (see G2PRegisterDomainServiceFarmer._fill_farmer_name) still carry
-        # NULL there; compose from the name parts rather than mirror the NULL.
-        livestock.farmer_name = (
-            farmer.farmer_name
-            if not is_blank(farmer.farmer_name)
-            else compose_farmer_name(farmer.first_name, farmer.middle_name, farmer.last_name)
-        )
-        # Mirrors the Fayda FAN into link_foundational_id — see G2PLivestock's
-        # own module docstring and G2PFarmer's identical comment on this field.
-        livestock.link_foundational_id = farmer.fayda_fan_id
-
-    async def _find_sibling_farmer_internal_record_id(self, livestock, session) -> str | None:
-        """This Livestock record's own submission_id, off its most recent
-        history row, joined back to whichever Farmer register history row
-        shares that same submission_id — i.e. the Farmer submitted alongside
-        it on the same form. Farmer and Livestock have no other relationship
-        the platform tracks (see LIVESTOCK_REGISTER_ID's comment above), so
-        this is the only thing connecting them.
-        """
-        models = _extension_models()
-        G2PRegisterHistoryFarmer = models.G2PRegisterHistoryFarmer
-        G2PRegisterHistoryLivestock = models.G2PRegisterHistoryLivestock
-
-        submission_id = (
-            await session.execute(
-                select(G2PRegisterHistoryLivestock.submission_id)
-                .where(G2PRegisterHistoryLivestock.internal_record_id == livestock.internal_record_id)
-                .where(G2PRegisterHistoryLivestock.submission_id.is_not(None))
-                .order_by(G2PRegisterHistoryLivestock.created_at.asc())
-                .limit(1)
-            )
-        ).scalar()
-        if not submission_id:
-            return None
-
-        return (
-            await session.execute(
-                select(G2PRegisterHistoryFarmer.internal_record_id)
-                .where(G2PRegisterHistoryFarmer.submission_id == submission_id)
-                .order_by(G2PRegisterHistoryFarmer.created_at.asc())
-                .limit(1)
-            )
-        ).scalar()
+        from ...farmer_reference.projection import refresh_domain_on_ingest
+        farmer_model = _extension_models().G2PRegisterFarmer
+        await refresh_domain_on_ingest(session, farmer_model, livestock)
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for livestock record")

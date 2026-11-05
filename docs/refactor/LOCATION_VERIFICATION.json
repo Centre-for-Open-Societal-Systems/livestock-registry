@@ -1,0 +1,11 @@
+{
+  "registry": "livestock",
+  "staff_ui_build": "PASS",
+  "local_image_id": "sha256:a459c8a45ca3eddac67a5f8bfad7365a63dafb107c89bf25295cb6ccef44a54d",
+  "upstream_ui_source": "4d5482dfea23d1accf98fe474fb90ed6ddb5f651",
+  "platform_version": "1.2.2-rc.557",
+  "native_master_data_required": "0.0.0-develop.118",
+  "geometry_tests": 4,
+  "deployment": false,
+  "checks": "TypeScript/Next source build and polygon holes/islands/reversed TopoJSON/authenticated retry tests. Full authenticated portal interaction remains NOT RUN."
+}

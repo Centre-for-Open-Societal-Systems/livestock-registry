@@ -41,8 +41,9 @@ named after the release.
       key: {{ tpl .Values.reporting.db.passwordKey . | quote }}
 {{- end }}
 
-{{/* Master Data connection for reporting-geo-sync.sh. Master Data is a separate
-     database owned by a separate role; the registry user cannot read it. */}}
+{{/* Master Data connection for reporting-geo-sync.sh (its database: a separate
+     database owned by a separate role; the registry user cannot read it) and
+     for reporting-label-sync.py (its catalogue API). */}}
 {{- define "livestock.reporting.mdsEnv" -}}
 {{- with .Values.reporting.masterData }}
 - name: MDS_DB
@@ -58,5 +59,20 @@ named after the release.
     secretKeyRef:
       name: {{ tpl .secret $ | quote }}
       key: {{ tpl .passwordKey $ | quote }}
+{{- end }}
+{{- with .Values.reporting.masterDataApi }}
+{{- if and .apiUrl (tpl (tpl .clientSecret.name $) $) }}
+- name: MDS_API_URL
+  value: {{ tpl (tpl .apiUrl $) $ | quote }}
+- name: MDS_TOKEN_URL
+  value: {{ tpl (tpl .tokenUrl $) $ | quote }}
+- name: MDS_CLIENT_ID
+  value: {{ tpl (tpl .clientId $) $ | quote }}
+- name: MDS_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ tpl (tpl .clientSecret.name $) $ | quote }}
+      key: {{ tpl (tpl .clientSecret.key $) $ | quote }}
+{{- end }}
 {{- end }}
 {{- end }}

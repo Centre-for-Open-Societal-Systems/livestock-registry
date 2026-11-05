@@ -2,9 +2,10 @@ import logging
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
 
-from .domain_validation_utils import as_int, is_blank, validation_error
+from .domain_validation_utils import field_label, as_int, is_blank, validation_error
 
 _logger = logging.getLogger("g2p-register-domain-service")
 
@@ -20,6 +21,8 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceVaccineSchedule(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records, table=True)
         for record in records:
             self._validate_required_fields(record)
             self._validate_positive(record, "interval_days")
@@ -32,7 +35,7 @@ class G2PRegisterDomainServiceVaccineSchedule(AuditSnapshotMixin, G2PRegisterDom
     def _validate_positive(self, record: dict, field: str) -> None:
         value = as_int(record.get(field))
         if value is not None and value <= 0:
-            validation_error(f"{field} must be greater than zero")
+            validation_error(f"{field_label(field)} must be greater than zero.")
 
     def construct_search_text(self, payload: dict, extra: list[str] = None) -> str:
         _logger.info("Constructing search text for vaccine schedule record")
@@ -62,7 +65,7 @@ class G2PRegisterDomainServiceVaccineSchedule(AuditSnapshotMixin, G2PRegisterDom
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

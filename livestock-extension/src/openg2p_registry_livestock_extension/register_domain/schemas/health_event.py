@@ -34,7 +34,7 @@ class G2PRegisterSchemaHealthEvent(G2PRegisterBaseSchema, G2PSchemaHealthEvent):
     """
 
 
-class G2PRegisterHistorySchemaHealthEvent(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaHealthEvent(G2PRegisterHistorySchema, G2PSchemaHealthEvent):
     """
     Schema for Health Event history.
     Inherits fields from G2PRegisterHistorySchema.

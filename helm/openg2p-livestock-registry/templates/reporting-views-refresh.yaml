@@ -44,6 +44,7 @@ spec:
                 - -c
                 - |
                   /seed/reporting-geo-sync.sh || echo "[refresh] geography copy failed; refreshing with the existing lr_rpt_geo" >&2
+                  /seed/reporting-label-sync.py || echo "[refresh] label copy failed; refreshing with the existing lr_rpt_label" >&2
 {{ .Files.Get "files/reporting-views-refresh.sh" | indent 18 }}
               env:
                 - name: MATCH_PREFIX

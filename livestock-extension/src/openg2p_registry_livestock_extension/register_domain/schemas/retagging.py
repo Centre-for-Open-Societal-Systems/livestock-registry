@@ -29,7 +29,7 @@ class G2PRegisterSchemaRetagging(G2PRegisterBaseSchema, G2PSchemaRetagging):
     """
 
 
-class G2PRegisterHistorySchemaRetagging(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaRetagging(G2PRegisterHistorySchema, G2PSchemaRetagging):
     """
     Schema for Retagging history.
     Inherits fields from G2PRegisterHistorySchema.

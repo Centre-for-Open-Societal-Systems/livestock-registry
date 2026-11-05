@@ -29,10 +29,10 @@ FARMER_FOUNDATIONAL_ID = "SANITY-UIN-0001"
 # for this registry that record is the livestock registration itself.
 FARMER = {
     "farmer_name": "Sanity E2E Testfarmer",
-    # FR- + exactly 10 digits, the format the livestock domain service validates.
-    "farmer_id": "FR-9000000001",
+    # FR- + exactly 12 digits, the format the livestock domain service validates.
+    "farmer_id": "FR-900000000001",
     "fayda_fan_id": "SANITY-FAYDA-0001",
-    "oan_id": "FR-9000000001-SANITY-001",
+    "oan_id": "FR-900000000001-SANITY-001",
     "status": "VERIFIED",
     "state": "VERIFIED",
     "source_system": "MANUAL",

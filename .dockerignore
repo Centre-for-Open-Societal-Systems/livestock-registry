@@ -1,0 +1,11 @@
+.git
+.build
+.tools
+**/.env*
+**/*.pem
+**/*.key
+**/__pycache__
+ui/staff-ui/.app
+ui/staff-ui/node_modules
+helm/**/charts
+docs/refactor/evidence

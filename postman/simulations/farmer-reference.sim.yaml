@@ -1,0 +1,5 @@
+simulation: coss-farmer-reference
+routing: path
+mocks:
+  - routeKey: farmer
+    path: ../mocks/farmer-reference/config.yaml

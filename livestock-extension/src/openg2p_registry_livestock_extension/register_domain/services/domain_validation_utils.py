@@ -1,8 +1,12 @@
 import re
 from contextvars import ContextVar
 from datetime import date, datetime
+from typing import NamedTuple
 
 from openg2p_registry_core.errors import G2PRegistryErrorCodes, G2PRegistryException
+
+from .local_date import local_today
+from .plain_text import plain_code_text
 
 
 def validation_error(message: str) -> None:
@@ -86,7 +90,7 @@ def require_field(record: dict, field: str, label: str | None = None) -> None:
     right without source access to fix them.
     """
     if is_blank(record.get(field)):
-        validation_error(f"{label or field} is required")
+        validation_error(f"{label or field_label(field)} is required. Enter a value.")
 
 
 async def refresh_total_animals(session, livestock_internal_record_id) -> None:
@@ -186,8 +190,10 @@ def animal_identified_by(model, identifier: str):
     return or_(model.ear_tag_id == identifier, model.secondary_identifier == identifier)
 
 
-# The ingest worker's database session while it saves an ingested submission
-# (ODK, File Import); None everywhere else. Set by odk_ingest_hooks.
+# The session of the intake section save in progress, so checks see the rows
+# the same transaction already wrote: the ingest worker (ODK, File Import,
+# partner) commits only after the whole submission is saved. Set by
+# IntakeUpsertHook (intake_upsert_hook.py); None outside a section save.
 ingest_session: ContextVar = ContextVar("livestock_ingest_session", default=None)
 
 
@@ -252,16 +258,16 @@ async def ear_tag_exists(ear_tag_id: str, application_reference: str | None = No
     async with session_maker() as session:
         return await _found(session)
 
-async def ear_tag_used_by_other_animal(
+async def ear_tag_clash(
     ear_tag_id: str,
     species,
     breed,
     exclude_internal_record_ids: set[str] | None = None,
     exclude_submission_ids: set[str] | None = None,
     search: tuple[str, ...] = ("register", "intake"),
-) -> bool:
-    """True if `ear_tag_id`, with this same species and breed, already
-    belongs to a DIFFERENT animal — either already approved into the
+) -> "TableMatch | None":
+    """Where `ear_tag_id`, with this same species and breed, already
+    belongs to a DIFFERENT animal (None when nowhere) — either already approved into the
     register, or drafted under some other in-progress intake submission.
     Mirrors the Old System's duplicate check ("same tag + same species +
     same breed already used"), which Gen2's Livestock Details section was
@@ -286,7 +292,7 @@ async def ear_tag_used_by_other_animal(
     post_intake_upsert, where the submission being saved is known.
     """
     if is_blank(ear_tag_id):
-        return False
+        return None
 
     from sqlalchemy import and_
 
@@ -301,7 +307,11 @@ async def ear_tag_used_by_other_animal(
         exclude_own_rows(model, conditions, exclude_internal_record_ids, exclude_submission_ids)
         return and_(*conditions)
 
-    return await exists_in_tables(G2PRegisterAnimal, G2PIntakeFormAnimal, _same_animal_key, search)
+    return await find_in_tables(G2PRegisterAnimal, G2PIntakeFormAnimal, _same_animal_key, search)
+
+
+async def ear_tag_used_by_other_animal(*args, **kwargs) -> bool:
+    return await ear_tag_clash(*args, **kwargs) is not None
 
 async def secondary_identifier_used_by_other_animal(
     secondary_identifier: str,
@@ -344,7 +354,7 @@ def format_age(birth_date: date | None) -> str | None:
     copy the animal's age, so the two can never drift apart."""
     if birth_date is None:
         return None
-    today = date.today()
+    today = local_today()
     years = today.year - birth_date.year
     months = today.month - birth_date.month
     if today.day < birth_date.day:
@@ -407,9 +417,31 @@ async def get_animal_species_and_birth_date(ear_tag_id: str) -> tuple[str | None
         return None, None
 
 
+# Field names as the form labels them, for validation messages. Other fields
+# read as a sentence: "registration_date" -> "Registration date".
+_FIELD_LABELS = {
+    "ear_tag_id": "Ear tag",
+    "new_ear_tag_id": "New ear tag",
+    "old_ear_tag_id": "Old ear tag",
+    "secondary_identifier": "Secondary identifier",
+    "quantity": "Quantity (head count)",
+    "weight": "Weight",
+    "offspring_count": "Number of offspring",
+    "interval_days": "Interval (days)",
+}
+
+
+def field_label(field: str) -> str:
+    """The label a user sees for a field: ear_tag_id -> "Ear tag"."""
+    if field in _FIELD_LABELS:
+        return _FIELD_LABELS[field]
+    text = str(field).replace("_", " ").strip()
+    return text[:1].upper() + text[1:]
+
+
 async def humanize_attribute_value(value_id: str | None) -> str:
     """The human-readable label for a code-list value id (e.g.
-    "LIVESTOCK_SPECIES_SHEEP" -> "Sheep"), for building a validation message
+    "SHEEP" -> "Sheep"), for building a validation message
     a user can actually act on. Read from Master Data; falls back to the raw
     id if it isn't a known value (or is blank) — validation error text should
     never go silent just because a lookup came up empty.
@@ -418,46 +450,49 @@ async def humanize_attribute_value(value_id: str | None) -> str:
         return str(value_id)
     from ... import master_data_lists
 
-    return await master_data_lists.display(str(value_id).strip())
+    raw = str(value_id).strip()
+    shown = await master_data_lists.display(raw)
+    return plain_code_text(shown) if shown == raw else shown
+
 
 
 async def get_species_config(species_value_id: str | None) -> tuple[bool, bool]:
-    """(requires_ear_tag, is_flock_species) for a LIVESTOCK_SPECIES value —
-    e.g. Poultry/Beehive vs. Cattle/Sheep/... — configurable per species from
-    Configuration > Attributes > Species (an Edit Attribute Value's "Requires
-    Ear Tag" / "Flock / Group Species" checkboxes), not a hardcoded species
-    list in this codebase. Backed by G2PLivestockSpeciesConfig, a
-    per-value side table (see core-patches/apply_patches.py Fix 4) the same
-    way G2PAttributeValueSchedule already backs per-value vaccine scheduling
-    — most species (and every non-species attribute value) never get a row
-    there, which is why every field on it is nullable.
+    """(requires_ear_tag, is_flock_species) for a LIVESTOCK_SPECIES value,
+    read from the value's attributes in Master Data. The country pack declares
+    both on the list (openg2p-data ETH-OAN, LIVESTOCK_SPECIES attribute_schema:
+    Poultry is a flock without ear tags, Cattle/Goats/Sheep/... are tagged one
+    by one), so a new species or a changed rule is a pack change, not a code
+    change.
 
-    Defaults to (True, False) — ear-tag-required, not a flock — whenever no
-    row exists (species left blank, a species nobody has configured yet, or
-    a brand-new species just added in Configuration). That default matches
-    every species' actual behavior before this table existed, so an
-    unconfigured species behaves exactly as before rather than silently
-    losing its ear-tag requirement.
+    Defaults to (True, False), ear tag required and not a flock, when the
+    species is blank, unknown, or carries no attributes yet.
     """
     requires_ear_tag, is_flock_species = True, False
     if is_blank(species_value_id):
         return requires_ear_tag, is_flock_species
+    from ... import master_data_lists
 
-    from openg2p_fastapi_common.context import dbengine
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    from ..models.species_config import G2PLivestockSpeciesConfig
-
-    session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
-    async with session_maker() as session:
-        config = await session.get(G2PLivestockSpeciesConfig, species_value_id)
-        if config is None:
-            return requires_ear_tag, is_flock_species
-        if config.requires_ear_tag is not None:
-            requires_ear_tag = config.requires_ear_tag
-        if config.is_flock_species is not None:
-            is_flock_species = config.is_flock_species
+    attributes = await master_data_lists.value_attributes("LIVESTOCK_SPECIES", str(species_value_id))
+    if isinstance(attributes.get("requires_ear_tag"), bool):
+        requires_ear_tag = attributes["requires_ear_tag"]
+    if isinstance(attributes.get("is_flock_species"), bool):
+        is_flock_species = attributes["is_flock_species"]
     return requires_ear_tag, is_flock_species
+
+
+async def validate_species_known(record: dict) -> None:
+    """The species must be an active value of the Master Data LIVESTOCK_SPECIES
+    list (the country pack's CATTLE, GOATS, SHEEP, ...). Skipped when Master
+    Data cannot be read: an unreadable list must not block every save."""
+    species = record.get("species")
+    if is_blank(species):
+        return
+    from ... import master_data_lists
+
+    values = await master_data_lists.get_list("LIVESTOCK_SPECIES")
+    if values and str(species).strip() not in values:
+        shown = await humanize_attribute_value(species)
+        validation_error(f"Species '{shown}' is not in the species list. Choose a species from the list.")
 
 
 async def validate_species_matches(record: dict) -> None:
@@ -484,7 +519,7 @@ async def validate_species_matches(record: dict) -> None:
         entered_label = await humanize_attribute_value(species)
         actual_label = await humanize_attribute_value(animal_species)
         validation_error(
-            f"species '{entered_label}' does not match animal '{ear_tag_id}', "
+            f"Species '{entered_label}' does not match animal '{ear_tag_id}', "
             f"which is recorded as '{actual_label}' under Livestock Details. "
             "Select the matching species, or check you entered the correct ear tag / identifier."
         )
@@ -557,16 +592,53 @@ def exclude_own_rows(model, conditions: list, exclude_internal_record_ids, exclu
     submission_id, at the moment the search runs — Previous then Next with
     no edits, or reopening a draft, must not trip over it. Intake rows carry
     submission_id; register rows don't, and never need this.
+
+    A save that sends ids but names no submission (validate_domain_attributes)
+    is either an edit of an approved record, whose ids are register rows, or a
+    section of an intake submission saved again with the ids of its own rows.
+    The ids sent back by an intake section need not be the ids the intake table
+    holds them under, so excluding them is not enough to keep a section from
+    clashing with its own earlier copy. For the intake table the search then
+    runs only when one of the ids is an approved register row; the submission's
+    other drafts are checked by post_intake_upsert, which knows the submission.
     """
     if exclude_internal_record_ids:
         conditions.append(model.internal_record_id.not_in(exclude_internal_record_ids))
     if exclude_submission_ids and hasattr(model, "submission_id"):
         conditions.append(model.submission_id.not_in(exclude_submission_ids))
+    elif exclude_internal_record_ids and hasattr(model, "submission_id"):
+        register_model = register_model_of(model)
+        if register_model is not None:
+            from sqlalchemy import exists
+
+            conditions.append(exists().where(register_model.internal_record_id.in_(exclude_internal_record_ids)))
 
 
-async def exists_in_tables(register_model, intake_model, condition_of, search=("register", "intake")) -> bool:
-    """True if `condition_of(model)` matches a row in any of the tables named
-    by `search` ("register" and/or "intake"), checked in that order.
+def register_model_of(intake_model):
+    """The register model an intake model is the draft form of
+    (G2PIntakeFormAnimal -> G2PRegisterAnimal), or None when it has no such
+    pair. Looked up through the "openg2p_registry_extensions" alias, as
+    _event_models does."""
+    import importlib
+
+    name = getattr(intake_model, "__name__", "")
+    if not name.startswith("G2PIntakeForm"):
+        return None
+    models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
+    return getattr(models, "G2PRegister" + name[len("G2PIntakeForm"):], None)
+
+
+class TableMatch(NamedTuple):
+    """Where a duplicate search found its row: "register" or "intake", and for
+    an intake row the reference of the submission it belongs to."""
+
+    table: str
+    application_reference: str | None = None
+
+
+async def find_in_tables(register_model, intake_model, condition_of, search=("register", "intake")) -> TableMatch | None:
+    """The first table named by `search` ("register" and/or "intake", checked
+    in that order) that has a row matching `condition_of(model)`, or None.
 
     Which tables to search depends on where the caller runs:
     - validate_domain_attributes gets the request rows with NO submission
@@ -577,17 +649,26 @@ async def exists_in_tables(register_model, intake_model, condition_of, search=("
       submission_id, so the intake half runs there for every row.
     """
     from openg2p_fastapi_common.context import dbengine
-    from sqlalchemy import exists, select
+    from sqlalchemy import select
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     models = {"register": register_model, "intake": intake_model}
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
         for table in search:
-            found = (await session.execute(select(exists().where(condition_of(models[table]))))).scalar()
-            if found:
-                return True
-    return False
+            model = models[table]
+            reference = getattr(model, "application_reference", None)
+            column = reference if reference is not None else model.internal_record_id
+            rows = (await session.execute(select(column).where(condition_of(model)).limit(1))).all()
+            if rows:
+                return TableMatch(table, str(rows[0][0]) if reference is not None and rows[0][0] else None)
+    return None
+
+
+async def exists_in_tables(register_model, intake_model, condition_of, search=("register", "intake")) -> bool:
+    """True if `condition_of(model)` matches a row in any table named by
+    `search`; see find_in_tables."""
+    return await find_in_tables(register_model, intake_model, condition_of, search) is not None
 
 
 def intake_rows_as_records(rows: list) -> list[dict]:
@@ -685,7 +766,7 @@ def resolve_today_default(record: dict, field: str) -> None:
     """
     value = record.get(field)
     if isinstance(value, str) and value.strip().lower() == "today":
-        record[field] = date.today().isoformat()
+        record[field] = local_today().isoformat()
 
 
 def live_rows(records: list[dict]) -> list[dict]:
@@ -732,22 +813,27 @@ async def validate_known_code(record: dict, field: str, attribute_id: str, label
     if is_blank(value):
         return
     if not await attribute_value_known(value, attribute_id):
-        validation_error(f"{label} '{value}' is not in the {label.lower()} list.")
+        shown = await humanize_attribute_value(value)
+        validation_error(f"{label} '{shown}' is not in the {label.lower()} list. Choose one from the list.")
 
 
-async def attribute_value_parent(value_id) -> str | None:
-    """parent_value_id of a code-list value (e.g. LIVESTOCK_BREED_BORAN ->
-    LIVESTOCK_SPECIES_CATTLE, VACCINE_TYPE_ANTHRAX_CATTLE ->
-    LIVESTOCK_SPECIES_CATTLE), read from Master Data. None when the value is
-    unknown or has no parent."""
+async def attribute_value_parent(value_id, list_code: str | None = None) -> str | None:
+    """The species a breed or vaccine belongs to, read from Master Data: the
+    value's ``species`` attribute in list ``list_code`` (how the country pack
+    links VACCINE_TYPE_ANTHRAX_CATTLE to CATTLE), else its catalogue parent.
+    None when the value is unknown or names no species."""
     if is_blank(value_id):
         return None
     from ... import master_data_lists
 
+    if list_code:
+        species = (await master_data_lists.value_attributes(list_code, str(value_id))).get("species")
+        if isinstance(species, str) and species.strip():
+            return species.strip()
     return await master_data_lists.parent(str(value_id).strip())
 
 
-async def validate_belongs_to_species(value_id, species, kind: str) -> None:
+async def validate_belongs_to_species(value_id, species, kind: str, list_code: str | None = None) -> None:
     """Reject a breed/vaccine whose catalogue parent is a DIFFERENT species
     than the one on the record. The dialogs show the full breed and vaccine
     lists on the official staff-ui (no species filter inside a pop-up), so
@@ -755,7 +841,7 @@ async def validate_belongs_to_species(value_id, species, kind: str) -> None:
     parent in the catalogue is left alone."""
     if is_blank(value_id) or is_blank(species):
         return
-    parent = await attribute_value_parent(value_id)
+    parent = await attribute_value_parent(value_id, list_code)
     if parent is None or parent == str(species).strip():
         return
     value_label = await humanize_attribute_value(value_id)
@@ -809,6 +895,12 @@ async def get_animal_gender(ear_tag_id: str) -> str | None:
     logging a breeding event against a male animal (see
     G2PRegisterDomainServiceBreeding._validate_female_only).
     """
+    return await _recorded_animal_value(ear_tag_id, "gender")
+
+
+async def _recorded_animal_value(ear_tag_id: str, column: str) -> str | None:
+    """One column of the animal identified by ear_tag_id: the register's row
+    first, then the newest intake draft row; None if neither has a value."""
     if is_blank(ear_tag_id):
         return None
 
@@ -818,16 +910,17 @@ async def get_animal_gender(ear_tag_id: str) -> str | None:
 
     G2PRegisterAnimal, G2PIntakeFormAnimal = _animal_models()
 
-    def _has_gender(model):
-        return and_(animal_identified_by(model, ear_tag_id), model.gender.is_not(None), model.gender != "")
+    def _has_value(model):
+        field = getattr(model, column)
+        return and_(animal_identified_by(model, ear_tag_id), field.is_not(None), field != "")
 
     session_maker = async_sessionmaker(dbengine.get(), expire_on_commit=False)
     async with session_maker() as session:
         for model in (G2PRegisterAnimal, G2PIntakeFormAnimal):
             row = (
                 await session.execute(
-                    select(model.gender)
-                    .where(_has_gender(model))
+                    select(getattr(model, column))
+                    .where(_has_value(model))
                     .order_by(model.created_at.desc())
                     .limit(1)
                 )
@@ -835,6 +928,18 @@ async def get_animal_gender(ear_tag_id: str) -> str | None:
             if row and row[0]:
                 return row[0]
         return None
+
+
+async def validate_animal_not_deceased(record: dict, kind: str) -> None:
+    """No vaccination, health event or breeding for an animal on file as
+    DECEASED. The event dialogs never list a dead animal; ODK, File Import
+    and API rows can still name one."""
+    ear_tag_id = normalize_event_ear_tag(record)
+    if ear_tag_id is None:
+        return
+    status = await _recorded_animal_value(str(ear_tag_id).strip(), "health_status")
+    if str(status or "").strip().upper() == "DECEASED":
+        validation_error(f"Animal '{str(ear_tag_id).strip()}' is deceased; a {kind} cannot be recorded for it.")
 
 
 async def ensure_ear_tags_belong_to_submission(rows: list) -> None:

@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/Centre-for-Open-Societal-Systems/livestock-registry",
+  "revision": "35d21bbe07853324d9493279630fe35600d98c0f",
+  "serviceSubtree": "openg2p-connector-service",
+  "uiSubtree": "openg2p-connector-ui",
+  "delivery": "Existing independent connector workload/owner retained; no registry-driven replacement",
+  "imageDigest": "REQUIRED_FROM_CURRENT_RELEASE_BEFORE_PROMOTION",
+  "checkpointPolicy": "Retain native connector database, queues, subscriptions and checkpoints"
+}

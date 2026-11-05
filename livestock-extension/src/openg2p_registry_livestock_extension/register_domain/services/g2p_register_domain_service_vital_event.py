@@ -1,7 +1,7 @@
 import logging
 import re
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from openg2p_registry_core.models import (
     G2PFunctionalIdGenerationQueue,
@@ -10,19 +10,25 @@ from openg2p_registry_core.models import (
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import and_, func, select
 
+from .local_date import local_today
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
+from .animal_sex import OFFSPRING_SEX_VALUES, SEX_FEMALE, normalize_sex, sex_code, sex_label
 
 from .domain_validation_utils import (
+    field_label,
     normalize_event_ear_tag,
     validate_known_code,
     animal_identified_by,
     _animal_models,
+    as_float,
     as_int,
     ear_tag_exists,
     get_animal_gender,
     is_blank,
     parse_date,
     resolve_today_default,
+    validate_belongs_to_species,
     validate_species_matches,
     validation_error,
     fill_species_and_age_from_animal,
@@ -63,6 +69,12 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        from .field_rules import validate_record_fields
+        for record in records:
+            # MALE / FEMALE / MIXED from before the Master Data list; see animal_sex.
+            if isinstance(record, dict):
+                normalize_sex(record, "offspring_gender")
+        await validate_record_fields(records, table=True)
         records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
@@ -87,6 +99,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             self._validate_date_order(record, "date_onset", "date_resolution")
             self._validate_not_in_future(record, "date_resolution")
             self._validate_offspring_count(record)
+            await self._validate_offspring_breed_and_weight(record)
             await self._validate_birth_female_only(record)
         # Run only once every record above has passed — so by this point
         # every ear_tag_id/event_type/disease_type used below is known
@@ -113,10 +126,10 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         if is_blank(ear_tag_id):
             return
         gender = await get_animal_gender(str(ear_tag_id).strip())
-        if gender and str(gender).upper() != "FEMALE":
+        if gender and sex_code(gender) != SEX_FEMALE:
             validation_error(
-                "A Birth event can only be logged against a Female animal "
-                f"('{str(ear_tag_id).strip()}' is on file as {str(gender).title()})."
+                "A birth event can only be logged against a female animal "
+                f"('{str(ear_tag_id).strip()}' is on file as {sex_label(gender)})."
             )
 
     def _validate_disease_type(self, record: dict) -> None:
@@ -133,21 +146,34 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             return
         if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
-                f"'{str(value).strip()}' does not match any registered or drafted animal's "
-                "ear tag or secondary identifier. Add it under Livestock Details first, "
-                "or check for a typo."
+                f"No animal with ear tag {str(value).strip()} in this form or the register. "
+                "Add it under Livestock details first, or check for a typo."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+        if value is not None and value > local_today():
+            validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_date_order(self, record: dict, earlier: str, later: str) -> None:
         start = parse_date(record.get(earlier))
         end = parse_date(record.get(later))
         if start and end and end < start:
-            validation_error(f"{later} must not be before {earlier}")
+            validation_error(f"{field_label(later)} must not be before {field_label(earlier).lower()}.")
+
+    async def _validate_offspring_breed_and_weight(self, record: dict) -> None:
+        """Both optional, and only for a birth: the breed a Master Data breed of
+        the dam's species, the birth weight above zero."""
+        breed, weight = record.get("offspring_breed"), as_float(record.get("offspring_weight"))
+        if is_blank(breed) and weight is None:
+            return
+        if str(record.get("event_type") or "").upper() != "BIRTH":
+            validation_error("Breed and birth weight of the offspring are only recorded for a birth.")
+        if weight is not None and weight <= 0:
+            validation_error("Birth weight must be greater than zero.")
+        if not is_blank(breed):
+            await validate_known_code(record, "offspring_breed", "LIVESTOCK_BREED", "Breed of offspring")
+            await validate_belongs_to_species(breed, record.get("species"), "Breed of offspring", "LIVESTOCK_BREED")
 
     def _validate_offspring_count(self, record: dict) -> None:
         is_birth = str(record.get("event_type") or "").upper() == "BIRTH"
@@ -157,9 +183,9 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         count = as_int(record.get("offspring_count"))
         if count is not None:
             if count < 0:
-                validation_error("offspring_count must not be negative")
+                validation_error("Number of offspring must not be negative.")
             if count > 0 and not is_birth:
-                validation_error("offspring_count is only valid on a BIRTH event")
+                validation_error("Number of offspring is only recorded for a birth.")
 
         if not is_birth:
             return
@@ -171,6 +197,11 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             validation_error("Please provide the number of offspring before saving the record.")
         if is_blank(record.get("offspring_gender")):
             validation_error("Please provide the sex of the offspring before saving the record.")
+        if sex_code(record.get("offspring_gender")) not in OFFSPRING_SEX_VALUES:
+            validation_error(
+                f"Sex of offspring '{sex_label(record.get('offspring_gender')).capitalize()}' is not allowed — "
+                "a newborn is Male, Female or Mixed / Not Applicable."
+            )
 
     def _vital_event_models(self):
         """The Vital Event register + intake-form models, imported the same
@@ -227,13 +258,13 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             ear_tag_id = str(ear_tag_id).strip()
 
             if ear_tag_id in seen_ear_tags:
-                validation_error("A Mortality event already exists for this animal.")
+                validation_error("A mortality event already exists for this animal.")
             seen_ear_tags.add(ear_tag_id)
 
             if await self._mortality_exists(
                 ear_tag_id, self_ids, exclude_submission_ids, search or tables_for(record)
             ):
-                validation_error("A Mortality event already exists for this animal.")
+                validation_error("A mortality event already exists for this animal.")
 
     async def _mortality_exists(
         self,
@@ -295,7 +326,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
             key = (ear_tag_id, disease_type, onset)
             if key in seen:
                 validation_error(
-                    "A Disease event with the same disease and date of onset already "
+                    "A disease event with the same disease and date of onset already "
                     "exists for this animal."
                 )
             seen.add(key)
@@ -305,7 +336,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 search or tables_for(record),
             ):
                 validation_error(
-                    "A Disease event with the same disease and date of onset already "
+                    "A disease event with the same disease and date of onset already "
                     "exists for this animal."
                 )
 
@@ -523,7 +554,8 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 )
             )
         ).scalar()
-        breed = dam.breed if dam else None
+        # A breed recorded on the birth (a cross) wins over the dam's.
+        breed = vital_event.offspring_breed or (dam.breed if dam else None)
 
         # Reuse the tag(s) already reserved at intake-save time
         # (post_intake_upsert, above) when they're there and match this
@@ -550,11 +582,12 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
                 "ear_tag_id": ear_tag_id,
                 "species": vital_event.species,
                 "breed": breed,
+                "weight": vital_event.offspring_weight,
                 # validate_domain_attributes requires the offspring sex on a
                 # Birth event; a Birth approved before that rule existed may
                 # still have none, and the animal's gender is not nullable.
-                # FEMALE keeps what the ODK hooks used to set in that case.
-                "gender": vital_event.offspring_gender or "FEMALE",
+                # Female keeps what the ODK hooks used to set in that case.
+                "gender": sex_code(vital_event.offspring_gender) or SEX_FEMALE,
                 "date_of_birth": vital_event.event_date,
                 "registration_date": vital_event.event_date,
                 "health_status": "HEALTHY",
@@ -679,7 +712,7 @@ class G2PRegisterDomainServiceVitalEvent(AuditSnapshotMixin, G2PRegisterDomainSe
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

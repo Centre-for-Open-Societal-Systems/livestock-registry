@@ -1,18 +1,22 @@
 import logging
 import re
-from datetime import date
 
 from openg2p_registry_core.services import G2PRegisterDomainService
 
+from .local_date import local_today
+from .plain_text import plain_code_text
 from .audit_snapshot import AuditSnapshotMixin
+from .animal_sex import ANIMAL_SEX_OFFERED, ANIMAL_SEX_VALUES, SEX_MIXED, normalize_sex, sex_code, sex_label
 
 from .domain_validation_utils import (
-    validate_known_code,
+    field_label,
     as_float,
     as_int,
-    ear_tag_used_by_other_animal,
+    ear_tag_clash,
+    first_application_reference,
     format_age,
     get_species_config,
+    validate_species_known,
     is_blank,
     parse_date,
     secondary_identifier_used_by_other_animal,
@@ -35,17 +39,11 @@ _ANIMAL_REGISTER_ID = "041a9f79-2142-548a-a15b-a4c76fc9f6f7"
 # g2p_livestock_registry/models/live_stock_registry_line.py.
 _EAR_TAG_PATTERN = re.compile(r"^ET\d{10}$")
 
-# The registry's own species values; see _validate_species_livestock.
-_SPECIES_PREFIX = "LIVESTOCK_SPECIES_"
-
 # Whether a species requires an ear tag, and whether it's recorded as a
-# flock/group rather than one row per individual, is NOT a hardcoded species
-# list here anymore — it's per-value config on the LIVESTOCK_SPECIES
-# attribute (Configuration > Attributes > Species > Edit > "Requires Ear
-# Tag" / "Flock / Group Species"), read live via get_species_config
-# (domain_validation_utils.py, backed by G2PAttributeValueSpeciesConfig).
-# That keeps adding a new tagless/flock species (e.g. Duck, Rabbit) a
-# Configuration change, not a code change.
+# flock/group rather than one row per individual, is not a species list in
+# this codebase: both are attributes of the species value in Master Data
+# (LIVESTOCK_SPECIES in the country pack), read via get_species_config. A new
+# tagless/flock species is a pack change, not a code change.
 
 # field -> human label used in the "Please provide the ... " message, mirroring
 # the fields marked "widget-required" on the Livestock Details form.
@@ -68,12 +66,13 @@ _REQUIRED_FIELDS = {
 }
 
 
-# The values of models/enums.py GenderEnum. Not imported from there: this
-# module is loaded under the extension's real package name while the platform
-# loads the models through the "openg2p_registry_extensions" alias, and
-# importing ..models here would declare every table a second time (see
-# _extension_models in g2p_register_domain_service_livestock.py).
-_ANIMAL_SEX_VALUES = frozenset({"MALE", "FEMALE", "MIXED"})
+# The values of models/enums.py GenderEnum (animal_sex.ANIMAL_SEX_VALUES). Not
+# imported from there: this module is loaded under the extension's real package
+# name while the platform loads the models through the
+# "openg2p_registry_extensions" alias, and importing ..models here would declare
+# every table a second time (see _extension_models in
+# g2p_register_domain_service_livestock.py).
+_ANIMAL_SEX_VALUES = ANIMAL_SEX_VALUES
 
 
 class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainService):
@@ -104,18 +103,23 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         await refresh_total_animals(session, link)
 
     async def validate_domain_attributes(self, records: list[dict]):
+        from .field_rules import validate_record_fields
+        for record in records:
+            # MALE / FEMALE / MIXED from before the Master Data list; see animal_sex.
+            if isinstance(record, dict):
+                normalize_sex(record, "gender")
+        await validate_record_fields(records, table=True)
         records = live_rows(records)
         for record in records:
             # The dialog's Registration Date defaults to the literal string
             # "today" on the official staff-ui; resolve it before any check.
             resolve_today_default(record, "registration_date")
             self._validate_required_fields(record)
-            self._validate_species_livestock(record)
-            await validate_known_code(record, "species", "LIVESTOCK_SPECIES", "Species")
+            await validate_species_known(record)
             requires_ear_tag, is_flock_species = await get_species_config(record.get("species"))
             # Breed is a plain (unfiltered) list in the dialog; keep a goat breed
             # off a cattle record here, server-side.
-            await validate_belongs_to_species(record.get("breed"), record.get("species"), "Breed")
+            await validate_belongs_to_species(record.get("breed"), record.get("species"), "Breed", "LIVESTOCK_BREED")
             await self._validate_breed_known(record)
             self._validate_identifier_required(record, requires_ear_tag)
             self._validate_gender_for_species(record, requires_ear_tag)
@@ -145,7 +149,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             ear_tag_id = record.get("ear_tag_id")
             if not is_blank(ear_tag_id) and await ear_tag_is_retired(ear_tag_id):
                 validation_error(
-                    f"ear_tag_id '{ear_tag_id}' was retired by an ear tag replacement and cannot be reused."
+                    f"Ear tag '{ear_tag_id}' was retired by an ear tag replacement and cannot be reused."
                 )
 
     async def post_intake_upsert(self, rows: list, session) -> None:
@@ -183,19 +187,6 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 "has no ear to attach an ear tag to."
             )
 
-    def _validate_species_livestock(self, record: dict) -> None:
-        """The species must be one of the registry's own LIVESTOCK_SPECIES_*
-        values. Master Data is shared: on dev the same list also holds the
-        OpenG2P data pack's values (CATTLE, GOATS, SHEEP, ...), which have no
-        breeds, vaccines or species config here. The dialog hides them
-        (livestock-dialog-overlay.js); this is the same rule for API clients."""
-        species = record.get("species")
-        if not is_blank(species) and not str(species).startswith(_SPECIES_PREFIX):
-            validation_error(
-                f"Species '{species}' is not a species of this registry — "
-                "choose one from the Species list."
-            )
-
     async def _validate_breed_known(self, record: dict) -> None:
         """The breed must be a value of the Breed list. The dialog only offers
         those; ODK, File Import and API rows can carry anything, and an
@@ -205,22 +196,22 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             validation_error(f"Breed '{breed}' is not in the breed list.")
 
     def _validate_gender_for_species(self, record: dict, requires_ear_tag: bool) -> None:
-        """Sex is Male or Female for every ear-tagged species; "Mixed / Not
-        Applicable" (GenderEnum.MIXED) exists for the species that have no ear
-        tag (poultry, beehive, ...), where one record stands for a whole
-        flock/hive. The Livestock Details dialog only offers Mixed for those
-        species (livestock-dialog-overlay.js); this is the same rule for API
-        and bulk-import clients."""
-        gender = str(record.get("gender") or "").strip().upper()
-        if gender and gender not in _ANIMAL_SEX_VALUES:
-            # The dialog only offers Male / Female / Mixed; this is the same
-            # rule for ODK, File Import and API clients ("other" came from an
-            # ODK form whose animal list was copied from the farmer gender list).
+        """Sex is Male or Female; "Mixed / Not Applicable" (SEX_MIXED) only for
+        the species that have no ear tag (poultry, beehive, ...), where one
+        record stands for a whole flock/hive. Castrated male and Female neuter
+        are LIVESTOCK_SEX codes the forms do not offer (ANIMAL_SEX_OFFERED).
+        The dialog offers the same choices; this is the rule for ODK, File
+        Import and API clients."""
+        gender = sex_code(record.get("gender")) or ""
+        if gender and gender not in ANIMAL_SEX_OFFERED:
+            # "other" came from an ODK form whose animal list was copied from
+            # the farmer gender list.
+            shown = sex_label(gender) if gender in _ANIMAL_SEX_VALUES else record.get("gender")
             validation_error(
-                f"Sex '{record.get('gender')}' is not allowed for an animal — "
-                "use Male, Female or Mixed / Not Applicable."
+                f"Sex '{shown}' is not recorded for an animal — "
+                "use Male or Female, or Mixed / Not Applicable for a flock or hive."
             )
-        if gender == "MIXED" and requires_ear_tag:
+        if gender == SEX_MIXED and requires_ear_tag:
             validation_error(
                 "Sex 'Mixed / Not Applicable' is only for species without an ear tag "
                 "(poultry, beehive, ...) — choose Male or Female for this species."
@@ -242,7 +233,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 "this species is recorded as a flock, not one row per animal."
             )
         elif quantity <= 0:
-            validation_error("quantity must be greater than zero")
+            validation_error("Quantity (head count) must be greater than zero.")
         else:
             # Store the parsed int, not whatever string/float the form sent —
             # same normalize-on-write approach as _validate_ear_tag_id above.
@@ -269,7 +260,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
         normalized = re.sub(r"\s+", "", str(value)).upper()
         if not _EAR_TAG_PATTERN.match(normalized):
             validation_error(
-                "ear_tag_id must be ET followed by exactly 10 digits, e.g. ET0000000013"
+                "Ear tag must be ET followed by exactly 10 digits, e.g. ET0000000013."
             )
         # Store the normalized form, not whatever casing/spacing was typed —
         # otherwise "et5678765435" and "ET5678765435" would both pass this
@@ -309,6 +300,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             if record.get("internal_record_id")
         }
 
+        form_reference = first_application_reference(records)
         seen: dict[tuple, str] = {}
         for record in records:
             ear_tag_id = record.get("ear_tag_id")
@@ -317,23 +309,33 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             key = (ear_tag_id, record.get("species"), record.get("breed"))
             if key in seen:
                 validation_error(
-                    f"ear_tag_id '{ear_tag_id}' is used by more than one animal of the "
-                    "same species and breed in this record."
+                    f"Ear tag {ear_tag_id} is already used for another animal in this form."
                 )
             seen[key] = ear_tag_id
 
-            if await ear_tag_used_by_other_animal(
+            clash = await ear_tag_clash(
                 ear_tag_id,
                 record.get("species"),
                 record.get("breed"),
                 exclude_internal_record_ids=self_ids,
                 exclude_submission_ids=exclude_submission_ids,
                 search=search or tables_for(record),
-            ):
-                validation_error(
-                    f"ear_tag_id '{ear_tag_id}' is already registered to a different "
-                    "animal of the same species and breed."
-                )
+            )
+            if clash is not None:
+                validation_error(self._ear_tag_clash_message(ear_tag_id, clash, form_reference))
+
+    @staticmethod
+    def _ear_tag_clash_message(ear_tag_id, clash, form_reference) -> str:
+        """Say where the tag is already used: another animal of this same
+        form (a draft nobody has approved yet), another form, or the register."""
+        if clash.table == "intake":
+            if form_reference and clash.application_reference == form_reference:
+                return f"Ear tag {ear_tag_id} is already used for another animal in this form."
+            return f"Ear tag {ear_tag_id} is already used for an animal in another intake form that is not yet approved."
+        return (
+            f"Ear tag {ear_tag_id} is already registered to a different "
+            "animal of the same species and breed."
+        )
 
     async def _validate_no_duplicate_secondary_identifiers(
         self,
@@ -370,7 +372,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             key = (secondary_identifier, record.get("species"), record.get("breed"))
             if key in seen:
                 validation_error(
-                    f"secondary_identifier '{secondary_identifier}' is used by more "
+                    f"Secondary identifier '{secondary_identifier}' is used by more "
                     "than one animal of the same species and breed in this record."
                 )
             seen[key] = secondary_identifier
@@ -384,7 +386,7 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
                 search=search or tables_for(record),
             ):
                 validation_error(
-                    f"secondary_identifier '{secondary_identifier}' is already "
+                    f"Secondary identifier '{secondary_identifier}' is already "
                     "registered to a different animal of the same species and breed."
                 )
 
@@ -401,13 +403,13 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+        if value is not None and value > local_today():
+            validation_error(f"{field_label(field)} must not be in the future.")
 
     def _validate_weight(self, record: dict) -> None:
         weight = as_float(record.get("weight"))
         if weight is not None and weight <= 0:
-            validation_error("weight must be greater than zero")
+            validation_error("Weight must be greater than zero.")
 
     def _populate_age_from_date_of_birth(self, record: dict) -> None:
         """Derive the stored Age display string from date_of_birth (shared
@@ -470,6 +472,6 @@ class G2PRegisterDomainServiceAnimal(AuditSnapshotMixin, G2PRegisterDomainServic
             record_name.append(str(identifier).strip())
         species = payload.get("species")
         if species and str(species).strip():
-            record_name.append(str(species).strip())
+            record_name.append(plain_code_text(species))
 
         return " ".join(record_name).strip()

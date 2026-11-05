@@ -1,7 +1,7 @@
 """LIVESTOCK — the root register and the hub of the model.
 
 One record per farmer's livestock holding. Every livestock line (animals, health
-events, vaccinations, vital events, breeding, vaccine schedule, import batches, audit
+events, vaccinations, vital events, breeding, vaccine schedule, audit
 log) links straight back to this record, mirroring the `line_ids` / `*_event_ids`
 one2many fields on `g2p.livestock.registry`.
 
@@ -24,6 +24,14 @@ from .enums import LivestockStateEnum, SourceSystemEnum, SyncStatusEnum
 
 
 class G2PLivestock(G2PAdminArea):
+    # Popup FIN evidence, distinct from the approved reference UID/FAN16.
+    fayda_fin: Mapped[str] = mapped_column(String, nullable=True)
+    farmer_reference_status: Mapped[str] = mapped_column(String, nullable=True)
+    identity_verification_id: Mapped[str] = mapped_column(String, nullable=True)
+    last_authentication_status: Mapped[str] = mapped_column(String, nullable=True)
+    last_authenticated_on: Mapped[str] = mapped_column(String, nullable=True)
+    authentication_expiry_date: Mapped[str] = mapped_column(String, nullable=True)
+
 
     # Farmer identity, carried not owned.
     farmer_uuid: Mapped[str] = mapped_column(String, nullable=True)

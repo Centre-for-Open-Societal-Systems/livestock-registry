@@ -1,0 +1,12 @@
+{
+  "farmer_reference_commit": "4901f11dba9e4debf710e182b769120f5906892a",
+  "source_files": {
+    "src/oan/widgets/GeoPointWidget.tsx": "6af8687f933373a84d08f4fbbf824a8d23d848522329371a7bf2a0809a22f3d2",
+    "src/oan/widgets/boundaries.ts": "176b9cd8d87218601b6d294f0dbe4cefb89a1365505de4b14701705fc29b322c",
+    "src/shared/widgets/RegistryWidgetProvider.tsx": "24a366ce311bd512dec4c3a7423a956836b120336ebe673cd6f3960e730e0940",
+    "src/app/api/master-data/geo-boundary/route.ts": "297fb24795bed115c5b173492bfac080da11dd1e7696ea59f1ee7008b0e238e3"
+  },
+  "changes": "Register only the location widget; generic record-location fallback labels. No Farmer identity widget or source workflow copied.",
+  "master_data": "Published develop.118 and matching source e569a59b8e9f61f809e07791e9263e50b2a7e0da; native authenticated catalogue boundary API",
+  "source_state": "Read-only Farmer working-tree reference, including uncommitted widget files. The commit identifies checkout ancestry; exact input file hashes are recorded separately."
+}

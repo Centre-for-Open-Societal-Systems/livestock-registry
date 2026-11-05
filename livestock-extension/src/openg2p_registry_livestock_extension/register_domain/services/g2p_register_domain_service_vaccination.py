@@ -1,14 +1,18 @@
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 
 from openg2p_registry_core.models import G2PRegisterChangeRequest
 from openg2p_registry_core.services import G2PRegisterDomainService
 from sqlalchemy import select
 
+from .local_date import local_today
+from .plain_text import name_part
 from .audit_snapshot import AuditSnapshotMixin
 
 from .domain_validation_utils import (
+    field_label,
     normalize_event_ear_tag,
+    validate_animal_not_deceased,
     validate_known_code,
     animal_identified_by,
     _animal_models, ear_tag_exists, is_blank, parse_date, validate_species_matches, validation_error,
@@ -54,6 +58,8 @@ _REQUIRED_FIELDS = {
 class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainService):
 
     async def validate_domain_attributes(self, records: list[dict]):
+        from .field_rules import validate_record_fields
+        await validate_record_fields(records, table=True)
         records = live_rows(records)
         # The platform hands us this section's rows with no submission context;
         # rows it has already saved carry their application_reference, which
@@ -64,13 +70,14 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             # staff-ui): check the tag itself first so a typo is reported as a
             # typo, then derive the read-only Species from that animal.
             await self._validate_ear_tag_exists(record, batch_reference)
+            await validate_animal_not_deceased(record, "vaccination")
             await fill_species_and_age_from_animal(record)
             resolve_today_default(record, "vaccination_date")
             self._validate_required_fields(record)
             # Vaccine is a plain (unfiltered) list in the dialog; keep a goat vaccine
             # off a cattle animal here, server-side.
             await validate_known_code(record, "vaccine_type", "VACCINE_TYPE", "Vaccine")
-            await validate_belongs_to_species(record.get("vaccine_type"), record.get("species"), "Vaccine")
+            await validate_belongs_to_species(record.get("vaccine_type"), record.get("species"), "Vaccine", "VACCINE_TYPE")
             await validate_species_matches(record)
             self._validate_not_in_future(record, "vaccination_date")
             await self._validate_not_before_birth(record)
@@ -89,15 +96,14 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
             return
         if not await ear_tag_exists(value, application_reference=application_reference):
             validation_error(
-                f"'{str(value).strip()}' does not match any registered or drafted animal's "
-                "ear tag or secondary identifier. Add it under Livestock Details first, "
-                "or check for a typo."
+                f"No animal with ear tag {str(value).strip()} in this form or the register. "
+                "Add it under Livestock details first, or check for a typo."
             )
 
     def _validate_not_in_future(self, record: dict, field: str) -> None:
         value = parse_date(record.get(field))
-        if value is not None and value > date.today():
-            validation_error(f"{field} must not be in the future")
+        if value is not None and value > local_today():
+            validation_error(f"{field_label(field)} must not be in the future.")
 
     async def _validate_not_before_birth(self, record: dict) -> None:
         """An animal cannot be vaccinated before it was born. Animals with no
@@ -128,9 +134,9 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         Looks up the APPROVED Vaccine Schedule register, not intake drafts —
         that's the operational, administrator-tuned schedule the overdue
         sweep (vaccination_status_service.py) and reminder task already
-        trust. No schedule configured yet for this vaccine/species pair (or
-        one not yet approved) leaves next_due_date untouched rather than
-        blocking the save — a vaccination is still valid without one.
+        trust. Without an approved row the vaccine's interval_days attribute
+        in Master Data is the default. Neither leaves next_due_date untouched
+        rather than blocking the save — a vaccination is still valid without one.
         """
         vaccination_date = parse_date(record.get("vaccination_date"))
         vaccine_type = record.get("vaccine_type")
@@ -148,14 +154,13 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         ).G2PRegisterVaccineSchedule
 
         # The schedule seed is keyed by bare codes (vaccine_name "ANTHRAX_CATTLE",
-        # species "CATTLE") while the form saves attribute value ids
-        # ("VACCINE_TYPE_ANTHRAX_CATTLE", "LIVESTOCK_SPECIES_CATTLE"). Compare
-        # both sides with the catalogue prefixes stripped so either spelling
-        # matches — without this the lookup never matched a real entry and
+        # species "CATTLE") while the form saves the Master Data vaccine value id
+        # ("VACCINE_TYPE_ANTHRAX_CATTLE"). Compare both sides with the
+        # catalogue prefix stripped so either spelling matches — without this the lookup never matched a real entry and
         # next_due_date stayed NULL (no overdue flip, no due-soon/overdue mail).
         def norm(value) -> str:
             text = str(value or "").strip().upper()
-            for prefix in ("VACCINE_TYPE_", "LIVESTOCK_SPECIES_", "LIVESTOCK_VACCINE_"):
+            for prefix in ("VACCINE_TYPE_", "LIVESTOCK_VACCINE_"):
                 if text.startswith(prefix):
                     text = text[len(prefix):]
             return text
@@ -182,6 +187,14 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
                 interval_days = int(days)
                 break
         if interval_days is None:
+            # No approved schedule row: the vaccine's default interval from
+            # Master Data (VACCINE_TYPE interval_days in the country pack).
+            from ... import master_data_lists
+
+            days = (await master_data_lists.value_attributes("VACCINE_TYPE", str(vaccine_type))).get("interval_days")
+            if isinstance(days, int) and not isinstance(days, bool) and days > 0:
+                interval_days = days
+        if interval_days is None:
             return
 
         record["next_due_date"] = (vaccination_date + timedelta(days=interval_days)).isoformat()
@@ -190,7 +203,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         start = parse_date(record.get(earlier))
         end = parse_date(record.get(later))
         if start and end and end < start:
-            validation_error(f"{later} must not be before {earlier}")
+            validation_error(f"{field_label(later)} must not be before {field_label(earlier).lower()}.")
 
     async def post_approve(self, change_request: G2PRegisterChangeRequest, session) -> None:
         """A logged Vaccination -> the linked animal's Vaccination Status
@@ -296,7 +309,7 @@ class G2PRegisterDomainServiceVaccination(AuditSnapshotMixin, G2PRegisterDomainS
         if extra:
             record_name.extend(str(item).strip() for item in extra if str(item).strip())
         record_name.extend(
-            str(payload.get(key) or "").strip()
+            name_part(key, payload.get(key))
             for key in keys
             if str(payload.get(key) or "").strip()
         )

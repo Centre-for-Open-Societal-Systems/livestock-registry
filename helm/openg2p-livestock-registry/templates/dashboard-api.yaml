@@ -38,7 +38,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: dashboard-api
     app.kubernetes.io/managed-by: {{ .Release.Service }}
-    helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | trunc 63 | trimSuffix "-" }}
+    helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimAll "-_." | quote }}
 spec:
   replicas: {{ .Values.dashboardApi.replicas }}
   selector:
@@ -53,9 +53,13 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: dashboard-api
     spec:
+      {{- with .Values.dashboardApi.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: dashboard-api
-          image: "{{ required "dashboardApi.image.repository is required when dashboardApi.enabled" $image.repository }}:{{ required "dashboardApi.image.tag is required when dashboardApi.enabled" $image.tag }}"
+          image: {{ include "coss.image" $image | quote }}
           imagePullPolicy: {{ $image.pullPolicy | default "IfNotPresent" }}
           {{/* The image's own CMD, with the worker count made configurable.
                Each worker holds its own asyncpg pool, so one replica uses at
@@ -104,6 +108,10 @@ spec:
             - name: {{ $name }}
               value: {{ tpl (toString $value) $ | quote }}
             {{- end }}
+          {{- with .Values.dashboardApi.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources: {{- toYaml .Values.dashboardApi.resources | nindent 12 }}
           {{/* /health runs SELECT 1, so readiness drops while the database is
                unreachable. Liveness only checks the port: a database outage

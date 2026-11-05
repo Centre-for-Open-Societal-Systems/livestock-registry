@@ -28,6 +28,8 @@ class G2PSchemaVitalEvent:
     offspring_count: Optional[int] = None
     offspring_ear_tag_prefix: Optional[str] = None
     offspring_gender: Optional[GenderEnum] = None
+    offspring_breed: Optional[str] = None
+    offspring_weight: Optional[float] = None
     offspring_generated: Optional[bool] = None
     offspring_ear_tags: Optional[str] = None
     reporting_officer: Optional[str] = None
@@ -42,7 +44,7 @@ class G2PRegisterSchemaVitalEvent(G2PRegisterBaseSchema, G2PSchemaVitalEvent):
     """
 
 
-class G2PRegisterHistorySchemaVitalEvent(G2PRegisterHistorySchema):
+class G2PRegisterHistorySchemaVitalEvent(G2PRegisterHistorySchema, G2PSchemaVitalEvent):
     """
     Schema for Vital Event history.
     Inherits fields from G2PRegisterHistorySchema.

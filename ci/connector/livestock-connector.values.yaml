@@ -1,0 +1,80 @@
+# User values of the New Dev livestock-connector release (namespace livestock),
+# applied with `helm upgrade --reset-values` by ci/connector/upgrade-livestock-connector.sh
+# (Jenkins NEW_DEV_DELIVERY_ACTION=connector-plan / connector-upgrade).
+# Taken from `helm get values livestock-connector` at revision 3 (2026-10-19),
+# plus the Farmer-reference receiver settings. No secret values: the database
+# password and the signing key come from existing Secrets.
+fullnameOverride: livestock-connector
+
+global:
+  hostname: connector-livestock-registry.development.oanstaging.com
+  postgresqlHost: commons-postgresql.commons.svc.cluster.local
+  postgresqlPort: 5432
+  redisHost: livestock-registry-redis-master
+  redisPort: 6379
+  partnerApiService: livestock-registry-partner-api
+  connectorDB: livestock_connector_livestock
+  connectorDBUser: livestock_livestock_connector_user
+  connectorDBSecret: livestock-connector
+  connectorDBUserPasswordKey: livestock-connector-db-user
+
+imagePullSecrets:
+  - name: ecr-pull-secret
+
+commonEnv:
+  CONNECTOR_CORS_ORIGINS: https://connector-livestock-registry.development.oanstaging.com
+
+# Farmer-reference receiver (WebSub topic oan.farmer-reference.changed.v1):
+# validate the mapped payload and sign the registry payload with the livestock
+# lookup key, whose public half Partner Management holds for
+# Live_stock_partner_internal. Same settings as the crop connector.
+extraEnv:
+  CONNECTOR_VALIDATE_MAPPED_PAYLOAD: "true"
+  CONNECTOR_SIGNING_KID: livestock-lookup-ed25519-d50109ec16dc9ab4
+extraEnvFrom:
+  CONNECTOR_SIGNING_KEY_PEM:
+    secretKeyRef:
+      name: livestock-farmer-lookup-signing-ed25519
+      key: private-key.pem
+      optional: false
+
+# Connector image: docker/registry-connector, built by livestock Jenkins (develop
+# build 167, commit 29b19aa, the first build whose connector reads the signing key from the chart's
+# environment when the admin secret store has none, and re-drives failed unsigned ingest runs).
+# It is OpenG2P's published registry connector plus the OAN extension (registry
+# payload signing, WebSub content envelope, admin-role access to the API). The
+# earlier stop-gap docker/connector-service image is retired.
+api:
+  image:
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector
+    tag: 29b19aa0b4e9
+    digest: sha256:138d7ec301963da9b75cd4111ec2a8f393f56a44165580f4ba38ddcf05fc3236
+    pullPolicy: IfNotPresent
+worker:
+  image:
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector
+    tag: 29b19aa0b4e9
+    digest: sha256:138d7ec301963da9b75cd4111ec2a8f393f56a44165580f4ba38ddcf05fc3236
+    pullPolicy: IfNotPresent
+beat:
+  image:
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector
+    tag: 29b19aa0b4e9
+    digest: sha256:138d7ec301963da9b75cd4111ec2a8f393f56a44165580f4ba38ddcf05fc3236
+    pullPolicy: IfNotPresent
+ui:
+  image:
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector-ui
+    tag: 29b19aa0b4e9
+    digest: sha256:9b49598c2f02c01a967cb5b2ec2be4ff43048261bf8de26b21f05439613b1fb0
+    pullPolicy: IfNotPresent
+
+istio:
+  virtualservice:
+    # The running VirtualService is bound to this gateway (helm get manifest, revision 3).
+    gateway: istio-system/development
+
+# The connector database and user exist since the first install (revision 1);
+# the chart's postgres-init would only re-run the init on upgrade.
+postgres-init:
+  enabled: false

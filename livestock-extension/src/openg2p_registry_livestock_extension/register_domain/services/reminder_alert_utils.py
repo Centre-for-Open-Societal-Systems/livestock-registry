@@ -35,6 +35,8 @@ from email.mime.text import MIMEText
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from .local_date import local_today
+
 _logger = logging.getLogger("g2p-reminder-alerts")
 
 _TRACKING_TABLE_DDL = """
@@ -166,4 +168,4 @@ def send_email(subject: str, body: str, recipients: list[str]) -> bool:
 
 
 def today() -> date:
-    return date.today()
+    return local_today()
