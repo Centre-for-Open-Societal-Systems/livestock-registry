@@ -22,7 +22,7 @@ pipeline {
     environment {
         AWS_REGION       = 'ap-south-1'
         ECR_PATH         = 'openg2p/livestock-registry'
-        DASHBOARD_UI_ECR = 'oan/livestock-registry/dashboard-ui'
+        DASHBOARD_UI_ECR = 'openg2p/livestock-registry/dashboard-ui'
         RP_VERSION       = '1.2.2-rc.614' // Same native platform as the immutable central profile
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'

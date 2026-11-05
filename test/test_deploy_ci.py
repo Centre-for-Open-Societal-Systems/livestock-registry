@@ -99,7 +99,7 @@ class DeployRollbackTests(unittest.TestCase):
     def run_deploy(self, **env):
         e = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ["PATH"], LOG=str(self.log),
                  KUBECONFIG="/nonexistent", ECR_REGISTRY="123456789012.dkr.ecr.ap-south-1.amazonaws.com",
-                 IMAGE_TAG="abcdef123456", BUILD_NUMBER="7", DASHBOARD_UI_ECR="oan/x", DASHBOARD_UI_SHA="deadbeefcafe",
+                 IMAGE_TAG="abcdef123456", BUILD_NUMBER="7", DASHBOARD_UI_ECR="openg2p/x", DASHBOARD_UI_SHA="deadbeefcafe",
                  HISTORY_JSON=DEPLOYED)
         e.update(env)
         out = base_out = Path(self.tmp.name) / "out.txt"
