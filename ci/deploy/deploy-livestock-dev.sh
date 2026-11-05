@@ -87,6 +87,19 @@ else
   echo "rollback target: none (no deployed revision found)"
 fi
 
+# The dashboard-api is the one image whose chart values carry a digest, and a digest
+# wins over the tag. The release's saved values (`--all` above) still hold the digest
+# of whatever was deployed before, so without this a new build keeps running the old
+# image. Take the digest from the chart being installed: the build packaged its own
+# image into it, and a deploy by hand gets the archive's pin (empty means the tag).
+DASHBOARD_API_DIGEST=$(helm show values "$CHART" | awk '
+  /^dashboardApi:/ { in_api = 1; next }
+  in_api && /^[^ #]/ { in_api = 0 }
+  in_api && /^  image:/ { in_image = 1; next }
+  in_image && /^  [^ ]/ { in_image = 0 }
+  in_image && /^    digest:/ { gsub(/["'"'"' ]/, "", $2); print $2; exit }')
+echo "dashboard-api image: ${IMAGE_TAG}${DASHBOARD_API_DIGEST:+@${DASHBOARD_API_DIGEST}}"
+
 IMAGE_SET_FLAGS=(
   --set "registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/staff-api"
   --set-string "registry.staffApi.image.tag=${IMAGE_TAG}"
@@ -105,6 +118,7 @@ IMAGE_SET_FLAGS=(
   --set dashboardApi.enabled=true
   --set "dashboardApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/dashboard-api"
   --set-string "dashboardApi.image.tag=${IMAGE_TAG}"
+  --set-string "dashboardApi.image.digest=${DASHBOARD_API_DIGEST}"
   --set reporting.views.enabled=true
 )
 
