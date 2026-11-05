@@ -26,7 +26,7 @@ pipeline {
         RP_VERSION       = '1.2.2-rc.614' // Same native platform as the immutable central profile
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
-        // Chart ownership: immutable COSS oan-helm profile in ci/deploy/oan-chart.json.
+        // Chart ownership: immutable OAN oan-helm profile in ci/deploy/oan-chart.json.
         // Staging stays blocked until separately rehearsed against its existing owner.
 
         // Dev cluster: namespace `livestock`, hosts on *.development.oanstaging.com,
@@ -76,7 +76,7 @@ pipeline {
 
         stage('Validate native metadata and notification mapping') {
             steps {
-                sh 'COSS_REFACTOR_TEST_IMAGE=oan/livestock-reference-tests:rc557 python3 ci/refactor/rehearse_metadata.py livestock --pipeline'
+                sh 'OAN_REFACTOR_TEST_IMAGE=oan/livestock-reference-tests:rc557 python3 ci/refactor/rehearse_metadata.py livestock --pipeline'
                 sh 'python3 ci/refactor/compare_new_dev.py livestock'
                 archiveArtifacts artifacts: 'ci-output/refactor/new-dev/seed-rehearsal.json,ci-output/refactor/new-dev/comparison.json,ci-output/refactor/NATIVE_NOTIFICATION_PIPELINE.json', allowEmptyArchive: false
             }

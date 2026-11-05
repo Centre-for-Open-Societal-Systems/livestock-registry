@@ -37,7 +37,7 @@ class AddOnlyMigrationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.url = os.environ["FARMER_TEST_DATABASE_URL"]
         self.assertTrue(self.url.startswith("postgresql+asyncpg://"))
-        self.schema = "coss_schema_test_" + uuid4().hex
+        self.schema = "oan_schema_test_" + uuid4().hex
         engine = create_async_engine(self.url)
         async with engine.begin() as conn:
             await conn.execute(text('CREATE SCHEMA "' + self.schema + '"'))
@@ -48,7 +48,7 @@ class AddOnlyMigrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         await self.engine.dispose()
-        assert re.fullmatch("coss_schema_test_[0-9a-f]{32}", self.schema)
+        assert re.fullmatch("oan_schema_test_[0-9a-f]{32}", self.schema)
         engine = create_async_engine(self.url)
         async with engine.begin() as conn:
             await conn.execute(text('DROP SCHEMA "' + self.schema + '" CASCADE'))
@@ -143,7 +143,7 @@ class AddOnlyMigrationTests(unittest.IsolatedAsyncioTestCase):
             cache_ok = True
 
             def get_col_spec(self, **kwargs):
-                return "COSS_UNSUPPORTED_TEST_TYPE"
+                return "OAN_UNSUPPORTED_TEST_TYPE"
 
         old = Table("atomic", MetaData(), Column("id", Integer, primary_key=True))
         async with self.engine.begin() as conn:

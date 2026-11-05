@@ -45,7 +45,7 @@ TABLES = [model.__table__ for model in (*ledger.REFERENCE_MODELS, Farmer, Native
 
 
 def sid(value):
-    return str(uuid5(NAMESPACE_URL, "https://coss-test.invalid/intake/" + value))
+    return str(uuid5(NAMESPACE_URL, "https://oan-test.invalid/intake/" + value))
 
 
 @unittest.skipUnless(os.environ.get("FARMER_TEST_DATABASE_URL"), "Requires isolated PostgreSQL; run ci/refactor/verify-onboarding")

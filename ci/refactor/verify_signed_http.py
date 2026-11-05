@@ -56,9 +56,9 @@ def main(domain):
     repo = Path(__file__).resolve().parents[2]
     evidence = repo / "ci-output/refactor/signed-http"
     evidence.mkdir(parents=True, exist_ok=True)
-    image = os.environ.get("COSS_REFACTOR_TEST_IMAGE", "registry-reference-tests")
+    image = os.environ.get("OAN_REFACTOR_TEST_IMAGE", "registry-reference-tests")
     owner = "signed-http-" + uuid.uuid4().hex
-    label = "coss-refactor.owner"
+    label = "oan-refactor.owner"
     owned = []
     simulation = None
     traffic = {"requests": 0, "methods": {}, "statuses": {}}
@@ -190,7 +190,7 @@ def main(domain):
                     simulation.wait(timeout=5)
         for ident in reversed(owned):
             try:
-                actual = run("docker", "inspect", ident, "--format", '{{.Id}} {{index .Config.Labels "coss-refactor.owner"}}')
+                actual = run("docker", "inspect", ident, "--format", '{{.Id}} {{index .Config.Labels "oan-refactor.owner"}}')
                 if actual != f"{ident} {owner}":
                     raise RuntimeError("Owned container identity/label mismatch; refusing removal")
                 run("docker", "rm", "--force", ident)

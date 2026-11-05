@@ -28,7 +28,7 @@ from openg2p_registry_core.models import IncomingRawDataPayload,IncomingClassifi
 from openg2p_registry_core.helpers import PatternMatcher,TemplateHelper
 models=importlib.import_module('openg2p_registry_extensions.register_domain.models')
 cfg=yaml.safe_load((repo/'integrations/farmer-reference/config.yaml').read_text(encoding='utf-8'))
-host=f'coss-refactor-metadata-{domain}-db'
+host=f'oan-refactor-metadata-{domain}-db'
 url=f'postgresql+psycopg2://postgres@{host}/refactor_metadata'
 engine=create_engine(url)
 identity={'farmer_id':'FR-000000000001','fayda_fan_id':'0000000000000001'}
