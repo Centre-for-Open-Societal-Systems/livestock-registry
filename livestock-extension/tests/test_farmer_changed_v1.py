@@ -1,4 +1,4 @@
-"""FARMER_CHANGED_V1 is seeded next to FARMER_REFERENCE_CHANGED_V1 and accepts both event types."""
+"""FARMER_CHANGED_V1 is seeded next to FARMER_REFERENCE_CHANGED_V1 and accepts both older event types; the final-name model accepts the new one."""
 import importlib
 import json
 import os
@@ -20,7 +20,7 @@ EVENT={'event_id':'synthetic-event','farmer_id':'FR-000000000001','fayda_fan_id'
 
 class FarmerChangedTests(unittest.TestCase):
     def test_both_event_types_are_accepted_and_others_are_not(self):
-        for event_type in ('farmer-registry.farmer.changed.v1','farmer_reference.changed.v1'):
+        for event_type in ('farmer-registry.farmer-profile.changed.v1','farmer-registry.farmer.changed.v1','farmer_reference.changed.v1'):
             with self.subTest(event_type=event_type):
                 self.assertEqual(notification.notification_identity({**EVENT,'event_type':event_type}),
                                  ('FR-000000000001','0000000000000001'))
@@ -36,6 +36,22 @@ class FarmerChangedTests(unittest.TestCase):
                 with self.subTest(pattern=pattern,event_type=event_type):
                     self.assertTrue(re.match(pattern,event_type))
             self.assertFalse(re.match(pattern,'farmer-registry.farmer.changed.v10'))
+
+    def test_the_final_name_model_is_seeded_with_its_own_pattern(self):
+        seed=(ROOT/'meta_data/registry-inbound-message-rules/zz_farmer_profile_changed_v1.sql').read_text(encoding='utf-8')
+        self.assertIn("'FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1'",seed)
+        patterns=set(re.findall(r"\$\.body\.message\.payload\.event_type=>(\^farmer[^']+)'",seed))
+        self.assertEqual(patterns,{'^farmer-registry[.]farmer-profile[.]changed[.]v1$'})
+        for pattern in patterns:
+            self.assertTrue(re.match(pattern,'farmer-registry.farmer-profile.changed.v1'))
+            for other in ('farmer-registry.farmer.changed.v1','farmer_reference.changed.v1','farmer-registry.farmer-profile.changed.v10'):
+                with self.subTest(other=other): self.assertFalse(re.match(pattern,other))
+        old_patterns=set(re.findall(r"\$\.body\.message\.payload\.event_type=>(\^\(farmer[^']+)'",SEED))
+        for pattern in old_patterns: self.assertFalse(re.match(pattern,'farmer-registry.farmer-profile.changed.v1'))
+        for name in set(re.findall(r"'([a-z0-9_]+\.j2)'",seed)):
+            self.assertTrue((ROOT/'templates'/name).is_file())
+        for enricher in set(re.findall(r"'([A-Za-z]+Enricher)'",seed)):
+            self.assertTrue(hasattr(enrichers,enricher))
 
     def test_seed_names_the_enricher_and_templates_that_exist(self):
         for enricher in set(re.findall(r"'([A-Za-z]+Enricher)'",SEED)):

@@ -1,4 +1,4 @@
-simulation: coss-farmer-reference
+simulation: oan-farmer-reference
 routing: path
 mocks:
   - routeKey: farmer

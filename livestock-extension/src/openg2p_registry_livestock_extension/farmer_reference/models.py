@@ -7,7 +7,7 @@ from openg2p_fastapi_common.models import BaseORMModel
 
 
 class FarmerReference(BaseORMModel):
-    __tablename__ = "coss_farmer_references"
+    __tablename__ = "g2p_farmer_references"
     __table_args__ = (
         UniqueConstraint("source_system", "source_record_id"),
         UniqueConstraint("source_system", "farmer_id"),
@@ -26,10 +26,10 @@ class FarmerReference(BaseORMModel):
 
 
 class FarmerReferenceRequest(BaseORMModel):
-    __tablename__ = "coss_farmer_reference_requests"
+    __tablename__ = "g2p_farmer_reference_requests"
     __table_args__ = (UniqueConstraint("reference_id", "source_version", "action"),)
     request_id: Mapped[str] = mapped_column(String, primary_key=True)
-    reference_id: Mapped[str] = mapped_column(ForeignKey("coss_farmer_references.reference_id"), nullable=False, index=True)
+    reference_id: Mapped[str] = mapped_column(ForeignKey("g2p_farmer_references.reference_id"), nullable=False, index=True)
     native_cr_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     source_version: Mapped[int] = mapped_column(BigInteger, nullable=False)
     action: Mapped[str] = mapped_column(String, nullable=False)
@@ -39,24 +39,24 @@ class FarmerReferenceRequest(BaseORMModel):
 
 
 class FarmerSubmissionDependency(BaseORMModel):
-    __tablename__ = "coss_farmer_submission_dependencies"
+    __tablename__ = "g2p_farmer_submission_dependencies"
     submission_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
-    reference_id: Mapped[str] = mapped_column(ForeignKey("coss_farmer_references.reference_id"), nullable=False, index=True)
-    farmer_request_id: Mapped[str | None] = mapped_column(ForeignKey("coss_farmer_reference_requests.request_id"), nullable=True)
+    reference_id: Mapped[str] = mapped_column(ForeignKey("g2p_farmer_references.reference_id"), nullable=False, index=True)
+    farmer_request_id: Mapped[str | None] = mapped_column(ForeignKey("g2p_farmer_reference_requests.request_id"), nullable=True)
     identity_binding: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class FarmerWorkflowOutbox(BaseORMModel):
-    __tablename__ = "coss_farmer_workflow_outbox"
+    __tablename__ = "g2p_farmer_reference_awe_outbox"
     native_cr_id: Mapped[str] = mapped_column(String, primary_key=True)
-    request_id: Mapped[str] = mapped_column(ForeignKey("coss_farmer_reference_requests.request_id"), nullable=False, unique=True)
+    request_id: Mapped[str] = mapped_column(ForeignKey("g2p_farmer_reference_requests.request_id"), nullable=False, unique=True)
     state: Mapped[str] = mapped_column(String, nullable=False, default="PENDING")
     attempts: Mapped[int] = mapped_column(nullable=False, default=0)
     last_error_code: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class FarmerPendingLookup(BaseORMModel):
-    __tablename__ = "coss_farmer_pending_lookups"
+    __tablename__ = "g2p_farmer_pending_lookups"
     submission_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True)
     identity_json: Mapped[dict] = mapped_column(JSON, nullable=False)
     state: Mapped[str] = mapped_column(String, nullable=False, default="PENDING", index=True)
@@ -68,7 +68,7 @@ class FarmerPendingLookup(BaseORMModel):
 
 class ApprovalBindingArchive(BaseORMModel):
     """Retired metadata snapshots; existing approval/task history stays native."""
-    __tablename__ = "coss_approval_binding_archive"
+    __tablename__ = "g2p_approval_binding_archive"
     binding_id: Mapped[str] = mapped_column(String, primary_key=True)
     content_hash: Mapped[str] = mapped_column(String(32), primary_key=True)
     original_binding: Mapped[dict] = mapped_column(JSON, nullable=False)

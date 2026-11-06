@@ -29,7 +29,7 @@ allowlist remain required. The profile adds only approved FIN. Notifications may
 carry FIN or the existing FAN contract; they still trigger current-source lookup,
 UPDATE CR and independent target approval, never demographic application.
 
-No-match/unavailable lookup saves `coss_farmer_pending_lookups` with the original
+No-match/unavailable lookup saves `g2p_farmer_pending_lookups` with the original
 identity, attempt count, next retry and diagnostic. A visible, server-owned intake
 status explains that linking is pending. Native business finalization/approval
 continues, but ingestion is held without an invented Farmer or consumed ingest

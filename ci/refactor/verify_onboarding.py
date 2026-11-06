@@ -29,7 +29,7 @@ def main(domain, *, build=False):
     steps = []
     module = f"openg2p_registry_{domain}_extension"
     mount = ["-v", f"{repo.as_posix()}:/work:ro", "-v", f"{probes.as_posix()}:/probe:ro"]
-    network = "coss-refactor-verify-" + domain
+    network = "oan-refactor-verify-" + domain
     database = network + "-db"
     database_host = database
     simulation = None
@@ -71,7 +71,7 @@ def main(domain, *, build=False):
         if existing.returncode == 0:
             raise RuntimeError("Owned test container name already exists; refusing to adopt it")
         test_container_names.append(container_name)
-        options = ["--name",container_name,"--label","coss-refactor.disposable=onboarding","--network", network if db else "none", "--entrypoint", "python", *mount,
+        options = ["--name",container_name,"--label","oan-refactor.disposable=onboarding","--network", network if db else "none", "--entrypoint", "python", *mount,
                    "-e", f"REGISTRY_EXTENSION_MODULE={module}", "-e", f"PYTHONPATH=/work/{domain}-extension/src"]
         if native_group:
             options += ["-e", "FARMER_NATIVE_GROUP=" + native_group]
@@ -94,10 +94,10 @@ def main(domain, *, build=False):
             role = "staff-api" if mode == "staff" else "partner-api" if mode == "partner" else "celery"
             run(f"native-{mode}-registration", ["docker", "run", "--rm", "--network", "none", "--entrypoint", "python",
                 *mount, f"openg2p/openg2p-registry-{role}:1.2.2-rc.614", "/probe/onboarding_probe.py", "/work", domain, mode])
-        run("create-network", ["docker", "network", "create", "--label", "coss-refactor.disposable=onboarding", network])
+        run("create-network", ["docker", "network", "create", "--label", "oan-refactor.disposable=onboarding", network])
         created_network = True
         run("create-database", ["docker", "run", "--detach", "--name", database, "--network", network,
-            "--label", "coss-refactor.disposable=onboarding", "-e", "POSTGRES_HOST_AUTH_METHOD=trust",
+            "--label", "oan-refactor.disposable=onboarding", "-e", "POSTGRES_HOST_AUTH_METHOD=trust",
             "-e", "POSTGRES_DB=refactor_tests", "postgres:15-alpine"])
         created_database = True
         for _ in range(30):

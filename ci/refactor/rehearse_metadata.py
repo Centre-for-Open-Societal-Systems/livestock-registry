@@ -21,7 +21,7 @@ def main(domain, pipeline=False):
     # Every bind-mounted writer uses the host identity; never chown shared
     # repository trees or alter the database container's native user.
     writer_user = ["--user", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []
-    network = "coss-refactor-metadata-" + domain
+    network = "oan-refactor-metadata-" + domain
     database = network + "-db"
     created_network = created_database = False
     network_id = database_id = None
@@ -35,16 +35,16 @@ def main(domain, pipeline=False):
         # database and network behind; the next build of the same registry would
         # then fail on "already exists". Builds of one registry never overlap, so
         # a same-name leftover carrying our label is safe to remove.
-        for kind, name, label in (("container", database, "{{index .Config.Labels \"coss-refactor.disposable\"}}"),
-                                  ("network", network, "{{index .Labels \"coss-refactor.disposable\"}}")):
+        for kind, name, label in (("container", database, "{{index .Config.Labels \"oan-refactor.disposable\"}}"),
+                                  ("network", network, "{{index .Labels \"oan-refactor.disposable\"}}")):
             found = subprocess.run(["docker",kind,"inspect","--format",label,name],capture_output=True,text=True)
             if found.returncode == 0 and found.stdout.strip() == "metadata":
                 run("docker","rm","--force","--volumes",name) if kind == "container" else run("docker","network","rm",name)
     remove_stale()
     try:
-        network_id = run("docker","network","create","--label","coss-refactor.disposable=metadata",network).stdout.strip()
+        network_id = run("docker","network","create","--label","oan-refactor.disposable=metadata",network).stdout.strip()
         created_network = True
-        database_id = run("docker","run","--detach","--memory=256m","--name",database,"--network",network,"--label","coss-refactor.disposable=metadata",
+        database_id = run("docker","run","--detach","--memory=256m","--name",database,"--network",network,"--label","oan-refactor.disposable=metadata",
             "-e","POSTGRES_HOST_AUTH_METHOD=trust","-e","POSTGRES_DB=refactor_metadata","postgres:15-alpine").stdout.strip()
         created_database = True
         for _ in range(40):
@@ -57,7 +57,7 @@ def main(domain, pipeline=False):
         def probe(mode):
             result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
                 "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
-                os.environ.get("COSS_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),"/probe/metadata_probe.py","/work",domain,mode)
+                os.environ.get("OAN_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),"/probe/metadata_probe.py","/work",domain,mode)
             print(result.stdout.splitlines()[-1],flush=True)
         probe("ddl")
         package = repo / f"{domain}-extension/src/openg2p_registry_{domain}_extension"
@@ -98,7 +98,7 @@ def main(domain, pipeline=False):
                 "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
                 "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
                 "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/{module_database}",
-                os.environ.get("COSS_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
+                os.environ.get("OAN_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
                 "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests/{test_module.name}",
                 f"--junitxml=/work/ci-output/refactor/new-dev/{report}")
             print(test_module.name + ": " + result.stdout.splitlines()[-1],flush=True)
@@ -177,12 +177,12 @@ def main(domain, pipeline=False):
             raise RuntimeError("Metadata rehearsal failed: SQL errors or non-identical repeated configuration; inspect seed-rehearsal.json")
     finally:
         if created_database:
-            owned = run("docker","inspect","--format",'{{.Id}} {{index .Config.Labels "coss-refactor.disposable"}}',database).stdout.strip()
+            owned = run("docker","inspect","--format",'{{.Id}} {{index .Config.Labels "oan-refactor.disposable"}}',database).stdout.strip()
             if owned != database_id + " metadata":
                 raise RuntimeError("Disposable database identity changed; refusing cleanup")
             run("docker","rm","--force","--volumes",database)
         if created_network:
-            owned = run("docker","network","inspect","--format",'{{.Id}} {{index .Labels "coss-refactor.disposable"}}',network).stdout.strip()
+            owned = run("docker","network","inspect","--format",'{{.Id}} {{index .Labels "oan-refactor.disposable"}}',network).stdout.strip()
             if owned != network_id + " metadata":
                 raise RuntimeError("Disposable network identity changed; refusing cleanup")
             run("docker","network","rm",network)

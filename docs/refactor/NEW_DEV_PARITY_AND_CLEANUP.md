@@ -39,9 +39,9 @@ new-dev/baseline-20261025; only target-pass-1/2 and seed-rehearsal are current.
 
 | Source/capability | Owning implementation | Decision/evidence |
 | --- | --- | --- |
-| Core Helm/dependency/reporting/auth | COSS oan-helm core chart 1.0.0-dev.10 | Exact commit ff16b7b7522d3e1e2c5cd0bf1b917ea69d195da9, archive SHA-256 in ci/deploy/oan-chart.json |
-| Dashboard release chart | COSS oan-helm addon 0.1.2 | Existing independent release names, IAM settings, human Dashboard Viewer and service charts:read retained |
-| Dashboard API/UI application | Existing independent COSS sources | Registry Jenkins still resolves source revisions, builds and pushes its existing ECR images |
+| Core Helm/dependency/reporting/auth | OAN oan-helm core chart 1.0.0-dev.10 | Exact commit ff16b7b7522d3e1e2c5cd0bf1b917ea69d195da9, archive SHA-256 in ci/deploy/oan-chart.json |
+| Dashboard release chart | OAN oan-helm addon 0.1.2 | Existing independent release names, IAM settings, human Dashboard Viewer and service charts:read retained |
+| Dashboard API/UI application | Existing independent OAN sources | Registry Jenkins still resolves source revisions, builds and pushes its existing ECR images |
 | Connector service/UI source | Independently operated integration dependency | Vendored source/build/update paths retired; runtime releases, images and checkpoints untouched |
 | Domain fields/forms/history/imports | Native extension metadata/models/services | Existing identifiers retained; full business/import/ODK acceptance still required |
 | Location | Registered schema widget + native Master Data | MDM develop.118 source/image provenance in central Helm; seeding disabled |
@@ -62,7 +62,7 @@ ECR paths, complete saved release values and preservation guards remain.
 Staging requires separate acceptance and cannot inherit dev authorization.
 
 The old method-patch enrichment log guard is replaced by validation of the
-registered extension's COSS_FARMER_* contract and required read-only Secret/files
+registered extension's REGISTRY_FARMER_REFERENCE_* contract and required read-only Secret/files
 on staff API, worker and beat. Six tests reject missing configuration, wrong
 namespace, query-secret URLs, private ConfigMap data and missing Secret keys.
 

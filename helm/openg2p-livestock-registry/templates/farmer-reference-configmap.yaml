@@ -3,7 +3,7 @@
 Farmer reference: Livestock resolves the Farmer named on an intake with a signed,
 consent-enforced DCI lookup of the Farmer registry and receives Farmer updates
 through outgestion (Kafka/WebSub) and its connector. The extension reads its
-configuration from COSS_FARMER_* and from files only: this ConfigMap carries the
+configuration from REGISTRY_FARMER_REFERENCE_* and from files only: this ConfigMap carries the
 two public ones, the server-owned record contract and the Farmer partner API's
 response-signing public key. The Livestock lookup key and the AWE client secret stay
 in Secrets. Mount all three read-only on the staff API, partner API, celery

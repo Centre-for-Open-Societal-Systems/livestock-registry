@@ -30,6 +30,6 @@ Do not rerender or replace the running Farmer stack from this worktree.
 
 See [New Dev parity and source ownership](docs/refactor/NEW_DEV_PARITY_AND_CLEANUP.md)
 for the verified 316 fields, registered schema/location widgets and preserved
-source cleanup. Helm lives in COSS oan-helm; this repository consumes exact
+source cleanup. Helm lives in OAN oan-helm; this repository consumes exact
 archives through [the central profile](ci/deploy/oan-chart.json). Deployment
 remains blocked until the explicit acceptance requirements pass.
