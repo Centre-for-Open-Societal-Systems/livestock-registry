@@ -1,0 +1,66 @@
+# Release values of the staging livestock-connector release (namespace live), applied by
+# ci/connector/upgrade-livestock-connector-staging.sh with `helm upgrade --atomic --reset-values`.
+# Taken from `helm get values livestock-connector` at revision 2 (2026-10-14); database, hosts, Secret
+# names and the ODK address are unchanged, plus the Farmer-reference receiver settings that the staging
+# definitions file needs. No secret values: the database password stays in the existing Secret
+# livestock-connector and the signing key in livestock-farmer-lookup-signing-ed25519. The images are not
+# here: the staging pipeline writes them, by digest, from the build of the registry it just promoted.
+fullnameOverride: livestock-connector
+
+global:
+  hostname: connector-livestock.oanstaging.com
+  postgresqlHost: commons-postgresql.commons.svc.cluster.local
+  postgresqlPort: 5432
+  redisHost: livestock-registry-redis-master
+  redisPort: 6379
+  partnerApiService: livestock-registry-partner-api
+  connectorDB: livestock_connector_live
+  connectorDBUser: live_livestock_connector_user
+  connectorDBSecret: livestock-connector
+  connectorDBUserPasswordKey: livestock-connector-db-user
+
+imagePullSecrets:
+  - name: ecr-pull-secret
+
+commonEnv:
+  CONNECTOR_CORS_ORIGINS: https://connector-livestock.oanstaging.com
+
+# Farmer-reference receiver (WebSub topic oan.farmer-reference.changed.v1): validate the mapped payload
+# and sign the registry payload with the staging livestock lookup key (kid as in the Secret's kid key).
+extraEnv:
+  CONNECTOR_ODK_CENTRAL_BASE_URL: https://odk-central.oanstaging.com
+  CONNECTOR_VALIDATE_MAPPED_PAYLOAD: "true"
+  CONNECTOR_SIGNING_KID: livestock-lookup-ed25519-9aff06b813c8ce29
+extraEnvFrom:
+  CONNECTOR_SIGNING_KEY_PEM:
+    secretKeyRef:
+      name: livestock-farmer-lookup-signing-ed25519
+      key: private-key.pem
+      optional: false
+
+api:
+  image:
+    pullPolicy: IfNotPresent
+worker:
+  image:
+    pullPolicy: IfNotPresent
+beat:
+  image:
+    pullPolicy: IfNotPresent
+ui:
+  image:
+    pullPolicy: IfNotPresent
+
+istio:
+  enabled: true
+  gateway:
+    create: false
+    name: internal
+  virtualservice:
+    enabled: true
+    gateway: internal
+
+# The connector database and user exist since the first install. With the init enabled, the chart's
+# pre-upgrade hooks would run again against the Secret that holds the database password.
+postgres-init:
+  enabled: false
