@@ -1,0 +1,74 @@
+[
+  {
+    "policy_key": "registry.change_request.livestock.woreda",
+    "name": "Livestock change request - Woreda approval",
+    "description": "One approval by a Woreda Approver",
+    "artifact_type": "registry.change_request",
+    "forbid_self_approval": false,
+    "forbid_repeat_approvers": false,
+    "stages": [
+      {
+        "name": "Woreda approval",
+        "stage_order": 1,
+        "mode": "any-n",
+        "mode_value": 1,
+        "on_empty": "block",
+        "rules": [
+          {
+            "rule_type": "role",
+            "rule_value": {
+              "role": "Woreda Approver",
+              "client": "livestock-registry-staff-portal"
+            },
+            "kind": "approver",
+            "required": false
+          },
+          {
+            "rule_type": "user",
+            "rule_value": {
+              "user_id": "admin"
+            },
+            "kind": "approver",
+            "required": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "policy_key": "registry.intake_form.livestock.woreda",
+    "name": "Livestock intake - Woreda approval",
+    "description": "One approval by a Woreda Approver",
+    "artifact_type": "registry.intake_form",
+    "forbid_self_approval": false,
+    "forbid_repeat_approvers": false,
+    "stages": [
+      {
+        "name": "Woreda approval",
+        "stage_order": 1,
+        "mode": "any-n",
+        "mode_value": 1,
+        "on_empty": "block",
+        "rules": [
+          {
+            "rule_type": "role",
+            "rule_value": {
+              "role": "Woreda Approver",
+              "client": "livestock-registry-staff-portal"
+            },
+            "kind": "approver",
+            "required": false
+          },
+          {
+            "rule_type": "user",
+            "rule_value": {
+              "user_id": "admin"
+            },
+            "kind": "approver",
+            "required": false
+          }
+        ]
+      }
+    ]
+  }
+]

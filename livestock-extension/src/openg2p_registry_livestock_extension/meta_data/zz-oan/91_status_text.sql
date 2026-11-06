@@ -25,6 +25,8 @@ SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb) |
  "registry.change_request.livestock-farmer.default": "Farmer reference change",
  "registry.change_request.livestock-farmer.verified-update-skips-review": "Farmer reference change (verified)",
  "registry.intake_form.livestock.default": "Livestock intake",
+ "registry.change_request.livestock.woreda": "Livestock change",
+ "registry.intake_form.livestock.woreda": "Livestock intake",
  "registry.change_request": "Change request",
  "registry.intake_form": "Intake form"
 }'::jsonb)::json

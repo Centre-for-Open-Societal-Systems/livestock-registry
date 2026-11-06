@@ -12,9 +12,9 @@ ON CONFLICT (binding_id,content_hash) DO NOTHING;
 UPDATE "public".g2p_registry_awe_policy_configurations c
 SET policy_key=m.policy_key,context_field_names=NULL
 FROM (VALUES
-('997676d3-7008-59f9-b23e-613ad79bbb08','change_request','registry.change_request.livestock.default'),
+('997676d3-7008-59f9-b23e-613ad79bbb08','change_request','registry.change_request.livestock.woreda'),
 ('f9c6a359-9563-5a43-b0fe-6c7e452037a3','change_request','registry.change_request.livestock-farmer.default'),
-('997676d3-7008-59f9-b23e-613ad79bbb08','intake_form','registry.intake_form.livestock.default')) m(register_id,artifact,policy_key)
+('997676d3-7008-59f9-b23e-613ad79bbb08','intake_form','registry.intake_form.livestock.woreda')) m(register_id,artifact,policy_key)
 WHERE c.awe_policy_config_id <> '34eb8fb7-66ed-5c3c-b3a3-cebae5028b64' AND c.register_id=m.register_id AND regexp_replace(c.policy_type,'^registry[.]','')=m.artifact
   AND (c.policy_key IS DISTINCT FROM m.policy_key OR c.context_field_names IS NOT NULL);
 

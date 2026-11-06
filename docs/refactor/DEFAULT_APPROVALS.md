@@ -43,6 +43,25 @@ and complete row values remain in the archive for restoration through native
 administration. Existing AWE policy/task rows are unchanged. No geographic IAM
 or data-policy assignment is removed.
 
+## Woreda approval
+
+Livestock intake and change requests follow one level of approval: the field
+officer submits and a Woreda Approver approves. The bindings name
+`registry.intake_form.livestock.woreda` and
+`registry.change_request.livestock.woreda`, seeded by
+`awe_meta_data/70_woreda_approval.sql` and mirrored in
+`configuration/woreda-awe-policies.json`. Each has one stage, completed by one
+decision from any holder of the `Woreda Approver` client role of
+`livestock-registry-staff-portal`, or from `admin`.
+
+Giving an officer the role adds an approver; no seed or code change is needed.
+The workflow engine reads the role when the stage starts, so its Keycloak client
+`awe-admin-resolver` needs `view-users` and `view-clients` in every environment.
+The record's place is not considered: every holder of the role gets the task.
+Routing by the record's woreda stays deferred, and the Farmer-reference policies
+keep the two default stages. The `.default` policies stay seeded, so tasks already
+open on them finish there.
+
 ## No approval outside a task
 
 Core also exposes two staff calls that apply a change on one user's say-so,

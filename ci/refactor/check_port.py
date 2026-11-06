@@ -79,8 +79,11 @@ def verify(repo: Path, domain: str) -> dict:
         # 60_verified_update_skips_review.sql is the optional Farmer-reference policy that
         # skips review for verified UPDATEs; no binding uses it by default
         # (reviewed: test/test_verified_update_policy.py).
+        # 70_woreda_approval.sql holds the Woreda approval policies the bindings name
+        # (reviewed: test/test_woreda_approval_policy.py).
         supported = {"10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql", "40_callback_secret.sql.tpl",
-                     "50_either_officer_or_admin.sql", "60_verified_update_skips_review.sql"}
+                     "50_either_officer_or_admin.sql", "60_verified_update_skips_review.sql",
+                     "70_woreda_approval.sql"}
         files = {path.name for path in awe.iterdir() if path.is_file()}
         if files != supported:
             errors.append("Unreviewed or legacy approval seed files remain")
