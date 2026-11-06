@@ -140,12 +140,12 @@ def message_text(node):
 class ReadableTextTests(unittest.TestCase):
     def test_no_label_option_placeholder_or_message_is_a_code(self):
         bad = sorted({(where, key, text) for where, key, text in visible_texts()
-                      if looks_like_code(text) and not text.startswith("coss_")})
+                      if looks_like_code(text) and not text.startswith("validation_")})
         self.assertEqual([], bad)
 
     def test_translated_messages_have_no_keys(self):
         bad = {k: v for k, v in translations().items()
-               if k.startswith(("coss_", "ls_")) and isinstance(v, str) and looks_like_code(v)}
+               if k.startswith(("validation_", "ls_")) and isinstance(v, str) and looks_like_code(v)}
         self.assertEqual({}, bad)
 
     def test_overlay_runs_after_the_other_text_overlays(self):

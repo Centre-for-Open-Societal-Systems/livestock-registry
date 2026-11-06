@@ -32,6 +32,10 @@ class Initializer(BaseInitializer):
 
     def migrate_database(self, args):
         async def migrate():
+            # The Farmer-reference tables take their new names first, so native
+            # table creation below finds them instead of creating empty ones.
+            from .schema_migration import rename_legacy_tables
+            await rename_legacy_tables(dbengine.get())
             # Native table creation followed by add-only mapped columns.
             # Existing types/constraints/data are never altered or dropped.
             for name in MODEL_NAMES:

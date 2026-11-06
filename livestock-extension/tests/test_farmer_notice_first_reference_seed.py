@@ -27,7 +27,7 @@ def test_form_holds_only_the_farmer_identity_section():
     assert f"'{FARMER}','{SECTION}','{FARMER}'" in seed("register-metadata").replace("\n", "")
 
 
-def test_both_notice_patterns_match_the_form_for_add_and_keep_their_update_section():
+def test_every_notice_pattern_matches_the_form_for_add_and_keep_their_update_section():
     update = re.search(r"UPDATE \"public\".\"incoming_model_semantic_patterns\"\nSET (.*?)\nWHERE \"semantic_pattern_id\" IN \((.*?)\);", SQL, re.S)
     assert update
     assignments, ids = update.groups()
@@ -37,7 +37,7 @@ def test_both_notice_patterns_match_the_form_for_add_and_keep_their_update_secti
     assert "section_id" not in assignments and "pattern_for_section" not in assignments
     inbound = seed("registry-inbound-message-rules")
     patterns = re.findall(r"'([^']+)'", ids)
-    assert len(patterns) == 2
+    assert len(patterns) == 3  # the readable name, the final name and the original model
     for pattern_id in patterns:
         assert f"'{pattern_id}'" in inbound
         assert re.search(rf"'{pattern_id}','[^']+','{FARMER}',NULL,'{SECTION}'", inbound)

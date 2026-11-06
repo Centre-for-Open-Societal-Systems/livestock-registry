@@ -49,7 +49,7 @@ def test_loader_signs_in_like_the_portal_and_never_writes_to_the_database():
     assert "readonly=True" in code
     assert "backfill_functional_ids" not in code and "ensure_farmer" not in code and "def link" not in code
     # The Farmer reference is only read, and no Farmer ID is invented or read from the pack.
-    assert "FROM coss_farmer_references" in code
+    assert "FROM g2p_farmer_references" in code
     assert "farmer_ids.json" not in code and not re.search(r"FR-\d", source)
     for required in ("/auth/start_authentication_transaction", "kc-form-login", "/auth/callback",
                      "/intake-form-data/finalize_intake_form_submission", "/awe/submit_task_decision",
@@ -271,7 +271,7 @@ class ReadOnlyRegistry:
 
     def rows(self, sql, params=()):
         self.statements.append((" ".join(sql.split()), params))
-        if "FROM coss_farmer_references" in sql:
+        if "FROM g2p_farmer_references" in sql:
             return self.references
         return [self.copy] if self.copy else []
 
@@ -316,7 +316,8 @@ def test_gender_is_compared_by_its_first_letter_and_a_date_by_its_day(loader):
 
 def test_the_reference_is_looked_up_in_the_configured_farmer_source_only(loader, monkeypatch):
     monkeypatch.delenv("FARMER_REFERENCE_SOURCE_SYSTEM", raising=False)
-    monkeypatch.setenv("COSS_FARMER_SOURCE_ID", "farmer-source")
+    monkeypatch.delenv("COSS_FARMER_SOURCE_ID", raising=False)
+    monkeypatch.setenv("REGISTRY_FARMER_REFERENCE_SOURCE_ID", "farmer-source")
     registry = ReadOnlyRegistry(loader, [("ref-1", "FR-209610506580", "local-1", "APPROVED", "src-1")],
                                 copy=("1984-08-06", "MALE"))
     registry.farmer_reference("502628318720", "1984-08-06", "MALE", "ETH-IND-0001")
@@ -325,9 +326,20 @@ def test_the_reference_is_looked_up_in_the_configured_farmer_source_only(loader,
     assert "ORDER BY (state = 'APPROVED') DESC" in sql
 
 
+def test_the_old_source_variable_name_still_selects_the_farmer_source(loader, monkeypatch):
+    monkeypatch.delenv("FARMER_REFERENCE_SOURCE_SYSTEM", raising=False)
+    monkeypatch.delenv("REGISTRY_FARMER_REFERENCE_SOURCE_ID", raising=False)
+    monkeypatch.setenv("COSS_FARMER_SOURCE_ID", "old-farmer-source")
+    registry = ReadOnlyRegistry(loader, [("ref-1", "FR-209610506580", "local-1", "APPROVED", "src-1")],
+                                copy=("1984-08-06", "MALE"))
+    registry.farmer_reference("502628318720", "1984-08-06", "MALE", "ETH-IND-0001")
+    assert registry.statements[0][1] == ("502628318720", "old-farmer-source")
+
+
 def test_a_reference_an_earlier_loader_wrote_is_not_a_farmer_reference(loader, monkeypatch):
     monkeypatch.delenv("FARMER_REFERENCE_SOURCE_SYSTEM", raising=False)
     monkeypatch.delenv("COSS_FARMER_SOURCE_ID", raising=False)
+    monkeypatch.delenv("REGISTRY_FARMER_REFERENCE_SOURCE_ID", raising=False)
     stale = ("ref-old", "FR-STALE", "local-old", "APPROVED", "ETH-IND-0001")  # source record id = the individual
     with pytest.raises(loader.ReferencePending, match="earlier sample loader"):
         ReadOnlyRegistry(loader, [stale]).farmer_reference("502628318720", None, None, "ETH-IND-0001")

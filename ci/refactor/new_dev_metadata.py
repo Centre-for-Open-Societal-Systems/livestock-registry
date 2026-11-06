@@ -103,7 +103,7 @@ class Reader:
     def read(self, path, payload, *, page=1, size=100):
         if not re.fullmatch(r"/(?:register-metadata|register-section-metadata|register-tab-metadata|intake-form-metadata|data-model|registry-language|registry-theme|ingestion-config|outgestion-config)/get_[a-z_]+",path) and path != "/register-data/get_schema_definition_for_register_section":
             raise RuntimeError("Only registry metadata reads are allowed")
-        body = {"request_header":{"sender_app_mnemonic":"COSS_REFACTOR_AUDIT", "sender_app_url":self.ui,
+        body = {"request_header":{"sender_app_mnemonic":"OAN_METADATA_AUDIT", "sender_app_url":self.ui,
             "request_id":str(uuid4()),"request_timestamp":datetime.now(timezone.utc).isoformat()},
             "request_body":{"request_payload":payload,"pagination_request":{"current_page":page,"page_size":size}}}
         headers = {"Content-Type":"application/json", "Origin":self.ui, "Referer":self.ui + "/"}

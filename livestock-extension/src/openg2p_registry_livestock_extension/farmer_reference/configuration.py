@@ -1,16 +1,41 @@
 """Deployment configuration; private material is read only from mounted files."""
 from dataclasses import fields
 import json
+import logging
 import os
 from pathlib import Path
 
 from .lookup import FarmerLookup, LookupConfig, RecordContract
 from .profile import FarmerReferenceError, SOURCE_TO_LOCAL_FIELDS
 
+_logger = logging.getLogger("oan-farmer-reference-configuration")
+_SETTING_PREFIX = "REGISTRY_FARMER_REFERENCE_"
+_LEGACY_SETTING_PREFIX = "COSS_FARMER_"
+_legacy_names_warned = set()
+
+
+def setting(name, default=None):
+    """The one place the Farmer-reference environment variables are read.
+
+    REGISTRY_FARMER_REFERENCE_<NAME> wins. COSS_FARMER_<NAME> is still read for
+    one release so a running deployment keeps working until its values switch;
+    the first use of an old name in a process logs one warning.
+    """
+    value = os.environ.get(_SETTING_PREFIX + name)
+    if value:
+        return value
+    legacy = os.environ.get(_LEGACY_SETTING_PREFIX + name)
+    if legacy:
+        if name not in _legacy_names_warned:
+            _legacy_names_warned.add(name)
+            _logger.warning("%s%s is deprecated; set %s%s instead", _LEGACY_SETTING_PREFIX, name, _SETTING_PREFIX, name)
+        return legacy
+    return default
+
 
 def configured_lookup():
     def required(name):
-        value = os.environ.get("COSS_FARMER_" + name, "").strip()
+        value = setting(name, "").strip()
         if not value:
             raise FarmerReferenceError("FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED")
         return value
@@ -30,8 +55,8 @@ def configured_lookup():
             source_kid=required("SOURCE_KID"), consent_audience=required("CONSENT_AUDIENCE"),
             consent_controller=required("CONSENT_CONTROLLER"), consent_purpose=required("CONSENT_PURPOSE"),
             consent_scopes=tuple(value.strip() for value in required("CONSENT_SCOPES").split(",") if value.strip()),
-            algorithm=os.environ.get("COSS_FARMER_SIGNING_ALGORITHM", "RS256"),
-            source_algorithm=os.environ.get("COSS_FARMER_SOURCE_ALGORITHM", "RS256"))
+            algorithm=setting("SIGNING_ALGORITHM", "RS256"),
+            source_algorithm=setting("SOURCE_ALGORITHM", "RS256"))
         return FarmerLookup(config, contract)
     except (OSError, ValueError, TypeError, AttributeError):
         raise FarmerReferenceError("FARMER_REFERENCE_LOOKUP_CONFIGURATION_REQUIRED") from None

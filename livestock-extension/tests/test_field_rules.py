@@ -32,7 +32,7 @@ def test_person_names_accept_letters_scripts_and_supported_punctuation(value):
 def test_person_names_refuse_digits_symbols_nontext_and_overlong_values(value):
     problems = rules.clean_records([{"farmer_name": value}])
     assert len(problems) == 1
-    assert problems[0].key == "coss_field_name_format"
+    assert problems[0].key == "validation_rule_name_format"
     assert "Farmer Name:" in rules.explain(problems[0]) and "Remove" in rules.explain(
         problems[0]
     )
@@ -45,7 +45,7 @@ def test_amharic_name_field_is_ethiopic_and_other_language_names_remain_open():
     )
     assert (
         rules.clean_records([{"first_name_amh": "Abebe"}])[0].key
-        == "coss_field_amharic_name_format"
+        == "validation_rule_amharic_name_format"
     )
     assert rules.clean_records([{"first_name_amh": "አበበ፲"}])
 
@@ -73,7 +73,7 @@ def test_date_blanks_today_date_objects_legacy_display_dates_and_future_rules():
         rules.clean_records(
             [{"date_of_birth": (local_today() + timedelta(days=1)).isoformat()}]
         )[0].key
-        == "coss_field_date_future"
+        == "validation_rule_date_future"
     )
 
 
@@ -120,11 +120,11 @@ def test_native_deleted_rows_do_not_revalidate_removed_values():
 
 
 def test_translation_metadata_can_reword_the_explained_error():
-    issue = rules.Issue("farmer_name", "coss_field_name_format")
+    issue = rules.Issue("farmer_name", "validation_rule_name_format")
     assert (
         rules.explain(
             issue,
-            {"farmer_name": "Person", "coss_field_name_format": "{label}: correction"},
+            {"farmer_name": "Person", "validation_rule_name_format": "{label}: correction"},
         )
         == "Person: correction"
     )
@@ -224,7 +224,7 @@ def test_table_field_errors_identify_the_row_without_repeating_personal_values()
 def test_identity_section_needs_the_farmer_id_and_one_fayda_id():
     empty = {"farmer_id": " ", "fayda_fin": None, "fayda_fan_id": ""}
     keys = sorted(problem.key for problem in rules.clean_records([empty]))
-    assert keys == ["coss_field_farmer_id_required", "coss_field_fayda_one_of"]
+    assert keys == ["validation_rule_farmer_id_required", "validation_rule_fayda_one_of"]
     for problem in rules.clean_records([dict(empty)]):
         assert rules.explain(problem).startswith(("Farmer ID:", "Fayda ID:"))
     for fayda in ({"fayda_fin": "001234567890"}, {"fayda_fan_id": "0000000000000001"}):
@@ -258,7 +258,7 @@ def test_farmer_lookup_stores_the_one_fayda_id_as_fan_or_fin_by_length(typed, fa
 def test_farmer_lookup_refuses_a_fayda_id_that_is_neither_fan_nor_fin(typed):
     record = {"farmer_id": "FR-000000000001", "fayda_id": typed}
     problems = rules.clean_records([record])
-    assert [problem.key for problem in problems] == ["coss_field_fayda_id_format"]
+    assert [problem.key for problem in problems] == ["validation_rule_fayda_id_format"]
     message = rules.explain(problems[0])
     assert message == "Fayda ID (FAN or FIN): enter the 16-digit FAN or the 12-digit FIN, digits only."
     assert "fayda_fan_id" not in record and "fayda_fin" not in record
@@ -266,7 +266,7 @@ def test_farmer_lookup_refuses_a_fayda_id_that_is_neither_fan_nor_fin(typed):
 
 def test_farmer_lookup_needs_both_fields_and_says_so_in_plain_words():
     problems = rules.clean_records([{"farmer_id": " ", "fayda_id": ""}])
-    assert sorted(problem.key for problem in problems) == ["coss_field_farmer_id_required", "coss_field_fayda_one_of"]
+    assert sorted(problem.key for problem in problems) == ["validation_rule_farmer_id_required", "validation_rule_fayda_one_of"]
     for problem in problems:
         message = rules.explain(problem)
         assert "_" not in message and "Verify" not in message

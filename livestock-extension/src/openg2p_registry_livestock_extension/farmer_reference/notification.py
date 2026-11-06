@@ -3,9 +3,11 @@ from .profile import FarmerReferenceError, reference_identity, intake_identity
 
 EVENT_TYPE = "farmer_reference.changed.v1"
 # The Farmer registry's readable name for the same notice (topic and event type,
-# data model FARMER_CHANGED_V1). Both are accepted while senders move over.
+# data model FARMER_CHANGED_V1), and its final name (data model
+# FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1). All three are accepted while senders move over.
 FARMER_CHANGED_EVENT_TYPE = "farmer-registry.farmer.changed.v1"
-EVENT_TYPES = frozenset({EVENT_TYPE, FARMER_CHANGED_EVENT_TYPE})
+FARMER_PROFILE_CHANGED_EVENT_TYPE = "farmer-registry.farmer-profile.changed.v1"
+EVENT_TYPES = frozenset({EVENT_TYPE, FARMER_CHANGED_EVENT_TYPE, FARMER_PROFILE_CHANGED_EVENT_TYPE})
 EVENT_FIELDS = frozenset({"event_id", "event_type", "farmer_id", "fayda_fan_id", "fayda_fin"})
 REQUIRED_EVENT_FIELDS = frozenset({"event_id", "event_type", "farmer_id"})
 

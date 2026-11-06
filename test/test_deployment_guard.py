@@ -33,6 +33,14 @@ class DeploymentGuardTests(unittest.TestCase):
         self.assertEqual(len(result['deployments']),3)
         self.assertTrue(result['liveSecretsChecked'])
 
+    def test_old_setting_names_are_still_accepted(self):
+        for item in self.items:
+            for entry in item['spec']['template']['spec']['containers'][0]['env']:
+                entry['name']=guard.LEGACY_PREFIX+entry['name'][len(guard.PREFIX):]
+        data={name:base64.b64encode(b'non-secret-test-fixture').decode() for name in guard.FILES}
+        result=guard.check(self.items,'registry','verification',lambda ns,name:{'metadata':{'namespace':ns},'data':data})
+        self.assertEqual(len(result['deployments']),3)
+
     def test_missing_worker_configuration_is_rejected(self):
         self.items[1]['spec']['template']['spec']['containers'][0]['env'].pop()
         with self.assertRaisesRegex(AssertionError,'setting missing'): guard.check(self.items,'registry','verification')
