@@ -15,7 +15,7 @@ from unittest import mock
 
 PACKAGE_NAME = "openg2p_registry_livestock_extension"
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / PACKAGE_NAME
-OWN = ['registry.change_request.livestock.default','registry.change_request.livestock-farmer.default','registry.intake_form.livestock.default']
+OWN = ['registry.change_request.livestock.woreda','registry.intake_form.livestock.woreda','registry.change_request.livestock.default','registry.change_request.livestock-farmer.default','registry.intake_form.livestock.default']
 FOREIGN = ['registry.change_request.farmer','registry.change_request.household.default','registry.intake_form.farmer.default','registry.intake_form.household','registry.change_request.cropsown.default','registry.change_request.cropsown-farmer.default','registry.intake_form.cropsown.default']
 
 

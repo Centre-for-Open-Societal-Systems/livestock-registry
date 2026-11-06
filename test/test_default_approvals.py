@@ -28,7 +28,8 @@ def test_seeds_match_the_declared_policies_and_move_older_databases_in_place():
     seeds = package / "awe_meta_data"
     assert sorted(p.name for p in seeds.iterdir() if p.is_file()) == [
         "10_approval_policy.sql", "20_approval_stage.sql", "30_approver_rule.sql",
-        "40_callback_secret.sql.tpl", "50_either_officer_or_admin.sql", "60_verified_update_skips_review.sql"]
+        "40_callback_secret.sql.tpl", "50_either_officer_or_admin.sql", "60_verified_update_skips_review.sql",
+        "70_woreda_approval.sql"]
     stage_sql = (seeds / "20_approval_stage.sql").read_text()
     rule_sql = (seeds / "30_approver_rule.sql").read_text()
     assert "Officers" not in stage_sql and stage_sql.count("'First approval'") == stage_sql.count("'Second approval'") == 3

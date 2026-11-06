@@ -38,6 +38,8 @@ def test_task_context_values_have_display_text():
     assert texts["registry.change_request.livestock-farmer.default"] == "Farmer reference change"
     assert texts["registry.change_request.livestock-farmer.verified-update-skips-review"] == "Farmer reference change (verified)"
     assert texts["registry.intake_form.livestock.default"] == "Livestock intake"
+    assert texts["registry.change_request.livestock.woreda"] == "Livestock change"
+    assert texts["registry.intake_form.livestock.woreda"] == "Livestock intake"
     assert texts["registry.change_request"] == "Change request" and texts["registry.intake_form"] == "Intake form"
     assert texts["ls_farmer_identity"] == "Farmer identity" and texts["UPDATE"] == "Update"
 
