@@ -1,0 +1,48 @@
+# The connector-definitions hook Job (ci/connector/chart/templates/definitions-job.yaml) mints a
+# Keycloak client-credentials token for the admin-only connector API. It reads the client secret from
+# Secret commons/registry-connector with its own ServiceAccount, <release>-definitions. Grant that
+# ServiceAccount get on exactly that one Secret. Apply once as cluster admin, on the cluster you are
+# deploying to; each document names the namespace of the release it is for.
+#
+#   New Dev:  namespace livestock, release livestock-connector
+#   staging:  namespace live,      release livestock-connector
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: connector-definitions-read-client-secret
+  namespace: commons
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["registry-connector"]
+    verbs: ["get"]
+---
+# New Dev
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: livestock-connector-definitions-client-secret
+  namespace: commons
+subjects:
+  - kind: ServiceAccount
+    name: livestock-connector-definitions
+    namespace: livestock
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: connector-definitions-read-client-secret
+---
+# staging (apply instead of the New Dev binding)
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: livestock-connector-definitions-client-secret
+#   namespace: commons
+# subjects:
+#   - kind: ServiceAccount
+#     name: livestock-connector-definitions
+#     namespace: live
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: Role
+#   name: connector-definitions-read-client-secret

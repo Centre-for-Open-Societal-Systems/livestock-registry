@@ -19,6 +19,10 @@
 # PLAN_ONLY=1 (Jenkins connector-plan) stops after step 3: it changes nothing,
 # needs no backup key, and prints the manifest diff and the dry-run result.
 #
+# Connector definitions (rows of connector_definitions) are declared in
+# ci/connector/definitions.newdev.yaml and applied by the chart's post-upgrade hook Job through the
+# connector API, which also subscribes the WebSub receivers; the upgrade fails if the Job fails.
+#
 # Env: KUBECONFIG (livestock-dev-kubeconfig), BACKUP_SSH_KEY (farmer-new-dev-backup-ssh,
 # not needed with PLAN_ONLY=1).
 set -euo pipefail
@@ -34,6 +38,7 @@ NAMESPACE=livestock
 RELEASE=livestock-connector
 CHART=ci/connector/chart
 VALUES=ci/connector/livestock-connector.values.yaml
+DEFINITIONS=ci/connector/definitions.newdev.yaml
 CONNECTOR_DB="${CONNECTOR_DB:-livestock_connector_livestock}"
 BACKUP_HOST=ubuntu@13.201.58.55
 BACKUP_DIR=/var/backups/oan/livestock
@@ -68,13 +73,13 @@ if ! rbac_out=$(kubectl auth can-i get secret/registry-connector -n commons 2>&1
 fi
 
 plan() {
-  helm lint "$CHART" -f "$VALUES"
+  helm lint "$CHART" -f "$VALUES" -f "$DEFINITIONS"
   helm get manifest "$RELEASE" -n "$NAMESPACE" > "$STATE/current.yaml"
-  helm template "$RELEASE" "$CHART" -n "$NAMESPACE" -f "$VALUES" > "$STATE/target.yaml"
+  helm template "$RELEASE" "$CHART" -n "$NAMESPACE" -f "$VALUES" -f "$DEFINITIONS" > "$STATE/target.yaml"
   echo "=== manifest diff (running release -> git) ==="
   diff -u "$STATE/current.yaml" "$STATE/target.yaml" || true
   echo "=== end of diff ==="
-  helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values -f "$VALUES" --dry-run=server > /dev/null
+  helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values -f "$VALUES" -f "$DEFINITIONS" --dry-run=server > /dev/null
   echo "Server-side dry run passed."
 }
 if [[ "$PLAN_ONLY" == 1 ]]; then
@@ -162,7 +167,7 @@ echo "Archived $CONNECTOR_DB to $BACKUP_HOST:$BACKUP_DIR/$STAMP-connector-*"
 plan
 
 # 4. Upgrade.
-helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values -f "$VALUES" --wait --timeout 10m
+helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" --reset-values -f "$VALUES" -f "$DEFINITIONS" --wait --timeout 10m
 for d in api worker beat ui; do
   kubectl rollout status -n "$NAMESPACE" "deployment/$RELEASE-$d" --timeout=300s
 done

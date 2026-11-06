@@ -1,0 +1,56 @@
+{{- /*
+Resources the definitions Job needs before it runs, kept as ordinary release resources:
+
+* the Job's ServiceAccount (read of the Keycloak client secret is granted separately, in ci/k8s,
+  because it is a Role in another namespace);
+* a WebSub hub secret for every definition whose webhook_secret_from has generate: true and whose
+  Secret does not exist yet. A Secret that exists and is not owned by this release is left alone; one
+  this release created is rendered again with its stored value, so the secret never rotates.
+*/ -}}
+{{- $cd := .Values.connectorDefinitions }}
+{{- if $cd.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "openg2p-connector.fullname" . }}-definitions
+  labels:
+    {{- include "openg2p-connector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: definitions
+{{- $seen := dict }}
+{{- range $d := $cd.definitions }}
+{{- with $d.webhook_secret_from }}
+{{- if and .generate (not (hasKey $seen .secret)) }}
+{{- $_ := set $seen .secret true }}
+{{- $name := .secret }}
+{{- $key := .key }}
+{{- $existing := lookup "v1" "Secret" $.Release.Namespace $name }}
+{{- $owned := false }}
+{{- if $existing }}
+{{- $owned = eq (index ($existing.metadata.annotations | default dict) "meta.helm.sh/release-name") $.Release.Name }}
+{{- end }}
+{{- if or (not $existing) $owned }}
+{{- $value := "" }}
+{{- if $existing }}
+{{- $value = index ($existing.data | default dict) $key | default "" }}
+{{- end }}
+{{- if not $value }}
+{{- $value = randAlphaNum 48 | b64enc }}
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "openg2p-connector.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: definitions
+  annotations:
+    helm.sh/resource-policy: keep
+type: Opaque
+data:
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
