@@ -438,12 +438,18 @@ class PipelineWiringTests(unittest.TestCase):
         chart = (ROOT / "helm/openg2p-livestock-registry/Chart.yaml").read_text(encoding="utf-8")
         self.assertIn("version: 0.0.0\n", chart)
 
-    def test_the_parameter_description_is_a_valid_single_quoted_string(self):
+    def test_the_develop_pipeline_has_no_build_parameters(self):
+        # A merge deploys with no Build with Parameters; operator actions live in ci/pipelines/operator.groovy.
+        self.assertNotIn("parameters {", self.text)
+        self.assertNotIn("params.", self.text)
+
+    def test_the_operator_parameter_description_is_a_valid_single_quoted_string(self):
         # build #174 died compiling the Jenkinsfile: an apostrophe ("build's") ended the single-quoted literal early.
-        start = self.text.index("description: '") + len("description: '")
-        end = self.text.index("')\n    }\n    // Validation and image builds")
-        self.assertNotIn("'", self.text[start:end])
-        self.assertNotIn("\n", self.text[start:end])
+        text = (ROOT / "ci/pipelines/operator.groovy").read_text()
+        start = text.index("description: '") + len("description: '")
+        end = text.index("')", start)
+        self.assertNotIn("'", text[start:end])
+        self.assertNotIn("\n", text[start:end])
 
     def test_braces_balance(self):
         self.assertEqual(self.text.count("{"), self.text.count("}"))
