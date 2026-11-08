@@ -49,3 +49,10 @@ Job's ServiceAccount; apply `ci/k8s/connector-definitions-rbac.yaml` once as clu
 Checkpoints and the ODK credentials already stored in the connector database are kept until the declared Secrets exist.
 The Farmer-reference definition for livestock is documented in
 `integrations/farmer-reference/`.
+
+## Staging connector upgrade
+
+`ci/pipelines/staging.groovy` runs `ci/connector/upgrade-livestock-connector-staging.sh` after the registry is promoted and deployed. It takes no
+parameters: the connector images are the `registry-connector` and `registry-connector-ui` images of the develop build whose
+`staff-api` digest the promoted chart pins (same ECR build tag, the 12-character commit), pinned by digest. The release is upgraded with the chart in `ci/connector/chart`, `livestock-connector.staging.values.yaml` and `definitions.staging.yaml` using `helm upgrade --atomic --reset-values`.
+The hook ServiceAccount needs the Role binding in `ci/k8s/connector-definitions-rbac.yaml` (staging binding, namespace `live`) before the first run.
