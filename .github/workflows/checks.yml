@@ -40,3 +40,20 @@ jobs:
         with:
           name: registry-verification
           path: ci-output/
+
+  chart:
+    # Required check: the registry chart must build its dependencies, lint and render.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.16.4
+      - name: Build chart dependencies
+        run: |
+          helm repo add openg2p https://openg2p.github.io/openg2p-helm
+          helm dependency build helm/openg2p-livestock-registry
+      - name: Lint
+        run: helm lint helm/openg2p-livestock-registry
+      - name: Render with default values
+        run: helm template oan-check helm/openg2p-livestock-registry --namespace oan-check > /dev/null
