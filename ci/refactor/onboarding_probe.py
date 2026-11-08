@@ -31,9 +31,11 @@ else:
     celery_app.conf.update(include=list(celery_app.conf.include or []) + extra)
     celery_app.loader.import_default_modules()
     assert set(before) <= set(celery_app.conf.beat_schedule)
-    assert "coss.farmer_reference.deliver_workflows" in celery_app.tasks
-    assert celery_app.conf.beat_schedule["coss-farmer-reference-workflows"]["options"]["queue"] == "owned-reference-probe-queue"
-    assert celery_app.tasks["coss.farmer_reference.deliver_workflows"].queue == "owned-reference-probe-queue"
+    assert "farmer_reference_awe_outbox_worker" in celery_app.tasks
+    assert "coss.farmer_reference.deliver_workflows" in celery_app.tasks  # old name, kept for one release
+    assert celery_app.conf.beat_schedule["farmer-reference-awe-outbox-beat-producer"]["options"]["queue"] == "owned-reference-probe-queue"
+    assert celery_app.conf.beat_schedule["farmer-reference-awe-outbox-beat-producer"]["task"] == "farmer_reference_awe_outbox_worker"
+    assert celery_app.tasks["farmer_reference_awe_outbox_worker"].queue == "owned-reference-probe-queue"
     tasks = importlib.import_module("openg2p_registry_extensions.tasks")
     for name, frequency in tasks.DOMAIN_SCHEDULE.items():
         assert name in celery_app.tasks
@@ -55,9 +57,9 @@ for base, extension in ((runtime.G2PIntakeFormDataService, runtime.ReferenceInta
 importlib.import_module("openg2p_registry_extensions.ingestion_pipeline.enricher_services")
 extension_app = importlib.import_module("openg2p_registry_extensions.app")
 assert {model.__tablename__ for model in extension_app.REFERENCE_MODELS} == {
-    "coss_farmer_references", "coss_farmer_reference_requests",
-    "coss_farmer_submission_dependencies", "coss_farmer_workflow_outbox",
-    "coss_farmer_pending_lookups",
+    "g2p_farmer_references", "g2p_farmer_reference_requests",
+    "g2p_farmer_submission_dependencies", "g2p_farmer_reference_awe_outbox",
+    "g2p_farmer_pending_lookups",
 }
 print(json.dumps({"domain": domain, "mode": mode, "registered_services": mapping,
                   "extension_tables_in_migration": len(extension_app.REFERENCE_MODELS), "native_extra_imports": "PASS",

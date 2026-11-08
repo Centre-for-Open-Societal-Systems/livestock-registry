@@ -16,7 +16,7 @@
     {
       "source": "ci/check-farmer-enrichment.py",
       "decision": "replaced-native-extension-guard",
-      "reason": "ci/refactor/deployment_guard.py checks COSS_FARMER_* files/Secret contract, without runtime patch log requirements"
+      "reason": "ci/refactor/deployment_guard.py checks REGISTRY_FARMER_REFERENCE_* files/Secret contract, without runtime patch log requirements"
     },
     {
       "source": "ci/check-new-dev-routes.py",

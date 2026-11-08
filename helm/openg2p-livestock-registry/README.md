@@ -34,7 +34,7 @@ The Livestock extension resolves the Farmer named on an intake with a signed,
 consent-enforced DCI lookup of the Farmer registry, creates the local Farmer
 reference through its own change request and AWE approval, and receives later
 Farmer updates through Farmer outgestion (Kafka/WebSub) and the Livestock connector
-as local UPDATE change requests. It is configured by `COSS_FARMER_*` variables
+as local UPDATE change requests. It is configured by `REGISTRY_FARMER_REFERENCE_*` variables
 and read-only files, never by values carrying private material:
 
 - `farmerReference` renders ConfigMap `<release>-farmer-reference` with the

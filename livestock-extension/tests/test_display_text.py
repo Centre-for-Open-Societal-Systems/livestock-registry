@@ -14,18 +14,18 @@ def translations():
 
 
 def test_date_messages_use_the_form_date_format():
-    messages = {k: v for k, v in translations().items() if k.startswith("coss_") and "_min" in k}
+    messages = {k: v for k, v in translations().items() if k.startswith("validation_") and "_min" in k}
     assert len(messages) >= 13
     for key, text in messages.items():
         assert "1900-01-01" not in text and text.endswith("on or after 01/01/1900."), key
-    assert translations()["coss_input_retag_date_min"].startswith("Date of retagging:")
+    assert translations()["validation_retag_date_min"].startswith("Date of retagging:")
 
 
 def test_fayda_and_veterinarian_messages_name_the_labelled_field():
     shown = translations()
-    assert shown["coss_input_fayda_fan_id"].startswith("Fayda FAN:")
-    assert "Fayda ID (FAN)" not in shown["coss_input_fayda_fan_id"]
-    assert shown["coss_input_veterinarian_name"].startswith("Veterinarian:")
+    assert shown["validation_fayda_fan_id"].startswith("Fayda FAN:")
+    assert "Fayda ID (FAN)" not in shown["validation_fayda_fan_id"]
+    assert shown["validation_veterinarian_name"].startswith("Veterinarian:")
 
 
 def test_animal_table_labels_are_sentence_case():

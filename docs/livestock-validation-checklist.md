@@ -83,7 +83,7 @@ No registry code was modified in runs 1 and 2. Fixes found in run 3 are in their
 
 - Master Data: the platform needs develop.118 (new geo and attribute endpoints). Asmit's stack has it. The Commons chart in oan-helm ships develop.118; an environment that still runs an older Master Data has empty dropdowns until it is upgraded.
 - Geography: P-codes from the ETH-OAN pack. Dev data uses older ids (`kebele-ET…`); the pack's `migration/id_map.csv` maps them.
-- Farmer lookup (`COSS_FARMER_*`, keys, record contract, AWE client) is mandatory for Submit; there is no local skip. #81 wires it on New Dev to the real Farmer partner API.
+- Farmer lookup (`REGISTRY_FARMER_REFERENCE_*`, keys, record contract, AWE client) is mandatory for Submit; there is no local skip. #81 wires it on New Dev to the real Farmer partner API.
 - Reviewers: `alex.carter` / `nina.patel` are example users; real reviewers and roles must be configured in AWE and Keycloak on each environment, otherwise requests stall (`on_empty=block`).
 - Fayda eSignet provider and Kafka for farmer UPDATE change requests: not configured locally.
 

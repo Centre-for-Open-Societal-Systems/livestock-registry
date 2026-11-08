@@ -7,7 +7,8 @@ import subprocess
 import sys
 from urllib.parse import urlsplit
 
-PREFIX='COSS_FARMER_'
+PREFIX='REGISTRY_FARMER_REFERENCE_'
+LEGACY_PREFIX='COSS_FARMER_'  # still accepted for one release
 REQUIRED=('DCI_URL','SENDER_ID','SOURCE_ID','SIGNING_KID','SOURCE_KID','CONSENT_AUDIENCE',
           'CONSENT_CONTROLLER','CONSENT_PURPOSE','CONSENT_SCOPES','SOURCE_PARTNER_ID',
           'AWE_TOKEN_URL','AWE_CLIENT_ID')
@@ -39,7 +40,8 @@ def check(items,release,namespace,secret_loader=None):
         entries=container.get('env',[])
         env={item['name']:item for item in entries}
         assert len(env)==len(entries), 'Duplicate extension environment setting'
-        def value(key): return str(env.get(PREFIX+key,{}).get('value','')).strip()
+        def value(key):
+            return str(env.get(PREFIX+key,env.get(LEGACY_PREFIX+key,{})).get('value','')).strip()
         for key in REQUIRED+FILES:
             assert value(key), 'Required extension setting missing: '+PREFIX+key
         for key in ('DCI_URL','AWE_TOKEN_URL'):

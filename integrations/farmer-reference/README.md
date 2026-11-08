@@ -1,6 +1,12 @@
 # Native Farmer-reference notification receiver
 
-The external contract remains `farmer_reference.changed.v1`, WebSub topic
+The Farmer registry will send `farmer-registry.farmer-profile.changed.v1` (WebSub topic
+`farmer-registry.farmer-profile.changed.v1`, Kafka topic `farmer_registry_farmer_profile_changed_v1`,
+native model `FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1`, seeded by
+`zz_farmer_profile_changed_v1.sql`). This registry already accepts it; the two older names below
+stay accepted until the rename is finished and are then removed.
+
+The older external contract is `farmer_reference.changed.v1`, WebSub topic
 `oan.farmer-reference.changed.v1`, Kafka topic `oan_farmer_reference_changed_v1`
 and native model `FARMER_REFERENCE_CHANGED_V1`. Crop keeps its existing wire,
 metadata, document and section identifiers. Livestock owns separate receiver
@@ -78,7 +84,7 @@ The correction stays pending until local approval and never modifies IAM grants.
 
 The receiving connector's definition validates the notice with
 `notification.schema.json`: a Farmer ID and either `fayda_fan_id` (16 digits) or
-`fayda_fin` (12 digits), under either notice name (`farmer_reference.changed.v1`
-or `farmer-registry.farmer.changed.v1`). The Farmer registry sends `fayda_fin` for
+`fayda_fin` (12 digits), under any of the three notice names (`farmer-registry.farmer-profile.changed.v1`,
+`farmer-registry.farmer.changed.v1` or `farmer_reference.changed.v1`). The Farmer registry sends `fayda_fin` for
 a farmer registered with a FIN only; a schema that requires `fayda_fan_id` fails
 those notices at the connector, before they reach this registry.

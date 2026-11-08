@@ -36,7 +36,7 @@ separate and remain closed; this source change does not claim a live reset.
 
 Restored databases also contain competing legacy bindings. The native resolver
 uses a single result per scope, so these must be reconciled during the reset.
-The registered extension migration creates `coss_approval_binding_archive`.
+The registered extension migration creates `g2p_approval_binding_archive`.
 Seeding snapshots original configurations before edits, resets future routing,
 and retains the canonical binding ID for duplicate scopes. Retired metadata IDs
 and complete row values remain in the archive for restoration through native
@@ -73,12 +73,12 @@ request context:
 | Key | Value |
 | --- | --- |
 | `change_type` | `ADD` or `UPDATE`, the request's action |
-| `source` | `farmer-registry` only for a change proven by the signed Farmer lookup of the configured source system (the ledger holds the response digest and the reference's `source_system` equals `COSS_FARMER_SOURCE_ID`); otherwise `unverified` |
+| `source` | `farmer-registry` only for a change proven by the signed Farmer lookup of the configured source system (the ledger holds the response digest and the reference's `source_system` equals `REGISTRY_FARMER_REFERENCE_SOURCE_ID`); otherwise `unverified` |
 
 Every Farmer-reference request is created from a verified lookup (ADD from the signed
 lookup at intake, UPDATE only from the Kafka notification that passes the
 source-partner check and a fresh signed lookup), so `source` is `farmer-registry`
-whenever `COSS_FARMER_SOURCE_ID` is set on the process that delivers workflows. If it
+whenever `REGISTRY_FARMER_REFERENCE_SOURCE_ID` is set on the process that delivers workflows. If it
 is missing, `source` is `unverified` and nothing is ever skipped.
 
 **Shipped setting: review stays on.** The binding in

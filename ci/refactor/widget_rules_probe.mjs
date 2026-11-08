@@ -42,7 +42,7 @@ for (const widget of widgets) {
     }
     identityWidgets++;
   }
-  if (validation?.patternMessage?.startsWith('coss_input_') && /name/.test(key) && widget['widget-readonly'] !== true) {
+  if (validation?.patternMessage?.startsWith('validation_') && /name/.test(key) && widget['widget-readonly'] !== true) {
     assert(messages[validation.patternMessage] && !messages[validation.patternMessage].includes('{label}'));
     for (const [value, valid] of [['Abebe', !key.endsWith('_amh')], ['አበበ', true], ["O'Neil", !key.endsWith('_amh')], ['Farmer123', false], ['Farmer_Name', false], ['👩', false], ['x'.repeat(101), false]]) {
       assert.equal(native.validateWidget(value, validation, false).length === 0, valid, `${key}: name rule`);

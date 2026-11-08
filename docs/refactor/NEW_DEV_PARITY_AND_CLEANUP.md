@@ -62,7 +62,7 @@ ECR paths, complete saved release values and preservation guards remain.
 Staging requires separate acceptance and cannot inherit dev authorization.
 
 The old method-patch enrichment log guard is replaced by validation of the
-registered extension's COSS_FARMER_* contract and required read-only Secret/files
+registered extension's REGISTRY_FARMER_REFERENCE_* contract and required read-only Secret/files
 on staff API, worker and beat. Six tests reject missing configuration, wrong
 namespace, query-secret URLs, private ConfigMap data and missing Secret keys.
 
