@@ -12,15 +12,15 @@
 -- upsert, the animal-details patches, field rules, identity overlays); no later
 -- file touches this section.
 -- Idempotent: it only sets the flag to true, so every install and upgrade can re-run it.
-CREATE OR REPLACE FUNCTION pg_temp.coss_require_animal_row(node jsonb, table_id text)
+CREATE OR REPLACE FUNCTION pg_temp.oan_require_animal_row(node jsonb, table_id text)
 RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE result jsonb;
 BEGIN
   IF jsonb_typeof(node) = 'array' THEN
-    SELECT COALESCE(jsonb_agg(pg_temp.coss_require_animal_row(value, table_id) ORDER BY position), '[]'::jsonb)
+    SELECT COALESCE(jsonb_agg(pg_temp.oan_require_animal_row(value, table_id) ORDER BY position), '[]'::jsonb)
       INTO result FROM jsonb_array_elements(node) WITH ORDINALITY AS item(value, position);
   ELSIF jsonb_typeof(node) = 'object' THEN
-    SELECT COALESCE(jsonb_object_agg(key, pg_temp.coss_require_animal_row(value, table_id)), '{}'::jsonb)
+    SELECT COALESCE(jsonb_object_agg(key, pg_temp.oan_require_animal_row(value, table_id)), '{}'::jsonb)
       INTO result FROM jsonb_each(node);
     IF node->>'widget-id' = table_id AND node->>'widget' IN ('table', 'dialog-table') THEN
       result := result || '{"widget-required": true}'::jsonb;
@@ -32,7 +32,7 @@ BEGIN
 END $$;
 
 UPDATE g2p_register_sections
-SET section_ui_schema = pg_temp.coss_require_animal_row(section_ui_schema::jsonb, 'ls_animal_details_table')
+SET section_ui_schema = pg_temp.oan_require_animal_row(section_ui_schema::jsonb, 'ls_animal_details_table')
 WHERE section_id = 'livestock_animal_details_section_01' AND section_ui_schema IS NOT NULL;
 
 -- Check: fail the seed loudly if the animal table is missing or not required.

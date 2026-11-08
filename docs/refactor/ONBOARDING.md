@@ -82,7 +82,7 @@ season/year, counts, events and prior business decisions remain domain-owned.
 
 ## Native worker and AWE extension loading
 
-The published `run_celery.py` supports `CELERY_IMPORTS`. The thin COSS Celery
+The published `run_celery.py` supports `CELERY_IMPORTS`. The thin OAN Celery
 image sets `openg2p_registry_extensions.farmer_reference.worker`, consistently
 using the native selected-extension alias. It registers the same service
 subclasses used by the APIs and adds one extension task/schedule without

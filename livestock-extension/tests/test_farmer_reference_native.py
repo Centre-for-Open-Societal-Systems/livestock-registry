@@ -38,7 +38,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         url = os.environ["FARMER_TEST_DATABASE_URL"]
         if not url.startswith("postgresql+asyncpg://"):
             self.fail("Native acceptance requires PostgreSQL")
-        self.schema = "coss_ref_test_" + uuid4().hex
+        self.schema = "oan_ref_test_" + uuid4().hex
         control = create_async_engine(url)
         async with control.begin() as connection:
             await connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"))
@@ -77,7 +77,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.dispose()
         # The only recursive drop target is the schema generated above, never
         # public or an environment-owned database/schema.
-        self.assertRegex(self.schema, r"^coss_ref_test_[0-9a-f]{32}$")
+        self.assertRegex(self.schema, r"^oan_ref_test_[0-9a-f]{32}$")
         control = create_async_engine(os.environ["FARMER_TEST_DATABASE_URL"])
         async with control.begin() as connection:
             await connection.execute(text('DROP SCHEMA "' + self.schema + '" CASCADE'))

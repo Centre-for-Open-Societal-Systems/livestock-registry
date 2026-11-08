@@ -35,7 +35,7 @@ from .models import FarmerReference, FarmerReferenceRequest, FarmerSubmissionDep
 from .onboarding import OnboardingService
 from .profile import FarmerReferenceError, reference_identity, intake_identity, model_identity, matches_declared_identity, PROFILE_FIELDS
 
-_approved_callback = ContextVar("coss_farmer_approved_callback", default=None)
+_approved_callback = ContextVar("oan_farmer_approved_callback", default=None)
 
 
 def domain_models():
@@ -180,7 +180,7 @@ async def guard_farmer_approval(change_request, session):
 
 
 
-_logger = logging.getLogger("coss-farmer-reference-validate")
+_logger = logging.getLogger("oan-farmer-reference-validate")
 
 _IDENTITY_MISMATCH = {"FARMER_REFERENCE_IDENTITY_MISMATCH", "FARMER_REFERENCE_FARMER_ID_MISMATCH"}
 

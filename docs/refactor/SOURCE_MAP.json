@@ -51,122 +51,122 @@
     {
       "source": "helm/livestock-registry-dashboard/Chart.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/_helpers.tpl",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/client-secret.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/deployment.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/ecr-pull-secret.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/iam-setup-job.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/routing.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/service.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/serviceaccount.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/templates/smoke-job.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/livestock-registry-dashboard/values.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/.gitignore",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/.helmignore",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/Chart.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/README-dev.md",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/app-readme.md",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/files/reporting-views-refresh.sh",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/templates/_reporting.tpl",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/templates/dashboard-api.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/templates/reporting-views-refresh.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/templates/reporting-views.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/values-live.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/values-new-dev.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "helm/openg2p-livestock-registry/values.yaml",
       "decision": "centralized",
-      "reason": "COSS oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
+      "reason": "OAN oan-helm owns source and immutable archives; registry consumes ci/deploy/oan-chart.json"
     },
     {
       "source": "livestock-extension/LICENSE",

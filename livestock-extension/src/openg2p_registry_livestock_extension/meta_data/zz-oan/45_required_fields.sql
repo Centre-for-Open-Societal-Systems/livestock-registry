@@ -9,15 +9,15 @@
 -- Supervisor name and mobile numbers stay optional. The Farmer register's own
 -- sections are not part of the Livestock intake and are not touched.
 -- Idempotent: it only sets the flag to true; explicit ids only.
-CREATE OR REPLACE FUNCTION pg_temp.coss_require_widgets(node jsonb, ids text[])
+CREATE OR REPLACE FUNCTION pg_temp.oan_require_widgets(node jsonb, ids text[])
 RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE result jsonb;
 BEGIN
   IF jsonb_typeof(node) = 'array' THEN
-    SELECT COALESCE(jsonb_agg(pg_temp.coss_require_widgets(value, ids) ORDER BY position), '[]'::jsonb)
+    SELECT COALESCE(jsonb_agg(pg_temp.oan_require_widgets(value, ids) ORDER BY position), '[]'::jsonb)
       INTO result FROM jsonb_array_elements(node) WITH ORDINALITY AS item(value, position);
   ELSIF jsonb_typeof(node) = 'object' THEN
-    SELECT COALESCE(jsonb_object_agg(key, pg_temp.coss_require_widgets(value, ids)), '{}'::jsonb)
+    SELECT COALESCE(jsonb_object_agg(key, pg_temp.oan_require_widgets(value, ids)), '{}'::jsonb)
       INTO result FROM jsonb_each(node);
     IF node ? 'widget' AND node->>'widget-id' = ANY (ids) THEN
       result := result || '{"widget-required": true}'::jsonb;
@@ -29,11 +29,11 @@ BEGIN
 END $$;
 
 UPDATE g2p_register_sections
-SET section_ui_schema = pg_temp.coss_require_widgets(section_ui_schema::jsonb, ARRAY['surveyor_name'])
+SET section_ui_schema = pg_temp.oan_require_widgets(section_ui_schema::jsonb, ARRAY['surveyor_name'])
 WHERE section_id = 'livestock_survey_personnel_section_02' AND section_ui_schema IS NOT NULL;
 
 UPDATE g2p_register_sections
-SET section_ui_schema = pg_temp.coss_require_widgets(section_ui_schema::jsonb, ARRAY['livestock_geo_hierarchy'])
+SET section_ui_schema = pg_temp.oan_require_widgets(section_ui_schema::jsonb, ARRAY['livestock_geo_hierarchy'])
 WHERE section_id = 'livestock_livestock_location_section_03' AND section_ui_schema IS NOT NULL;
 
 -- Check: fail the seed loudly if a mandatory widget is missing or optional.
