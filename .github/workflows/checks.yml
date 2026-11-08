@@ -50,7 +50,9 @@ jobs:
         with:
           version: v3.16.4
       - name: Build chart dependencies
-        run: helm dependency build helm/openg2p-livestock-registry
+        run: |
+          helm repo add openg2p https://openg2p.github.io/openg2p-helm
+          helm dependency build helm/openg2p-livestock-registry
       - name: Lint
         run: helm lint helm/openg2p-livestock-registry
       - name: Render with default values
