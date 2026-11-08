@@ -253,3 +253,27 @@ class LegacyTableRenameTests(unittest.IsolatedAsyncioTestCase):
         names = await self.names("tables")
         self.assertIn("coss_farmer_references", names)
         self.assertIn("g2p_farmer_references", names)
+
+
+class SeedRenameTests(unittest.TestCase):
+    """db-seed can run before the staff-api start-up rename, so the seed renames first."""
+
+    def setUp(self):
+        from pathlib import Path
+
+        self.folder = Path(upgrade.__file__).parent / "meta_data" / "register-metadata"
+        self.seed = self.folder / "000_rename_legacy_tables_to_g2p.sql"
+
+    def test_the_seed_rename_sorts_before_the_archive(self):
+        names = sorted(path.name for path in self.folder.glob("*.sql"))
+        self.assertEqual(names[0], self.seed.name)
+        self.assertLess(names.index(self.seed.name), names.index("00_archive_approval_bindings.sql"))
+
+    def test_the_seed_renames_the_same_pairs_as_start_up(self):
+        sql = self.seed.read_text(encoding="utf-8")
+        pairs = re.findall(r"'(coss_[a-z_]+)', '(g2p_[a-z_]+)'", sql)
+        self.assertEqual(tuple(pairs), tuple(upgrade.LEGACY_TABLE_RENAMES))
+
+    def test_the_seed_rename_drops_and_deletes_nothing(self):
+        sql = self.seed.read_text(encoding="utf-8").upper()
+        self.assertNotRegex(sql, r"(DROP|DELETE|TRUNCATE)")
