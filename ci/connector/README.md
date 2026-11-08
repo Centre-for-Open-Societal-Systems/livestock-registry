@@ -26,6 +26,26 @@ It replaces the stop-gap `connector-service` image (build 116, `sha256:c8edf177…
 pipelines but had no admin-role check. Plan W21 moves the connector into the `registryConnector` subchart of
 the openg2p-registry chart (rc.601+).
 
-Connector definitions, checkpoints and webhook secrets live in the connector database, not here.
+Connector definitions are declared in git and applied by Helm
+-------------------------------------------------------------
+
+The rows of `connector_definitions` are declared in `definitions.newdev.yaml` (New Dev) and
+`definitions.staging.yaml` (staging), under `connectorDefinitions`. The chart's post-install and
+post-upgrade hook Job (`chart/templates/definitions-job.yaml`, script `chart/files/apply_definitions.py`)
+calls the connector's own admin API on every deploy: it creates a missing definition, PATCHes an existing
+one (matched by name, then `previous_names`, then slug) to the declared state, and for WebSub receivers
+calls `POST /connectors/{id}/websub/sync-subscriptions` (register topic, subscribe callback with the hub
+secret). The API does none of that by itself: creating a row neither subscribes nor validates, and a row
+inserted with SQL is never subscribed, so the subscription call is part of the apply. Checkpoints
+(`poll_state_json`) are not touched.
+
+Secrets are never in values. `webhook_secret_from` / `auth_secret_from` name Kubernetes Secrets that the Job
+reads through `secretKeyRef`; with `generate: true` the chart creates the Secret once (random, kept on
+uninstall, never rotated) if it does not exist. A declared secret that is empty never overwrites a stored one.
+The Keycloak client secret for the admin token is read at run time from `commons/registry-connector` by the
+Job's ServiceAccount; apply `ci/k8s/connector-definitions-rbac.yaml` once as cluster admin.
+`retired:` lists rows to delete. Unit tests: `python -m unittest discover ci/connector/tests`.
+
+Checkpoints and the ODK credentials already stored in the connector database are kept until the declared Secrets exist.
 The Farmer-reference definition for livestock is documented in
 `integrations/farmer-reference/`.

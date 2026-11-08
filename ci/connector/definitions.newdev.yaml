@@ -1,0 +1,72 @@
+# Connector definitions of the livestock-connector release in New Dev (namespace livestock), applied by the
+# post-install/post-upgrade hook Job (templates/definitions-job.yaml). Git is the source of truth:
+# every deploy creates or PATCHes these rows by name and subscribes the WebSub receivers at the hub.
+# Secret values are never here; secrets are named and read from Kubernetes Secrets.
+#
+# Pass after the release values:  -f livestock-connector.values.yaml -f definitions.newdev.yaml
+connectorDefinitions:
+  enabled: true
+  adminAuth:
+    enabled: true
+    tokenUrl: https://keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/token
+    clientId: registry-connector
+    # Read at run time with the Job's ServiceAccount (grant in ci/k8s/livestock-deploy-rbac.yaml).
+    clientSecret: {namespace: commons, name: registry-connector, key: client_secret}
+  # Rows to delete when present (by name). The Farmer-reference receiver below moves here at the
+  # end of the topic rename, after the Farmer registry publishes the new topic only and the old
+  # topic's lag is 0.
+  retired: []
+  definitions:
+    - name: Approved Farmer reference refresh v1
+      platform: internal_registry
+      transport_type: websub
+      data_model_mnemonic: FARMER_REFERENCE_CHANGED_V1
+      g2p_sender_id: Live_stock_partner_internal
+      g2p_register_mnemonic: Farmer
+      auth_type: none
+      webhook_path_slug: farmer-reference-v1
+      webhook_verifier: hmac_sha256
+      webhook_secret_from: {secret: farmer-reference-websub-v1, key: hmac-secret, generate: true}
+      source_config:
+        hub_url: http://commons-services-websub.commons.svc.cluster.local
+        callback_url: http://livestock-connector-api.livestock.svc.cluster.local/webhook/by-slug/farmer-reference-v1
+        topics: [oan.farmer-reference.changed.v1]
+        websub_content_envelope: true
+        sign_registry_payload: true
+      validation_schema: {"type": "object", "required": ["event_id", "event_type", "farmer_id"], "anyOf": [{"required": ["fayda_fan_id"]}, {"required": ["fayda_fin"]}], "additionalProperties": false, "properties": {"event_id": {"type": "string", "minLength": 1, "maxLength": 256}, "event_type": {"enum": ["farmer_reference.changed.v1", "farmer-registry.farmer.changed.v1"]}, "farmer_id": {"type": "string", "pattern": "^FR-[0-9]{12}$"}, "fayda_fan_id": {"type": "string", "pattern": "^[0-9]{16}$"}, "fayda_fin": {"type": "string", "pattern": "^[0-9]{12}$"}}}
+    - name: Farmer registry farmer-profile changed v1 receiver
+      platform: internal_registry
+      transport_type: websub
+      data_model_mnemonic: FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1
+      g2p_sender_id: Live_stock_partner_internal
+      g2p_register_mnemonic: Farmer
+      auth_type: none
+      webhook_path_slug: farmer-registry-farmer-profile-changed-v1
+      webhook_verifier: hmac_sha256
+      webhook_secret_from: {secret: farmer-reference-websub-v1, key: hmac-secret, generate: true}
+      source_config:
+        hub_url: http://commons-services-websub.commons.svc.cluster.local
+        callback_url: http://livestock-connector-api.livestock.svc.cluster.local/webhook/by-slug/farmer-registry-farmer-profile-changed-v1
+        topics: [farmer-registry.farmer-profile.changed.v1]
+        websub_content_envelope: true
+        sign_registry_payload: true
+      validation_schema: {"type": "object", "required": ["event_id", "event_type", "farmer_id"], "anyOf": [{"required": ["fayda_fan_id"]}, {"required": ["fayda_fin"]}], "additionalProperties": false, "properties": {"event_id": {"type": "string", "minLength": 1, "maxLength": 256}, "event_type": {"enum": ["farmer_reference.changed.v1", "farmer-registry.farmer.changed.v1", "farmer-registry.farmer-profile.changed.v1"]}, "farmer_id": {"type": "string", "pattern": "^FR-[0-9]{12}$"}, "fayda_fan_id": {"type": "string", "pattern": "^[0-9]{16}$"}, "fayda_fin": {"type": "string", "pattern": "^[0-9]{12}$"}}}
+    - name: Livestock ODK Central
+      platform: odk_central
+      transport_type: odk_central
+      data_model_mnemonic: ODK_TO_LIVESTOCK_INTAKE
+      g2p_sender_id: Livestock
+      g2p_register_mnemonic: Livestock
+      auth_type: odk_session
+      # Existing credentials stay in place until this Secret exists (email, password).
+      auth_secret_from:
+        email: {secret: livestock-odk-central-credentials, key: email}
+        password: {secret: livestock-odk-central-credentials, key: password}
+      source_config:
+        base_url: https://odk-central-development.oanstaging.com
+        project_id: 6
+        form_id: livestock_registry
+        resolve_nav_links: true
+        strict_incremental: false
+        incremental_mode: timestamp
+        page_size: 100

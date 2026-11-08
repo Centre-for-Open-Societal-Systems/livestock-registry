@@ -1,0 +1,99 @@
+{{- /*
+Connector definitions declared in values (connectorDefinitions) are applied through the
+connector's own API after every install and upgrade. This follows OpenG2P's registry-connector
+guidance to move per-connector configuration into API calls (api/README.md, "Migration from
+global ODK env vars"). The Job runs the connector image, so it needs nothing else:
+files/apply_definitions.py creates or PATCHes each definition by name, then asks the connector
+to subscribe every WebSub receiver at its hub. Re-running is safe. Secret values come only from
+existing Kubernetes Secrets (secretKeyRef); the Keycloak client secret is read at run time with the
+Job's ServiceAccount (grant: ci/k8s).
+*/ -}}
+{{- $cd := .Values.connectorDefinitions }}
+{{- if $cd.enabled }}
+{{- $fullname := include "openg2p-connector.fullname" . }}
+{{- $apiBase := $cd.apiBase | default (printf "http://%s-api.%s.svc.cluster.local:%v" $fullname .Release.Namespace .Values.api.service.port) }}
+{{- $config := dict "apiBase" $apiBase "adminAuth" $cd.adminAuth "retired" ($cd.retired | default list) "definitions" $cd.definitions }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-definitions
+  labels:
+    {{- include "openg2p-connector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: definitions
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+data:
+  definitions.json: |
+    {{- $config | toPrettyJson | nindent 4 }}
+  apply_definitions.py: |
+    {{- .Files.Get "files/apply_definitions.py" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-definitions
+  labels:
+    {{- include "openg2p-connector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: definitions
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels:
+        {{- include "openg2p-connector.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: definitions
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ $fullname }}-definitions
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: apply
+          image: "{{ include "openg2p-connector.image" .Values.api.image }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command: ["python", "/scripts/apply_definitions.py"]
+          env:
+            - name: CD_CONFIG
+              value: /scripts/definitions.json
+            {{- range $i, $d := $cd.definitions }}
+            {{- with $d.webhook_secret_from }}
+            - name: CD_{{ $i }}_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secret }}
+                  key: {{ .key }}
+                  optional: {{ not .generate }}
+            {{- end }}
+            {{- range $field, $ref := ($d.auth_secret_from | default dict) }}
+            - name: CD_{{ $i }}_AUTH_{{ upper $field }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $ref.secret }}
+                  key: {{ $ref.key }}
+                  optional: true
+            {{- end }}
+            {{- end }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: scripts
+          configMap:
+            name: {{ $fullname }}-definitions
+{{- end }}
