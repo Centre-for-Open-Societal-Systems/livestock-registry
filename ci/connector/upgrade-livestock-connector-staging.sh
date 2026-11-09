@@ -53,7 +53,10 @@ for secret in "$NAMESPACE/livestock-connector" "$NAMESPACE/livestock-farmer-look
 done
 
 # 2. The connector image of the build that was promoted.
-read -r SERVICE_REPOSITORY SERVICE_DIGEST < <(python3 - "$PROMOTED_CHART" <<'PY'
+# A function, not a here-document inside <( ): bash 4.2 (the build agents) cannot parse the
+# quotes in this script inside a process substitution ("bad substitution: no closing `)'").
+promoted_service_image() {
+  python3 - "$1" <<'PY'
 import re, sys, tarfile
 with tarfile.open(sys.argv[1]) as bundle:
     member = next(m for m in bundle.getmembers() if m.name.count("/") == 1 and m.name.endswith("/values.yaml"))
@@ -71,7 +74,8 @@ for line in values.splitlines():
 else:
     sys.exit("the promoted chart pins no staff-api image by digest")
 PY
-)
+}
+read -r SERVICE_REPOSITORY SERVICE_DIGEST < <(promoted_service_image "$PROMOTED_CHART")
 IMAGE_PREFIX=${SERVICE_REPOSITORY%/staff-api}
 ECR_BASE=${IMAGE_PREFIX#*/}
 CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/registry-connector"
