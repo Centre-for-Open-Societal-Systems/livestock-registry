@@ -12,9 +12,9 @@ deploy works end to end. Written for the deployment war room of 12 Oct 2026.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Staff portal (UI) | `https://livestock-registry-development.oanstaging.com` | namespace `live`, release `livestock-registry` |
+| Staff portal (UI) | `https://livestock-registry.development.oanstaging.com` | namespace `live`, release `livestock-registry` |
 | Staff portal API, partner API, celery worker, celery beat, db-seed job | namespace `live` | images built by Jenkins from this repo |
-| Keycloak (staff realm) | `https://keycloak-livestock-development.oanstaging.com`, realm `staff` | portal client `livestock-registry-staff-portal` |
+| Keycloak (staff realm) | `https://keycloak.development.oanstaging.com`, realm `staff` | portal client `livestock-registry-staff-portal` |
 | AWE (approvals) | `commons-services-awe` in `live` (`https://awe.live.openg2p.test`) | shared commons; certificate from the box's local CA |
 | Master Data (geo + code lists) | commons master-data (1.1 or later) | geo and the livestock code lists (species, breed, disease, vaccine, ...) loaded by our db-seed |
 | ODK Central | `https://odk-central.development.oanstaging.com`, project 14, form `livestock_registry` (v4) | form + media in `odk/` |

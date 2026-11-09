@@ -10,7 +10,7 @@ a cluster Keycloak has to be given them explicitly - that is what this does.
 Idempotent: existing roles/users are updated, nothing is duplicated.
 
 Usage (Keycloak master-realm admin, standard library only):
-  KC_BASE_URL=https://keycloak-livestock-development.oanstaging.com \
+  KC_BASE_URL=https://keycloak.development.oanstaging.com \
   KC_ADMIN_USER=admin KC_ADMIN_PASSWORD=... \
   python3 scripts/keycloak_livestock_test_users.py            # create/refresh
   python3 scripts/keycloak_livestock_test_users.py --delete   # remove them again
