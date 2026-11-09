@@ -12,7 +12,7 @@ the earlier `live` / project 14 topology in the historical runbook.
 | Registry API/worker revision | `bf78e69a5fd6` |
 | Connector ID | `39d1d807180545bf9c3fb7fdd83b904d` |
 | Connector name | `Livestock ODK Central` |
-| ODK Central | `https://odk-central-development.oanstaging.com` |
+| ODK Central | `https://odk-central.development.oanstaging.com` |
 | ODK project / form / version | `6` / `livestock_registry` / `v4` |
 | Connector data model | `ODK_TO_LIVESTOCK_INTAKE` (verified on 2026-10-19 as `LIVESTOCK_ODK_MODEL`; see the next section) |
 | Envelope sender / register mnemonic | `Livestock` / `Livestock` |

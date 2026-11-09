@@ -63,7 +63,7 @@ connectorDefinitions:
         email: {secret: livestock-odk-central-credentials, key: email}
         password: {secret: livestock-odk-central-credentials, key: password}
       source_config:
-        base_url: https://odk-central-development.oanstaging.com
+        base_url: https://odk-central.development.oanstaging.com
         project_id: 6
         form_id: livestock_registry
         resolve_nav_links: true
