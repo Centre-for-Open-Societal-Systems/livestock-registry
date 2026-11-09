@@ -76,6 +76,7 @@ else:
 PY
 }
 read -r SERVICE_REPOSITORY SERVICE_DIGEST < <(promoted_service_image "$PROMOTED_CHART")
+test -n "${SERVICE_DIGEST:-}" || { echo "no staff-api digest in $PROMOTED_CHART" >&2; exit 1; }
 IMAGE_PREFIX=${SERVICE_REPOSITORY%/staff-api}
 ECR_BASE=${IMAGE_PREFIX#*/}
 CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/registry-connector"
