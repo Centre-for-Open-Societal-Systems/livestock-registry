@@ -33,9 +33,8 @@ pipeline {
         // stage and values-dev.yaml were removed, so there is now one dev target.
         DEV_NAMESPACE            = 'livestock'
         DEV_KUBECONFIG_CRED_ID   = 'livestock-dev-kubeconfig'
-        // Stage 'Publish chart': the oan-ci-integration GitHub App credential. Bound as usernamePassword, the password is a
-        // short-lived installation token that needs Contents: write on oan-helm.
-        OAN_HELM_PUBLISH_CRED_ID = 'oan-ci-app'
+        // Stage 'Publish chart': a maintainer's token for now; the GitHub App replaces this credential when it is configured.
+        OAN_HELM_FORK_CRED_ID    = 'oan-helm-fork-token'
 
         // livestock-registry-dashboard-api lives in its own (public) repository
         // and is built here beside the registry images. Each branch builds the
@@ -402,7 +401,7 @@ EOF
                 sh 'rm -rf built-chart'
                 unstash 'built-chart'
                 catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    withCredentials([usernamePassword(credentialsId: "${OAN_HELM_PUBLISH_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                    withCredentials([usernamePassword(credentialsId: "${OAN_HELM_FORK_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
                         sh 'bash ci/deploy/publish-chart.sh'
                     }
                 }
