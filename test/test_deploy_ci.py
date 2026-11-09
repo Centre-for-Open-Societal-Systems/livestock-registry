@@ -425,7 +425,7 @@ class PipelineWiringTests(unittest.TestCase):
         self.assertIn("catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE')", stage)
         self.assertIn("bash ci/deploy/publish-chart.sh", stage)
         self.assertIn("unstash 'built-chart'", stage)
-        self.assertIn("OAN_HELM_FORK_CRED_ID", stage)
+        self.assertIn("OAN_HELM_PUBLISH_CRED_ID", stage)
         self.assertIn("['fresh-install', 'connector-plan', 'connector-upgrade']", stage)
         for absent in ("KUBECONFIG", "helm upgrade", "stash name"):
             self.assertNotIn(absent, stage)
