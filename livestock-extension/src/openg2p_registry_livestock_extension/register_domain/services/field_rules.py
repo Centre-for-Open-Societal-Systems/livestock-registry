@@ -67,17 +67,17 @@ LABELS = {
     "date_of_birth": "Date of Birth",
 }
 MESSAGES = {
-    "coss_field_name_format": "{label}: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
-    "coss_field_amharic_name_format": "{label}: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
-    "coss_field_farmer_id_format": "{label}: enter FR- followed by exactly 12 digits, preserving leading zeroes.",
-    "coss_field_fin_format": "{label}: enter exactly 12 digits. Use the FAN field for a 16-digit FAN.",
-    "coss_field_fan_format": "{label}: enter exactly 16 digits, optionally separated by spaces. Use the FIN field for a 12-digit FIN.",
-    "coss_field_date_format": "{label}: enter a real date. API/import dates use Gregorian YYYY-MM-DD; correct the date before saving.",
-    "coss_field_date_min": "{label}: the date is before 1900. Enter a date on or after 1900-01-01.",
-    "coss_field_date_future": "{label}: the date is in the future. Enter today or an earlier date.",
-    "coss_field_farmer_id_required": "{label}: enter the farmer's Farmer Registry ID (FR- followed by 12 digits).",
-    "coss_field_fayda_one_of": "Fayda ID: enter the 16-digit FAN or the 12-digit FIN.",
-    "coss_field_fayda_id_format": "{label}: enter the 16-digit FAN or the 12-digit FIN, digits only.",
+    "validation_rule_name_format": "{label}: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
+    "validation_rule_amharic_name_format": "{label}: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
+    "validation_rule_farmer_id_format": "{label}: enter FR- followed by exactly 12 digits, preserving leading zeroes.",
+    "validation_rule_fin_format": "{label}: enter exactly 12 digits. Use the FAN field for a 16-digit FAN.",
+    "validation_rule_fan_format": "{label}: enter exactly 16 digits, optionally separated by spaces. Use the FIN field for a 12-digit FIN.",
+    "validation_rule_date_format": "{label}: enter a real date. API/import dates use Gregorian YYYY-MM-DD; correct the date before saving.",
+    "validation_rule_date_min": "{label}: the date is before 1900. Enter a date on or after 1900-01-01.",
+    "validation_rule_date_future": "{label}: the date is in the future. Enter today or an earlier date.",
+    "validation_rule_farmer_id_required": "{label}: enter the farmer's Farmer Registry ID (FR- followed by 12 digits).",
+    "validation_rule_fayda_one_of": "Fayda ID: enter the 16-digit FAN or the 12-digit FIN.",
+    "validation_rule_fayda_id_format": "{label}: enter the 16-digit FAN or the 12-digit FIN, digits only.",
 }
 
 
@@ -96,7 +96,7 @@ def explain(issue, messages=None):
         or issue.field.replace("_", " ").title()
     )
     if issue.row is not None:
-        row_label = messages.get("coss_field_row_label", "{label} (row {row})")
+        row_label = messages.get("validation_rule_row_label", "{label} (row {row})")
         label = row_label.replace("{label}", label).replace("{row}", str(issue.row))
     template = messages.get(issue.key) or MESSAGES[issue.key]
     return template.replace("{label}", label)
@@ -104,10 +104,10 @@ def explain(issue, messages=None):
 
 def name_issue(value, field):
     if not isinstance(value, str):
-        return Issue(field, "coss_field_name_format")
+        return Issue(field, "validation_rule_name_format")
     cleaned = unicodedata.normalize("NFC", value.strip())
     amharic = field.endswith("_amh")
-    key = "coss_field_amharic_name_format" if amharic else "coss_field_name_format"
+    key = "validation_rule_amharic_name_format" if amharic else "validation_rule_name_format"
 
     def letter(char):
         return unicodedata.category(char).startswith(("L", "M")) and (
@@ -145,9 +145,9 @@ def clean_records(records):
                     record[key] = value.strip()
             elif field in {"farmer_id", "fayda_fin", "fayda_fan_id"}:
                 normalizer, error_key = {
-                    "farmer_id": (normalize_farmer_id, "coss_field_farmer_id_format"),
-                    "fayda_fin": (normalize_fin, "coss_field_fin_format"),
-                    "fayda_fan_id": (normalize_uid, "coss_field_fan_format"),
+                    "farmer_id": (normalize_farmer_id, "validation_rule_farmer_id_format"),
+                    "fayda_fin": (normalize_fin, "validation_rule_fin_format"),
+                    "fayda_fan_id": (normalize_uid, "validation_rule_fan_format"),
                 }[field]
                 try:
                     record[key] = normalizer(value)
@@ -160,11 +160,11 @@ def clean_records(records):
                     else parse_date(value)
                 )
                 if parsed is None:
-                    problems.append(Issue(field, "coss_field_date_format"))
+                    problems.append(Issue(field, "validation_rule_date_format"))
                 elif parsed < date(1900, 1, 1):
-                    problems.append(Issue(field, "coss_field_date_min"))
+                    problems.append(Issue(field, "validation_rule_date_min"))
                 elif field in PAST_ONLY and parsed > local_today():
-                    problems.append(Issue(field, "coss_field_date_future"))
+                    problems.append(Issue(field, "validation_rule_date_future"))
                 else:
                     record[key] = parsed.isoformat()
         problems.extend(identity_issues(record))
@@ -186,15 +186,15 @@ def split_fayda_id(record):
         if value is None or isinstance(value, str) and not value.strip():
             farmer_id = next((v for k, v in record.items() if isinstance(k, str) and k.rsplit(".", 1)[-1] == "farmer_id"), "")
             if not (farmer_id.strip() if isinstance(farmer_id, str) else farmer_id):
-                issues.append(Issue("farmer_id", "coss_field_farmer_id_required"))
-            issues.append(Issue("fayda_id", "coss_field_fayda_one_of"))
+                issues.append(Issue("farmer_id", "validation_rule_farmer_id_required"))
+            issues.append(Issue("fayda_id", "validation_rule_fayda_one_of"))
             continue
         digits = "".join(value.split()) if isinstance(value, str) else ""
         if digits.isascii() and digits.isdigit() and len(digits) in (12, 16):
             record[prefix + "fayda_fan_id"] = digits if len(digits) == 16 else None
             record[prefix + "fayda_fin"] = digits if len(digits) == 12 else None
         else:
-            issues.append(Issue("fayda_id", "coss_field_fayda_id_format"))
+            issues.append(Issue("fayda_id", "validation_rule_fayda_id_format"))
     return issues
 
 
@@ -215,9 +215,9 @@ def identity_issues(record):
         return []
     issues = []
     if not value("farmer_id"):
-        issues.append(Issue("farmer_id", "coss_field_farmer_id_required"))
+        issues.append(Issue("farmer_id", "validation_rule_farmer_id_required"))
     if not value("fayda_fin") and not value("fayda_fan_id"):
-        issues.append(Issue("fayda_fin", "coss_field_fayda_one_of"))
+        issues.append(Issue("fayda_fin", "validation_rule_fayda_one_of"))
     return issues
 
 

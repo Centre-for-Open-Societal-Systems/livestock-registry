@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 
-_logger = logging.getLogger("coss-farmer-reference-validate")
+_logger = logging.getLogger("oan-farmer-reference-validate")
 
 _CHECK_IDS = "Check the Farmer ID and Fayda ID against the farmer's Farmer Registry record and submit again"
 _REGISTER_FIRST = ("If the farmer is not registered yet, register them in the Farmer Registry first; "

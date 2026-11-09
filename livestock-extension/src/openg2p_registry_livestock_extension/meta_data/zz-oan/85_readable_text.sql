@@ -59,14 +59,14 @@ SET "domain_translation" = (COALESCE("domain_translation"::jsonb, '{}'::jsonb) |
  "DOVAR": "DOVAR",
  "LITS": "LITS",
  "ALIVE": "Alive",
- "coss_input_date_onset_min": "Date of onset: the date is before 1900. Enter a date on or after 1900-01-01.",
- "coss_input_date_resolution_min": "Date of resolution: the date is before 1900. Enter a date on or after 1900-01-01.",
- "coss_input_first_name_amh": "First name in Amharic: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
- "coss_input_middle_name_amh": "Middle name in Amharic: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
- "coss_input_last_name_amh": "Last name in Amharic: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
- "coss_input_first_name_other": "First name in the other language: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
- "coss_input_middle_name_other": "Middle name in the other language: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
- "coss_input_last_name_other": "Last name in the other language: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols."
+ "validation_date_onset_min": "Date of onset: the date is before 1900. Enter a date on or after 1900-01-01.",
+ "validation_date_resolution_min": "Date of resolution: the date is before 1900. Enter a date on or after 1900-01-01.",
+ "validation_first_name_amh": "First name in Amharic: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
+ "validation_middle_name_amh": "Middle name in Amharic: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
+ "validation_last_name_amh": "Last name in Amharic: use 1-100 Ethiopic letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
+ "validation_first_name_other": "First name in the other language: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
+ "validation_middle_name_other": "Middle name in the other language: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols.",
+ "validation_last_name_other": "Last name in the other language: use 1-100 letters, spaces, hyphens or apostrophes. Remove digits and other symbols."
 }'::jsonb)::json
 WHERE "language_code" = 'en';
 

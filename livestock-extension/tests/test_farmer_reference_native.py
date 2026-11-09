@@ -38,7 +38,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         url = os.environ["FARMER_TEST_DATABASE_URL"]
         if not url.startswith("postgresql+asyncpg://"):
             self.fail("Native acceptance requires PostgreSQL")
-        self.schema = "coss_ref_test_" + uuid4().hex
+        self.schema = "oan_ref_test_" + uuid4().hex
         control = create_async_engine(url)
         async with control.begin() as connection:
             await connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public"))
@@ -77,7 +77,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         await self.engine.dispose()
         # The only recursive drop target is the schema generated above, never
         # public or an environment-owned database/schema.
-        self.assertRegex(self.schema, r"^coss_ref_test_[0-9a-f]{32}$")
+        self.assertRegex(self.schema, r"^oan_ref_test_[0-9a-f]{32}$")
         control = create_async_engine(os.environ["FARMER_TEST_DATABASE_URL"])
         async with control.begin() as connection:
             await connection.execute(text('DROP SCHEMA "' + self.schema + '" CASCADE'))
@@ -278,7 +278,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         async with self.sessions.begin() as session:
             session.add(G2PRegistryAwePolicyConfiguration(awe_policy_config_id=str(uuid4()),
                 policy_scope="SECTION", register_id=self.farmer_id, section_id=self.section_id,
-                policy_type="registry.change_request", policy_key=f"coss.{sys.modules['openg2p_registry_extensions'].__variant__}.farmer-reference.v1",
+                policy_type="registry.change_request", policy_key=f"registry.change_request.{sys.modules['openg2p_registry_extensions'].__variant__}-farmer.default",
                 context_field_names=["farmer_reference_woreda_id", "farmer_reference_approver_ids"]))
             request = await self.service.queue_current_update(session, replace(self.snapshot, source_version=200,
                 profile={**self.snapshot.profile, "woreda_id":"proposed-woreda", "first_name":"Proposed"}))
@@ -379,7 +379,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             return "synthetic-test-token"
         contexts = []
         integration = self._context_service(contexts)
-        with patch.dict(os.environ, {"COSS_FARMER_SOURCE_ID": "synthetic-source"}):
+        with patch.dict(os.environ, {"REGISTRY_FARMER_REFERENCE_SOURCE_ID": "synthetic-source"}):
             async with self.sessions.begin() as session:
                 await self._bind_default_policy(session)
                 await self.service.ensure_dependency(session, INTAKE_ID, self.snapshot)
@@ -411,7 +411,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         async def bearer():
             return "synthetic-test-token"
         contexts = []
-        with patch.dict(os.environ, {"COSS_FARMER_SOURCE_ID": "another-source"}):
+        with patch.dict(os.environ, {"REGISTRY_FARMER_REFERENCE_SOURCE_ID": "another-source"}):
             async with self.sessions.begin() as session:
                 await self._bind_default_policy(session)
                 await self.service.ensure_dependency(session, INTAKE_ID, self.snapshot)
@@ -440,7 +440,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         async def bearer():
             return "synthetic-test-token"
         contexts = []
-        with patch.dict(os.environ, {"COSS_FARMER_SOURCE_ID": "synthetic-source"}):
+        with patch.dict(os.environ, {"REGISTRY_FARMER_REFERENCE_SOURCE_ID": "synthetic-source"}):
             async with self.sessions.begin() as session:
                 await self._bind_default_policy(session)
                 update = await self.service.queue_current_update(session, replace(self.snapshot, source_version=200,
@@ -497,8 +497,8 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(temporary.cleanup)
         secret_file = Path(temporary.name) / "synthetic-client-secret"
         secret_file.write_text("synthetic-test-secret")
-        env = patch.dict(os.environ, {"COSS_FARMER_AWE_TOKEN_URL":base + "/iam/realms/test/protocol/openid-connect/token",
-            "COSS_FARMER_AWE_CLIENT_ID":"synthetic-client", "COSS_FARMER_AWE_CLIENT_SECRET_FILE":str(secret_file)})
+        env = patch.dict(os.environ, {"REGISTRY_FARMER_REFERENCE_AWE_TOKEN_URL":base + "/iam/realms/test/protocol/openid-connect/token",
+            "REGISTRY_FARMER_REFERENCE_AWE_CLIENT_ID":"synthetic-client", "REGISTRY_FARMER_REFERENCE_AWE_CLIENT_SECRET_FILE":str(secret_file)})
         env.start()
         self.addCleanup(env.stop)
         for config in (CoreSettings.get_config(strict=False), StaffSettings.get_config(strict=False)):
@@ -519,7 +519,7 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
         async with self.sessions.begin() as session:
             session.add(G2PRegistryAwePolicyConfiguration(awe_policy_config_id=str(uuid4()),
                 policy_scope="SECTION", register_id=self.farmer_id, section_id=self.section_id,
-                policy_type="registry.change_request", policy_key=f"coss.{sys.modules['openg2p_registry_extensions'].__variant__}.farmer-reference.v1",
+                policy_type="registry.change_request", policy_key=f"registry.change_request.{sys.modules['openg2p_registry_extensions'].__variant__}-farmer.default",
                 context_field_names=["farmer_reference_woreda_id", "farmer_reference_approver_ids"]))
             for mnemonic, woreda in (("old_woreda", "woreda-1"), ("foreign_woreda", "proposed-woreda")):
                 session.add(G2PRegistryDataPolicy(policy_id=str(uuid4()), policy_mnemonic=mnemonic,

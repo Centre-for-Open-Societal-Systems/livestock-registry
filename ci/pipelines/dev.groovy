@@ -1,10 +1,6 @@
 def call() {
 
 pipeline {
-    parameters {
-        choice(name: 'NEW_DEV_DELIVERY_ACTION', choices: ['deploy', 'fresh-install', 'connector-plan', 'connector-upgrade'],
-            description: 'develop only. There is nothing to choose for a normal build: every develop build builds and pushes the images, upgrades the existing New Dev release with them (pinned chart in ci/deploy/oan-chart.json, with the image tags of this build) and, if the upgrade or a rollout fails, rolls the release back to the last deployed revision (deploy, the default). After a successful deploy it opens a pull request into oan-helm main with the image tags and digests of the build and, separately, proposes a chart-pin update when oan-helm has a newer chart. The other actions are deliberate maintenance runs. fresh-install backs up the New Dev livestock databases to the New Dev box, uninstalls the release, drops the databases and installs the pinned chart again on an empty database (all New Dev Livestock data is lost; Commons, the connector and the Farmer registry are untouched). connector-plan prints, without changing anything, the manifest diff and server-side dry run of the livestock-connector release against ci/connector. connector-upgrade builds no images and leaves the registry release alone: it archives the connector database to the New Dev box and upgrades the livestock-connector release to ci/connector (chart + values, --reset-values), printing the manifest diff and a server-side dry run first.')
-    }
     // Validation and image builds run on any build agent; only the deploy
     // stages below run on vpn-agent2, the one node that reaches the clusters.
     // Building the staff UI there starved the node (its Next build took the
@@ -26,7 +22,7 @@ pipeline {
         RP_VERSION       = '1.2.2-rc.614' // Same native platform as the immutable central profile
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
-        // Chart ownership: immutable COSS oan-helm profile in ci/deploy/oan-chart.json.
+        // Chart ownership: immutable OAN oan-helm profile in ci/deploy/oan-chart.json.
         // Staging stays blocked until separately rehearsed against its existing owner.
 
         // Dev cluster: namespace `livestock`, hosts on *.development.oanstaging.com,
@@ -37,8 +33,9 @@ pipeline {
         // stage and values-dev.yaml were removed, so there is now one dev target.
         DEV_NAMESPACE            = 'livestock'
         DEV_KUBECONFIG_CRED_ID   = 'livestock-dev-kubeconfig'
-        // Stage 'Publish chart': a maintainer's token for now; the GitHub App replaces this credential when it is configured.
-        OAN_HELM_FORK_CRED_ID    = 'oan-helm-fork-token'
+        // Stage 'Publish chart': the oan-ci-integration GitHub App credential. Bound as usernamePassword, the password is a
+        // short-lived installation token that needs Contents: write on oan-helm.
+        OAN_HELM_PUBLISH_CRED_ID = 'oan-ci-app'
 
         // livestock-registry-dashboard-api lives in its own (public) repository
         // and is built here beside the registry images. Each branch builds the
@@ -76,7 +73,7 @@ pipeline {
 
         stage('Validate native metadata and notification mapping') {
             steps {
-                sh 'COSS_REFACTOR_TEST_IMAGE=oan/livestock-reference-tests:rc557 python3 ci/refactor/rehearse_metadata.py livestock --pipeline'
+                sh 'OAN_REFACTOR_TEST_IMAGE=oan/livestock-reference-tests:rc557 python3 ci/refactor/rehearse_metadata.py livestock --pipeline'
                 sh 'python3 ci/refactor/compare_new_dev.py livestock'
                 archiveArtifacts artifacts: 'ci-output/refactor/new-dev/seed-rehearsal.json,ci-output/refactor/new-dev/comparison.json,ci-output/refactor/NATIVE_NOTIFICATION_PIPELINE.json', allowEmptyArchive: false
             }
@@ -140,7 +137,7 @@ pipeline {
 
         stage('Build & Push Images') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' }
-                           expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) } } }
+                           expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) } } }
             // Per-build Docker config: login, push and logout never touch the agent user's shared ~/.docker/config.json, so concurrent builds on one host cannot invalidate each other's ECR credentials.
             environment { DOCKER_CONFIG = "${env.WORKSPACE}/.docker-${env.BUILD_TAG}" }
             steps {
@@ -298,7 +295,7 @@ EOF
             when {
                 beforeAgent true
                 branch 'develop'
-                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
+                expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options { timeout(time: 15, unit: 'MINUTES') }
@@ -323,7 +320,7 @@ EOF
                 // Every develop build deploys: there is no publish-only mode. An empty value, or
                 // the retired 'publish-only' that Jenkins may still pass on the first run after
                 // this change, is a normal deploy. Only the connector maintenance actions skip it.
-                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
+                expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options { timeout(time: 60, unit: 'MINUTES') }
@@ -341,7 +338,7 @@ EOF
                             "BUILT_CHART_DIR=${env.WORKSPACE}/built-chart",
                         ]
                         withEnv(deployEnv) {
-                            if (params.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
+                            if (env.NEW_DEV_DELIVERY_ACTION == 'fresh-install') {
                                 // The database archive goes to the New Dev box over the existing backup key.
                                 withCredentials([sshUserPrivateKey(credentialsId: 'farmer-new-dev-backup-ssh', keyFileVariable: 'BACKUP_SSH_KEY')]) {
                                     sh 'bash ci/deploy/fresh-install-livestock-dev.sh'
@@ -367,14 +364,14 @@ EOF
             when {
                 beforeAgent true
                 branch 'develop'
-                expression { params.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
+                expression { env.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
             }
             agent { label 'vpn-agent2' }
             steps {
                 sh 'rm -rf ci scripts .central-charts'
                 unstash 'deploy'
                 script {
-                    if (params.NEW_DEV_DELIVERY_ACTION == 'connector-plan') {
+                    if (env.NEW_DEV_DELIVERY_ACTION == 'connector-plan') {
                         withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
                             sh 'PLAN_ONLY=1 bash ci/connector/upgrade-livestock-connector.sh'
                         }
@@ -396,7 +393,7 @@ EOF
             when {
                 beforeAgent true
                 branch 'develop'
-                expression { !((params.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['fresh-install', 'connector-plan', 'connector-upgrade']) }
+                expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['fresh-install', 'connector-plan', 'connector-upgrade']) }
             }
             agent { label 'vpn-agent2' }
             options { timeout(time: 15, unit: 'MINUTES') }
@@ -405,7 +402,7 @@ EOF
                 sh 'rm -rf built-chart'
                 unstash 'built-chart'
                 catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    withCredentials([usernamePassword(credentialsId: "${OAN_HELM_FORK_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                    withCredentials([usernamePassword(credentialsId: "${OAN_HELM_PUBLISH_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
                         sh 'bash ci/deploy/publish-chart.sh'
                     }
                 }

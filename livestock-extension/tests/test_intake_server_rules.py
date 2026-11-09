@@ -62,7 +62,7 @@ def test_todays_registry_date_is_accepted_when_the_utc_date_is_still_yesterday()
 def test_a_date_after_the_registry_date_is_still_in_the_future():
     with patch.object(rules, "local_today", return_value=date(2026, 10, 30)):
         problems = rules.clean_records([{"date_of_birth": "2026-10-31"}])
-    assert [p.key for p in problems] == ["coss_field_date_future"]
+    assert [p.key for p in problems] == ["validation_rule_date_future"]
 
 
 @pytest.mark.parametrize(

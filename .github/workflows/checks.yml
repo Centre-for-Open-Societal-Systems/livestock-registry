@@ -25,7 +25,7 @@ jobs:
           docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src registry-reference-tests -m pytest -q -p no:cacheprovider livestock-extension/tests
       - name: Native metadata and notification mapping
         run: |
-          COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/rehearse_metadata.py livestock --pipeline
+          OAN_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/rehearse_metadata.py livestock --pipeline
           python ci/refactor/compare_new_dev.py livestock
       - name: Signed HTTP and native workflow dependency gate (19 executions, zero skips)
         run: |
@@ -34,9 +34,26 @@ jobs:
           install() { timeout 300 npm install --global --prefix "$RUNNER_TEMP/postman-cli" postman-cli@1.73.0; }
           install || { echo "postman-cli install failed or timed out; retrying once" >&2; install; }
           export PATH="$RUNNER_TEMP/postman-cli/bin:$PATH"
-          COSS_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/verify_onboarding.py livestock --http-only
+          OAN_REFACTOR_TEST_IMAGE=registry-reference-tests python ci/refactor/verify_onboarding.py livestock --http-only
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: registry-verification
           path: ci-output/
+
+  chart:
+    # Required check: the registry chart must build its dependencies, lint and render.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.16.4
+      - name: Build chart dependencies
+        run: |
+          helm repo add openg2p https://openg2p.github.io/openg2p-helm
+          helm dependency build helm/openg2p-livestock-registry
+      - name: Lint
+        run: helm lint helm/openg2p-livestock-registry
+      - name: Render with default values
+        run: helm template oan-check helm/openg2p-livestock-registry --namespace oan-check > /dev/null

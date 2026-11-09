@@ -15,3 +15,13 @@ enricher_class: G2PFarmerReferenceNotificationEnricher
 activation: NOT ACTIVATED; dedicated receiver/subscription/signed partner/checkpoint
   ownership required
 kafka_topic: oan_farmer_reference_changed_v1
+accepted_event_types:
+- farmer-registry.farmer-profile.changed.v1
+- farmer-registry.farmer.changed.v1
+- farmer_reference.changed.v1
+farmer_sends_event_type: farmer-registry.farmer-profile.changed.v1
+farmer_profile_changed:
+  data_model_id: farmer_registry_farmer_profile_changed_v1
+  data_model_mnemonic: FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1
+  websub_topic: farmer-registry.farmer-profile.changed.v1
+  kafka_topic: farmer_registry_farmer_profile_changed_v1

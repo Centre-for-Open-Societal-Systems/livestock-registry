@@ -3,7 +3,6 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
-from unittest import mock
 
 SOURCE = next((Path(__file__).resolve().parents[1] / "src").glob("openg2p_registry_*_extension"))
 # Absolute-name load: the module has no relative imports and no platform imports.
@@ -32,13 +31,10 @@ class ApprovalContextTests(unittest.TestCase):
             with self.subTest(overrides=overrides):
                 self.assertEqual(self.build("UPDATE", **overrides), {"change_type": "UPDATE", "source": "unverified"})
 
-    def test_configured_source_defaults_to_the_deployment_variable(self):
-        with mock.patch.dict("os.environ", {context.SOURCE_ID_VARIABLE: " " + SOURCE_SYSTEM + " "}):
-            self.assertEqual(context.approval_context("UPDATE", response_digest=DIGEST, source_system=SOURCE_SYSTEM)["source"],
-                             "farmer-registry")
-        with mock.patch.dict("os.environ", clear=True):
-            self.assertEqual(context.approval_context("UPDATE", response_digest=DIGEST, source_system=SOURCE_SYSTEM)["source"],
-                             "unverified")
+    def test_without_a_configured_source_nothing_is_verified(self):
+        self.assertEqual(context.approval_context("UPDATE", response_digest=DIGEST, source_system=SOURCE_SYSTEM)["source"],
+                         "unverified")
+        self.assertEqual(self.build("UPDATE", configured_source_system=" " + SOURCE_SYSTEM + " ")["source"], "farmer-registry")
 
     def test_the_keys_are_exactly_those_the_binding_declares(self):
         self.assertEqual(sorted(self.build("ADD")), sorted(context.CONTEXT_FIELD_NAMES))

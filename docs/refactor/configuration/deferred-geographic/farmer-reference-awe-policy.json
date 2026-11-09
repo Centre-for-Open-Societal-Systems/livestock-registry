@@ -1,5 +1,5 @@
 {
-  "policy_key": "coss.livestock.farmer-reference.v1",
+  "policy_key": "registry.change_request.livestock-farmer.default",
   "name": "Livestock Farmer reference approval",
   "description": "Independent Farmer ADD and UPDATE approval at the approved Woreda scope",
   "artifact_type": "registry.change_request",

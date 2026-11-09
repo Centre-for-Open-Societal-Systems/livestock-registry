@@ -155,3 +155,20 @@ postgres-init:
       user: "{{ .Values.global.connectorDBUser }}"
       secret: "{{ .Values.global.connectorDBSecret }}"
       secretUserPasswordKey: "{{ .Values.global.connectorDBUserPasswordKey }}"
+
+# Connector definitions applied through the connector API after every install and upgrade
+# (templates/definitions-job.yaml, files/apply_definitions.py). Off here; an environment turns it on
+# with a definitions values file (ci/connector/definitions.*.yaml).
+connectorDefinitions:
+  enabled: false
+  apiBase: ""
+  adminAuth:
+    enabled: true
+    tokenUrl: ""
+    clientId: registry-connector
+    clientSecret:
+      namespace: commons
+      name: registry-connector
+      key: client_secret
+  retired: []
+  definitions: []

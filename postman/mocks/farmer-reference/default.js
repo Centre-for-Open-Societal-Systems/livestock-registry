@@ -62,7 +62,7 @@ http.createServer(async (req, res) => {
     if (req.headers.authorization !== 'Bearer synthetic-workflow-token') { res.statusCode=401; return json({}); }
     const body = bodyJson();
     const context = body.context;
-    if (!/^coss\.(cropsown|livestock)\.farmer-reference\.v1$/.test(body.policy_key) ||
+    if (!/^registry\.change_request\.(cropsown|livestock)-farmer\.default$/.test(body.policy_key) ||
         body.artifact_type !== 'registry.change_request' ||
         context.farmer_reference_woreda_id !== 'woreda-1' ||
         JSON.stringify(context.farmer_reference_approver_ids) !== '["old-reviewer"]' ||

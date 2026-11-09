@@ -47,6 +47,7 @@ def test_the_schema_only_uses_the_keywords_checked_here():
     notice(fayda_fin="123456789012"),
     notice(fayda_fan_id="1234567890123456"),
     notice(fayda_fin="123456789012", event_type="farmer-registry.farmer.changed.v1"),
+    notice(fayda_fin="123456789012", event_type="farmer-registry.farmer-profile.changed.v1"),
 ])
 def test_accepted(message):
     assert valid(message)

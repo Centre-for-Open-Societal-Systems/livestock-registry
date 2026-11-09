@@ -15,7 +15,12 @@ install()
 _worker_queue = getattr(Settings.get_config(strict=False), "worker_queue", "registry_worker_queue")
 
 
-@shared_task(name="coss.farmer_reference.deliver_workflows", queue=_worker_queue)
+TASK_NAME = "farmer_reference_awe_outbox_worker"
+# The name this task had before the rename. Messages queued under it before the
+# upgrade still run; remove the alias once no queue holds one.
+LEGACY_TASK_NAME = "coss.farmer_reference.deliver_workflows"
+
+
 def deliver_workflows():
     async def run():
         from openg2p_registry_celery_worker.engine import Engine
@@ -31,10 +36,14 @@ def deliver_workflows():
     return asyncio.run(run())
 
 
+deliver_workflows_task = shared_task(name=TASK_NAME, queue=_worker_queue)(deliver_workflows)
+deliver_workflows_legacy_task = shared_task(name=LEGACY_TASK_NAME, queue=_worker_queue)(deliver_workflows)
+
+
 current_app.conf.beat_schedule = {
     **(current_app.conf.beat_schedule or {}),
-    "coss-farmer-reference-workflows": {
-        "task": "coss.farmer_reference.deliver_workflows", "schedule": 30.0,
+    "farmer-reference-awe-outbox-beat-producer": {
+        "task": TASK_NAME, "schedule": 30.0,
         "options": {"queue": _worker_queue},
     },
 }

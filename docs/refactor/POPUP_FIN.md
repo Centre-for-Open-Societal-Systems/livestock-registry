@@ -92,5 +92,5 @@ mapped column to an existing extension table, logging each addition at DEBUG.
 It never changes existing types, constraints, defaults, unknown columns or values.
 New columns on existing tables are nullable with no fabricated backfill; native
 creation owns new tables. The three reviewed SQL artifacts remain as audit and
-manual-review material, not an automatically repeated data correction. Real COSS
+manual-review material, not an automatically repeated data correction. Real OAN
 restored-environment preservation remains a separate promotion gate.
