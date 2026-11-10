@@ -100,8 +100,11 @@ def main(domain, *, build=False):
             "--label", "oan-refactor.disposable=onboarding", "-e", "POSTGRES_HOST_AUTH_METHOD=trust",
             "-e", "POSTGRES_DB=refactor_tests", "postgres:15-alpine"])
         created_database = True
-        for _ in range(30):
-            ready = subprocess.run(["docker", "exec", database, "pg_isready", "-U", "postgres", "-d", "refactor_tests"], capture_output=True)
+        # A real query over TCP: the image's first-boot server answers only on the Unix socket and then
+        # restarts, so a socket pg_isready can pass while the final server is not yet accepting connections.
+        for _ in range(240):
+            ready = subprocess.run(["docker", "exec", database, "psql", "-X", "-h", "127.0.0.1", "-U", "postgres",
+                                    "-d", "refactor_tests", "-Atc", "SELECT 1"], capture_output=True)
             if ready.returncode == 0:
                 break
             time.sleep(0.25)

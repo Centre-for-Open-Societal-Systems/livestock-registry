@@ -47,8 +47,10 @@ def main(domain, pipeline=False):
         database_id = run("docker","run","--detach","--memory=256m","--name",database,"--network",network,"--label","oan-refactor.disposable=metadata",
             "-e","POSTGRES_HOST_AUTH_METHOD=trust","-e","POSTGRES_DB=refactor_metadata","postgres:15-alpine").stdout.strip()
         created_database = True
-        for _ in range(40):
-            ready = subprocess.run(["docker","exec",database,"pg_isready","-h","127.0.0.1","-U","postgres"],capture_output=True)
+        # A real query over TCP: the image's first-boot server answers only on the Unix socket and then
+        # restarts, so pg_isready can pass while the final server is not yet accepting connections.
+        for _ in range(240):
+            ready = subprocess.run(["docker","exec",database,"psql","-X","-h","127.0.0.1","-U","postgres","-d","refactor_metadata","-Atc","SELECT 1"],capture_output=True)
             if ready.returncode == 0:
                 break
             time.sleep(0.25)

@@ -126,8 +126,9 @@ def main(domain):
         database = create("--memory=256m", "-p", "127.0.0.1::5432",
                           "-e", "POSTGRES_HOST_AUTH_METHOD=trust", "postgres:15-alpine")
         run("docker", "start", database)
-        for _ in range(60):
-            ready = subprocess.run(["docker", "exec", database, "pg_isready", "-h", "127.0.0.1", "-U", "postgres"], check=False, capture_output=True, timeout=10)
+        # A real query over TCP, not only pg_isready: the first-boot server restarts before it accepts connections.
+        for _ in range(240):
+            ready = subprocess.run(["docker", "exec", database, "psql", "-X", "-h", "127.0.0.1", "-U", "postgres", "-Atc", "SELECT 1"], check=False, capture_output=True, timeout=10)
             if ready.returncode == 0:
                 break
             time.sleep(0.25)
