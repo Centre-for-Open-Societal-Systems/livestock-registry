@@ -44,18 +44,28 @@ def main(domain, pipeline=False):
     try:
         network_id = run("docker","network","create","--label","oan-refactor.disposable=metadata",network).stdout.strip()
         created_network = True
-        database_id = run("docker","run","--detach","--memory=256m","--name",database,"--network",network,"--label","oan-refactor.disposable=metadata",
+        # 1g: the onboarding tests open up to 24 concurrent sessions against databases holding the full native DDL.
+        # At 256m a backend was OOM-killed in the cgroup and the postmaster restarted into crash recovery mid-suite
+        # ("Consistent recovery state has not been yet reached"), failing every later test.
+        database_id = run("docker","run","--detach","--memory=1g","--name",database,"--network",network,"--label","oan-refactor.disposable=metadata",
             "-e","POSTGRES_HOST_AUTH_METHOD=trust","-e","POSTGRES_DB=refactor_metadata","postgres:15-alpine").stdout.strip()
         created_database = True
-        # A real query over TCP: the image's first-boot server answers only on the Unix socket and then
-        # restarts, so pg_isready can pass while the final server is not yet accepting connections.
-        for _ in range(240):
-            ready = subprocess.run(["docker","exec",database,"psql","-X","-h","127.0.0.1","-U","postgres","-d","refactor_metadata","-Atc","SELECT 1"],capture_output=True)
-            if ready.returncode == 0:
-                break
-            time.sleep(0.25)
-        else:
-            raise RuntimeError("Disposable database did not become ready")
+        def wait_ready(when):
+            # Ready means a real query over TCP succeeds three times in a row. pg_isready alone also answers while the
+            # entrypoint's socket-only init server runs or while the server is still recovering.
+            streak = 0
+            deadline = time.monotonic() + 90
+            while streak < 3:
+                if time.monotonic() > deadline:
+                    raise RuntimeError(f"Disposable database not ready {when}:\n" + database_log())
+                query = subprocess.run(["docker","exec",database,"psql","-X","-h","127.0.0.1","-U","postgres",
+                    "-d","postgres","-tAc","SELECT 1"],capture_output=True,text=True)
+                streak = streak + 1 if query.returncode == 0 and query.stdout.strip() == "1" else 0
+                time.sleep(0.5)
+        def database_log():
+            logs = subprocess.run(["docker","logs","--tail","40",database],capture_output=True,text=True,errors="replace")
+            return "--- disposable database log (last 40 lines) ---\n" + (logs.stdout + logs.stderr)[-4000:]
+        wait_ready("after start")
         def probe(mode):
             result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
                 "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
@@ -93,16 +103,21 @@ def main(domain, pipeline=False):
             # These databases live solely in the exact owned container and are
             # removed with it; no environment/database connection is accepted.
             module_database = f"extension_test_{module_index:03d}"
+            wait_ready("before " + test_module.name)
             run("docker","exec",database,"psql","-X","-U","postgres","-d","postgres",
                 "-v","ON_ERROR_STOP=1","-c",f"CREATE DATABASE {module_database}")
-            result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
-                "-v",f"{repo.as_posix()}:/work","-w","/work",
-                "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
-                "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
-                "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/{module_database}",
-                os.environ.get("OAN_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
-                "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests/{test_module.name}",
-                f"--junitxml=/work/ci-output/refactor/new-dev/{report}")
+            try:
+                result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
+                    "-v",f"{repo.as_posix()}:/work","-w","/work",
+                    "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
+                    "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
+                    "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/{module_database}",
+                    os.environ.get("OAN_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
+                    "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests/{test_module.name}",
+                    f"--junitxml=/work/ci-output/refactor/new-dev/{report}")
+            except RuntimeError as error:
+                # Show whether the database itself failed (an OOM kill reads "terminated by signal 9: Killed").
+                raise RuntimeError(f"{error}\n{database_log()}") from None
             print(test_module.name + ": " + result.stdout.splitlines()[-1],flush=True)
             module_result = ET.parse(output/report).getroot()
             for suite in module_result if module_result.tag == "testsuites" else [module_result]:
