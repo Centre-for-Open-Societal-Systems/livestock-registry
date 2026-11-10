@@ -55,7 +55,7 @@ One pipeline (`ci/pipelines/dev.groovy`). Every `develop` build runs these stage
 4. **Publish chart** (`ci/deploy/publish-chart.sh`), only after a successful deploy, adds that same archive to
    `repository/develop/` of oan-helm, whose workflow updates the index, changelog and rollback history. If
    publishing fails the stage and the build are UNSTABLE; New Dev already runs the build. No pull request is
-   involved. It publishes as the `oan-ci-integration` GitHub App, through the Jenkins credential `oan-ci-app`.
+   involved. It uses the Jenkins credential `oan-helm-fork-token`, a maintainer's token for now.
 
 `oan-chart.json` stays for a deploy by hand without `BUILT_CHART_DIR`; `ci/deploy/bump_pin.py` moves it.
 
