@@ -48,4 +48,10 @@ grep -q 'name: livestock-connector-postgres-init$' "$staging" && { echo "FAIL: s
 grep -q 'name: livestock-farmer-lookup-signing-ed25519' "$staging"
 grep -q 'connector-livestock.oanstaging.com' "$staging"
 grep -q 'livestock_connector_live' "$staging"
+# The API must expect the issuer of the tokens the definitions hook fetches (tokenUrl in
+# definitions.staging.yaml), not the New Dev issuer baked into the image.
+token_url=$(sed -n 's/^ *tokenUrl: *//p' definitions.staging.yaml)
+issuer=${token_url%/protocol/openid-connect/token}
+test -n "$issuer"
+test "$(grep -A1 'name: CONNECTOR_ADMIN_AUTH_ISSUER$' "$staging" | grep -c "value: \"$issuer\"")" -ge 3 || { echo "FAIL: staging API does not expect issuer $issuer" >&2; exit 1; }
 echo "PASS: livestock-connector chart renders the pinned image, signing env, the existing route and the definitions hook"
