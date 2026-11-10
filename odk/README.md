@@ -28,7 +28,7 @@ approval → register.
 
 | Piece | Dev | Local |
 |---|---|---|
-| ODK Central | `https://odk-central-development.oanstaging.com`, project 14 "Gen2 Livestock Registry", form `livestock_registry` | same (the connector polls the dev Central) |
+| ODK Central | `https://odk-central.development.oanstaging.com`, project 14 "Gen2 Livestock Registry", form `livestock_registry` | same (the connector polls the dev Central) |
 | Connector (api, worker, beat, ui) | namespace `common` | `connector-api` (8051), `connector-worker`, `connector-ui` (5174) from `docker-compose.yml` |
 | Pipeline definition | connector DB `connector_definitions` | `local/postgres/seed_connector_pipelines.sql`, run by hand with the Central login from `local/.env` (`ODK_USER`, `ODK_PW`); see the file header |
 | Partner | `livestock-partner` in Master Data `g2p_partners` | same |

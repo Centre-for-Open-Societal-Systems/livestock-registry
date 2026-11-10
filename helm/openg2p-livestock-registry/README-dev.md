@@ -7,9 +7,9 @@ on top of the chart's own `values.yaml`.
 
 | | |
 | --- | --- |
-| Public dev URL | `https://livestock-registry-development.oanstaging.com` |
-| Public IAM | `https://staff-iam-livestock-development.oanstaging.com` |
-| Public Keycloak | `https://keycloak-livestock-development.oanstaging.com` |
+| Public dev URL | `https://livestock-registry.development.oanstaging.com` |
+| Public IAM | `https://staff-iam.development.oanstaging.com` |
+| Public Keycloak | `https://keycloak.development.oanstaging.com` |
 | Internal staff API | `https://staff-livestock-registry.live.openg2p.test` (WireGuard) |
 | Internal partner API | `https://partner-livestock-registry.live.openg2p.test` (WireGuard) |
 
@@ -77,11 +77,11 @@ kubectl -n live get vs livestock-registry-staff-portal-ui \
 # Login must be tested at /api/login, not at / -- the static Next.js page
 # returns 200 even when login is completely broken.
 curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' \
-  'https://livestock-registry-development.oanstaging.com/api/login?redirect_uri=https://livestock-registry-development.oanstaging.com'
+  'https://livestock-registry.development.oanstaging.com/api/login?redirect_uri=https://livestock-registry.development.oanstaging.com'
 ```
 
 Expect `307` to
-`keycloak-livestock-development.oanstaging.com/realms/staff/protocol/openid-connect/auth`
+`keycloak.development.oanstaging.com/realms/staff/protocol/openid-connect/auth`
 with `code_challenge_method=S256`.
 
 ## Known gaps on dev, not addressed here
