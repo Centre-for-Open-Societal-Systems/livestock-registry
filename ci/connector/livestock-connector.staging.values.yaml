@@ -23,12 +23,23 @@ imagePullSecrets:
   - name: ecr-pull-secret
 
 commonEnv:
+  # Staging admin token issuer: the image bakes the New Dev issuer, so the definitions Job was refused with "Invalid issuer".
+  CONNECTOR_ADMIN_AUTH_ISSUER: https://keycloak.oanstaging.com/realms/staff
+  CONNECTOR_ADMIN_AUTH_JWKS_URL: http://commons-keycloak.commons.svc.cluster.local:80/realms/staff/protocol/openid-connect/certs
+  CONNECTOR_ADMIN_AUTH_CLIENT_ID: registry-connector
+  CONNECTOR_ADMIN_AUTH_ROLE: REGISTRY_CONNECTOR_ADMIN
+  CONNECTOR_ADMIN_AUTH_UI_CLIENT_ID: registry-connector-ui
   CONNECTOR_CORS_ORIGINS: https://connector-livestock.oanstaging.com
 
 # Farmer-reference receiver (WebSub topic oan.farmer-reference.changed.v1): validate the mapped payload
 # and sign the registry payload with the staging livestock lookup key (kid as in the Secret's kid key).
+# The image bakes the New Dev admin-auth issuer (docker/registry-connector/admin-auth.json). Staging
+# tokens come from keycloak.oanstaging.com, so the API must expect that issuer, or every admin call
+# (the definitions hook included) is 401 "Invalid issuer". Same values as the staging Farmer connector.
 extraEnv:
   CONNECTOR_ODK_CENTRAL_BASE_URL: https://odk-central.oanstaging.com
+  CONNECTOR_ADMIN_AUTH_ISSUER: https://keycloak.oanstaging.com/realms/staff
+  CONNECTOR_ADMIN_AUTH_JWKS_URL: http://commons-keycloak.commons.svc.cluster.local:80/realms/staff/protocol/openid-connect/certs
   CONNECTOR_VALIDATE_MAPPED_PAYLOAD: "true"
   CONNECTOR_SIGNING_KID: livestock-lookup-ed25519-9aff06b813c8ce29
 extraEnvFrom:
