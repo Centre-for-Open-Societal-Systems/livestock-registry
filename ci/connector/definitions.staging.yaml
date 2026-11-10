@@ -19,6 +19,23 @@ connectorDefinitions:
   # topic's lag is 0.
   retired: []
   definitions:
+    - name: Farmer registry farmer-profile changed v1 receiver
+      platform: internal_registry
+      transport_type: websub
+      data_model_mnemonic: FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1
+      g2p_sender_id: Live_stock_partner_internal
+      g2p_register_mnemonic: Farmer
+      auth_type: none
+      webhook_path_slug: farmer-registry-farmer-profile-changed-v1
+      webhook_verifier: hmac_sha256
+      webhook_secret_from: {secret: farmer-reference-websub-v1, key: hmac-secret, generate: true}
+      source_config:
+        hub_url: http://commons-services-websub.commons.svc.cluster.local
+        callback_url: http://livestock-connector-api.live.svc.cluster.local/webhook/by-slug/farmer-registry-farmer-profile-changed-v1
+        topics: [farmer-registry.farmer-profile.changed.v1]
+        websub_content_envelope: true
+        sign_registry_payload: true
+      validation_schema: {"type": "object", "required": ["event_id", "event_type", "farmer_id"], "anyOf": [{"required": ["fayda_fan_id"]}, {"required": ["fayda_fin"]}], "additionalProperties": false, "properties": {"event_id": {"type": "string", "minLength": 1, "maxLength": 256}, "event_type": {"enum": ["farmer_reference.changed.v1", "farmer-registry.farmer.changed.v1", "farmer-registry.farmer-profile.changed.v1"]}, "farmer_id": {"type": "string", "pattern": "^FR-[0-9]{12}$"}, "fayda_fan_id": {"type": "string", "pattern": "^[0-9]{16}$"}, "fayda_fin": {"type": "string", "pattern": "^[0-9]{12}$"}}}
     - name: Approved Farmer reference refresh v1
       platform: internal_registry
       transport_type: websub
