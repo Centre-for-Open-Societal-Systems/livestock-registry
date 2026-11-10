@@ -23,12 +23,6 @@ imagePullSecrets:
   - name: ecr-pull-secret
 
 commonEnv:
-  # Staging admin token issuer: the image bakes the New Dev issuer, so the definitions Job was refused with "Invalid issuer".
-  CONNECTOR_ADMIN_AUTH_ISSUER: https://keycloak.oanstaging.com/realms/staff
-  CONNECTOR_ADMIN_AUTH_JWKS_URL: http://commons-keycloak.commons.svc.cluster.local:80/realms/staff/protocol/openid-connect/certs
-  CONNECTOR_ADMIN_AUTH_CLIENT_ID: registry-connector
-  CONNECTOR_ADMIN_AUTH_ROLE: REGISTRY_CONNECTOR_ADMIN
-  CONNECTOR_ADMIN_AUTH_UI_CLIENT_ID: registry-connector-ui
   CONNECTOR_CORS_ORIGINS: https://connector-livestock.oanstaging.com
 
 # Farmer-reference receiver (WebSub topic oan.farmer-reference.changed.v1): validate the mapped payload
