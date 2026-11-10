@@ -2,7 +2,7 @@ def call() {
 
 pipeline {
     // Validation and image builds run on any build agent; only the deploy
-    // stages below run on vpn-agent2, the one node that reaches the clusters.
+    // stages below run on oan-ci-deploy-agent-1, the one node that reaches the clusters.
     // Building the staff UI there starved the node (its Next build took the
     // agent offline repeatedly) and blocked every registry's deploy behind it.
     agent any
@@ -249,7 +249,7 @@ pipeline {
                 beforeAgent true
                 branch 'staging' // ASSUMPTION — confirm the real staging branch name
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             steps {
                 sh """
                     cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
@@ -296,7 +296,7 @@ EOF
                 branch 'develop'
                 expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options { timeout(time: 15, unit: 'MINUTES') }
             steps {
                 checkout scm
@@ -321,7 +321,7 @@ EOF
                 // this change, is a normal deploy. Only the connector maintenance actions skip it.
                 expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options { timeout(time: 60, unit: 'MINUTES') }
             steps {
                 sh 'rm -rf ci scripts .central-charts built-chart'
@@ -365,7 +365,7 @@ EOF
                 branch 'develop'
                 expression { env.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             steps {
                 sh 'rm -rf ci scripts .central-charts'
                 unstash 'deploy'
@@ -394,7 +394,7 @@ EOF
                 branch 'develop'
                 expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['fresh-install', 'connector-plan', 'connector-upgrade']) }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options { timeout(time: 15, unit: 'MINUTES') }
             steps {
                 checkout scm
@@ -420,7 +420,7 @@ EOF
                 beforeAgent true
                 branch 'staging' // ASSUMPTION — confirm the real staging branch name
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             steps {
                 sh 'rm -rf ci scripts .central-charts'
                 unstash 'deploy'

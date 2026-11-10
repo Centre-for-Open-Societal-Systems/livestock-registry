@@ -30,7 +30,7 @@ python3 scripts/operations/staging-dashboard/deploy.py --apply
 
 The deployment program verifies the installed image, unmanaged ownership,
 Service selector, port and Node runtime. It snapshots the existing Deployment,
-Service and VirtualService under a private, unique directory on `vpn-agent2` and
+Service and VirtualService under a private, unique directory on `oan-ci-deploy-agent-1` and
 prints that backup location. It starts the guard before changing the Service.
 A rollout failure restores the exact previous Pod template and Service ports,
 and removes the task ConfigMap. The operation rejects an already-modified
