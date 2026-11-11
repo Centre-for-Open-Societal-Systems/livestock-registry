@@ -46,7 +46,7 @@ if grep -q 'connector-service\|postgres-init:develop' "$staging"; then echo "FAI
 test "$(grep -c 'kind: Job' "$staging")" -eq 1
 grep -q 'name: livestock-connector-postgres-init$' "$staging" && { echo "FAIL: staging renders the postgres-init ServiceAccount" >&2; exit 1; }
 grep -q 'name: livestock-farmer-lookup-signing-ed25519' "$staging"
-grep -q 'connector-livestock.qa.oanstaging.com' "$staging"
+grep -q 'connector-livestock-registry.qa.oanstaging.com' "$staging"
 grep -q 'livestock_connector_live' "$staging"
 # The API must expect the issuer of the tokens the definitions hook fetches (tokenUrl in
 # definitions.staging.yaml), not the New Dev issuer baked into the image.

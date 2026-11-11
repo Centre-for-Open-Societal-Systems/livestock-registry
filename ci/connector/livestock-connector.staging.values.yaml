@@ -8,7 +8,7 @@
 fullnameOverride: livestock-connector
 
 global:
-  hostname: connector-livestock.qa.oanstaging.com
+  hostname: connector-livestock-registry.qa.oanstaging.com
   postgresqlHost: commons-postgresql.commons.svc.cluster.local
   postgresqlPort: 5432
   redisHost: livestock-registry-redis-master
@@ -23,7 +23,7 @@ imagePullSecrets:
   - name: ecr-pull-secret
 
 commonEnv:
-  CONNECTOR_CORS_ORIGINS: https://connector-livestock.qa.oanstaging.com
+  CONNECTOR_CORS_ORIGINS: https://connector-livestock-registry.qa.oanstaging.com
 
 # Farmer-reference receiver (WebSub topic oan.farmer-reference.changed.v1): validate the mapped payload
 # and sign the registry payload with the staging livestock lookup key (kid as in the Secret's kid key).
