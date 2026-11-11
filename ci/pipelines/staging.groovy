@@ -4,7 +4,7 @@
 // The connector release follows the registry in a second stage, with the connector images of that same develop build.
 def call() {
     pipeline {
-        agent { label 'vpn-agent2' }
+        agent { label 'oan-ci-deploy' }
         options {
             timestamps()
             disableConcurrentBuilds()

@@ -2,7 +2,7 @@ def call() {
 
 pipeline {
     // Validation and image builds run on any build agent; only the deploy
-    // stages below run on vpn-agent2, the one node that reaches the clusters.
+    // stages below run on oan-ci-deploy-agent-1, the one node that reaches the clusters.
     // Building the staff UI there starved the node (its Next build took the
     // agent offline repeatedly) and blocked every registry's deploy behind it.
     agent any
@@ -13,6 +13,9 @@ pipeline {
         // operation in progress"), which is what showed up as a failed
         // db-seed on dev on 2026-09-18.
         disableConcurrentBuilds()
+        // Build agents are on-demand spot machines: if one is reclaimed mid-build,
+        // run the build again instead of failing it.
+        retry(count: 2, conditions: [agent(), nonresumable()])
     }
 
     environment {
@@ -159,14 +162,18 @@ pipeline {
                         def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'registry-connector', 'registry-connector-ui']
                         components.each { name ->
                             def image = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:${env.IMAGE_TAG}"
+                            // On-demand agents start with an empty Docker cache: layers come from the
+                            // branch's cache tag in ECR (inline cache metadata), pushed every build.
+                            def cache = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:cache-${env.BRANCH_NAME}"
                             sh """
                                 echo "=== Building and pushing ${name} ==="
-                                docker build --build-arg RP_VERSION=${RP_VERSION} \
-                                    -f docker/${name}/Dockerfile -t ${image} --pull .
+                                docker build --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from ${cache} --build-arg RP_VERSION=${RP_VERSION} \
+                                    -f docker/${name}/Dockerfile -t ${image} -t ${cache} --pull .
                                 # ECR does not create repositories on push (registry-connector is new).
                                 aws ecr describe-repositories --region ${AWS_REGION} --repository-names ${ECR_PATH}/${name} > /dev/null 2>&1 \
                                   || aws ecr create-repository --region ${AWS_REGION} --repository-name ${ECR_PATH}/${name} > /dev/null
                                 docker push ${image}
+                                docker push ${cache}
                             """
                             if (name == 'registry-connector') {
                                 // The connector extension's tests, inside the image just pushed.
@@ -192,14 +199,16 @@ pipeline {
                             // by 'Checkout dashboard-api'), with its own build context.
                             // Its ECR repository is created outside CI, like the others.
                             def api = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api:${env.IMAGE_TAG}"
+                            def apiCache = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api:cache-${env.BRANCH_NAME}"
                             sh """
                                 echo "=== Building and pushing dashboard-api (${env.DASHBOARD_API_REF_USED} @ ${env.DASHBOARD_API_SHA}) ==="
-                                docker build \
+                                docker build --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from ${apiCache} \
                                     --label org.opencontainers.image.source=${DASHBOARD_API_REPO} \
                                     --label org.opencontainers.image.revision=${env.DASHBOARD_API_SHA} \
                                     --label org.opencontainers.image.ref.name=${env.DASHBOARD_API_REF_USED} \
-                                    -f .build/dashboard-api/Dockerfile -t ${api} .build/dashboard-api
+                                    -f .build/dashboard-api/Dockerfile -t ${api} -t ${apiCache} .build/dashboard-api
                                 docker push ${api}
+                                docker push ${apiCache}
                             """
                         }
 
@@ -249,7 +258,7 @@ pipeline {
                 beforeAgent true
                 branch 'staging' // ASSUMPTION — confirm the real staging branch name
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             steps {
                 sh """
                     cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
@@ -296,7 +305,7 @@ EOF
                 branch 'develop'
                 expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options { timeout(time: 15, unit: 'MINUTES') }
             steps {
                 checkout scm
@@ -321,7 +330,7 @@ EOF
                 // this change, is a normal deploy. Only the connector maintenance actions skip it.
                 expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['connector-plan', 'connector-upgrade']) }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options { timeout(time: 60, unit: 'MINUTES') }
             steps {
                 sh 'rm -rf ci scripts .central-charts built-chart'
@@ -365,7 +374,7 @@ EOF
                 branch 'develop'
                 expression { env.NEW_DEV_DELIVERY_ACTION in ['connector-plan', 'connector-upgrade'] }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             steps {
                 sh 'rm -rf ci scripts .central-charts'
                 unstash 'deploy'
@@ -394,7 +403,7 @@ EOF
                 branch 'develop'
                 expression { !((env.NEW_DEV_DELIVERY_ACTION ?: 'deploy') in ['fresh-install', 'connector-plan', 'connector-upgrade']) }
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             options { timeout(time: 15, unit: 'MINUTES') }
             steps {
                 checkout scm
@@ -420,7 +429,7 @@ EOF
                 beforeAgent true
                 branch 'staging' // ASSUMPTION — confirm the real staging branch name
             }
-            agent { label 'vpn-agent2' }
+            agent { label 'oan-ci-deploy' }
             steps {
                 sh 'rm -rf ci scripts .central-charts'
                 unstash 'deploy'
