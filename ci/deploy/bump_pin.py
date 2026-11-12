@@ -179,7 +179,7 @@ def main(argv=None):
         new, reason = proposal(old)
         print(reason)
         if new is None:
-            return 0
+            return
     else:
         if not args.commit:
             parser.error("give an oan-helm commit, or use --latest")
@@ -190,18 +190,17 @@ def main(argv=None):
             print("NOTE: platform version changes; after --write run scripts/bump-rp-version.sh and move RP_VERSION and the "
                   "openg2p/openg2p-registry-* tags in ci/pipelines/dev.groovy and ci/refactor by hand.")
         print("\n(dry run: nothing written; add --write to update " + str(PROFILE.name) + ")")
-        return 0
+        return
     for path in apply_pin(old, new):
         print("updated " + path)
     if old[ROLE].get("platformVersion") != new[ROLE]["platformVersion"]:
         print("NOTE: platform version changed: run scripts/bump-rp-version.sh and move RP_VERSION and the "
               "openg2p/openg2p-registry-* tags in ci/pipelines/dev.groovy and ci/refactor by hand.")
     print("next: python3 -m unittest discover -s test -p test_oan_chart.py && python3 ci/deploy/oan_chart.py prefetch registry")
-    return 0
 
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        main()
     except (ValueError, OSError, KeyError, tarfile.TarError) as error:
         raise SystemExit("FAIL: " + str(error))
