@@ -56,14 +56,15 @@ ui:
   image:
     pullPolicy: IfNotPresent
 
+# The route binds the staging Gateway (istio-system/staging, *.qa.oanstaging.com wildcard certificate), like the Farmer
+# connector; the namespace's own Gateway live/internal lists only the old *.oanstaging.com names.
 istio:
   enabled: true
   gateway:
     create: false
-    name: internal
   virtualservice:
     enabled: true
-    gateway: internal
+    gateway: istio-system/staging
 
 # The connector database and user exist since the first install. With the init enabled, the chart's
 # pre-upgrade hooks would run again against the Secret that holds the database password.
