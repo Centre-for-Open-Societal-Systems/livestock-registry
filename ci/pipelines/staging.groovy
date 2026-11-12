@@ -52,6 +52,32 @@ def call() {
                     }
                 }
             }
+            stage('Deliver dashboard') {
+                // The livestock-registry-dashboard release (the dashboard UI; its dashboard-api comes with the registry chart),
+                // from oan-helm: chart repository/livestock-registry-dashboard-0.1.2.tgz with
+                // environments/staging/values/livestock-dashboard.yaml, the release scripts/ci/deliver_staging_dashboards.sh
+                // installs. The chart generates its Keycloak client secret, registers the client and the staff-portal tile
+                // (IAM setup hook) and refreshes its own ECR pull secret, so nothing is set by hand. --atomic restores the
+                // previous revision when the upgrade fails; a failed first install is removed.
+                when { allOf { branch 'staging'; not { changeRequest() } } }
+                steps {
+                    withCredentials([file(credentialsId: 'staging-rke2-kubeconfig', variable: 'KUBECONFIG')]) {
+                        sh '''
+                          set -eu
+                          rm -rf .oan-helm-dashboard
+                          git clone --quiet --depth 1 --filter=blob:none --sparse \\
+                            https://github.com/Centre-for-Open-Societal-Systems/oan-helm.git .oan-helm-dashboard
+                          git -C .oan-helm-dashboard sparse-checkout set --no-cone \\
+                            /repository/livestock-registry-dashboard-0.1.2.tgz /environments/staging/values/livestock-dashboard.yaml
+                          helm upgrade --install livestock-registry-dashboard \\
+                            .oan-helm-dashboard/repository/livestock-registry-dashboard-0.1.2.tgz --namespace live \\
+                            --values .oan-helm-dashboard/environments/staging/values/livestock-dashboard.yaml \\
+                            --reset-values --atomic --wait --timeout 10m
+                          helm status livestock-registry-dashboard -n live | sed -n '1,6p'
+                        '''
+                    }
+                }
+            }
         }
         post {
             failure {
