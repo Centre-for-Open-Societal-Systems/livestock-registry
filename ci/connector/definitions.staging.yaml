@@ -10,7 +10,7 @@ connectorDefinitions:
   enabled: true
   adminAuth:
     enabled: true
-    tokenUrl: https://keycloak.oanstaging.com/realms/staff/protocol/openid-connect/token
+    tokenUrl: https://keycloak.qa.oanstaging.com/realms/staff/protocol/openid-connect/token
     clientId: registry-connector
     # Read at run time with the Job's ServiceAccount (grant in ci/k8s/livestock-deploy-rbac.yaml).
     clientSecret: {namespace: commons, name: registry-connector, key: client_secret}
@@ -69,7 +69,7 @@ connectorDefinitions:
         email: {secret: livestock-odk-central-credentials, key: email}
         password: {secret: livestock-odk-central-credentials, key: password}
       source_config:
-        base_url: https://odk-central.oanstaging.com
+        base_url: https://odk-central.qa.oanstaging.com
         project_id: 2
         form_id: livestock_registry
         resolve_nav_links: true

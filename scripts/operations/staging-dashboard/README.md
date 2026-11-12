@@ -1,7 +1,7 @@
 # Existing staging dashboard access
 
 Staging's installed dashboard is the unmanaged `live/livestock-dashboard-ui`
-Deployment and Service at `https://livestock-dashboard.oanstaging.com`.
+Deployment and Service at `https://livestock-dashboard.qa.oanstaging.com`.
 Its original `nahom25/livestock-dashboard-ui:0.2.0` application serves data without
 checking the registry's IAM session. It is separate from the standalone dashboard
 delivery configured for New Dev.
