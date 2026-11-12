@@ -56,14 +56,16 @@ ui:
   image:
     pullPolicy: IfNotPresent
 
+# The public name is connector-livestock-registry.qa.oanstaging.com on the staging Gateway (istio-system/staging, the
+# *.qa.oanstaging.com wildcard certificate), like the Farmer and Crop connectors. The namespace's own Gateway
+# live/internal lists only the old names, so the qa name answered 404.
 istio:
   enabled: true
   gateway:
     create: false
-    name: internal
   virtualservice:
     enabled: true
-    gateway: internal
+    gateway: istio-system/staging
 
 # The connector database and user exist since the first install. With the init enabled, the chart's
 # pre-upgrade hooks would run again against the Secret that holds the database password.
