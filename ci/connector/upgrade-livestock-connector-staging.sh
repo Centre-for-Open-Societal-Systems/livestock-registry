@@ -3,9 +3,12 @@
 # were built from the same develop build as the registry just promoted. Run by ci/pipelines/staging.groovy
 # right after scripts/ci/deliver_staging.sh of oan-helm promoted and deployed the registry; it takes no parameters.
 #
-# Which image: the promoted chart (built-chart/*.tgz) pins the staff-api image by digest. ECR lists the build
-# tag of that digest (the 12-character commit); the connector and connector UI images carry the same tag, because one
-# develop build pushes all of them. Their digests are resolved from ECR and the release is pinned to the digests.
+# Which image: the promoted chart (built-chart/*.tgz) records the develop commit it was packaged from
+# (annotation oan.org/source-commit). Its first 12 characters are the build tag that develop build pushed the
+# connector and connector UI images with. Their digests are resolved from ECR and the release is pinned to the
+# digests. The chart's commit names the build, not the tags of the promoted staff-api digest: ECR keeps a tag on one
+# image only, so a later develop build of the same commit moves the tag off the promoted digest (staging #17).
+# A 12-character tag still on that digest is tried after the chart's commit.
 # Nothing is built or tagged here, and no tag is guessed: if the build has no connector image the run fails
 # before the cluster is touched.
 #
@@ -75,8 +78,19 @@ else:
     sys.exit("the promoted chart pins no staff-api image by digest")
 PY
 }
+promoted_source_commit() {
+  python3 - "$1" <<'PY'
+import re, sys, tarfile
+with tarfile.open(sys.argv[1]) as bundle:
+    member = next(m for m in bundle.getmembers() if m.name.count("/") == 1 and m.name.endswith("/Chart.yaml"))
+    chart = bundle.extractfile(member).read().decode("utf-8")
+found = re.search(r"""^\s+oan\.org/source-commit:\s*["']?([0-9a-f]{40})["']?\s*$""", chart, re.M)
+print(found.group(1)[:12] if found else "")
+PY
+}
 read -r SERVICE_REPOSITORY SERVICE_DIGEST < <(promoted_service_image "$PROMOTED_CHART")
 test -n "${SERVICE_DIGEST:-}" || { echo "no staff-api digest in $PROMOTED_CHART" >&2; exit 1; }
+SOURCE_BUILD_TAG=$(promoted_source_commit "$PROMOTED_CHART")
 IMAGE_PREFIX=${SERVICE_REPOSITORY%/staff-api}
 ECR_BASE=${IMAGE_PREFIX#*/}
 CONNECTOR_IMAGE_REPOSITORY="$IMAGE_PREFIX/registry-connector"
@@ -85,10 +99,11 @@ ecr_digest() {
   aws ecr describe-images --region "$AWS_REGION" --repository-name "$1" --image-ids "imageTag=$2" \
     --query 'imageDetails[0].imageDigest' --output text 2> /dev/null || true
 }
-build_tags=$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$ECR_BASE/staff-api" \
+digest_tags=$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$ECR_BASE/staff-api" \
   --image-ids "imageDigest=$SERVICE_DIGEST" --query 'imageDetails[0].imageTags[]' --output text | tr '\t' '\n' \
   | grep -E "$BUILD_TAG_PATTERN" | sort || true)
-test -n "$build_tags" || { echo "staff-api $SERVICE_DIGEST has no build tag matching $BUILD_TAG_PATTERN in ECR." >&2; exit 1; }
+build_tags=$(printf '%s\n' "$SOURCE_BUILD_TAG" $digest_tags | grep -E "$BUILD_TAG_PATTERN" | awk '!seen[$0]++' || true)
+test -n "$build_tags" || { echo "Neither the promoted chart (oan.org/source-commit) nor staff-api $SERVICE_DIGEST names a build tag matching $BUILD_TAG_PATTERN." >&2; exit 1; }
 CONNECTOR_IMAGE_DIGEST=""
 for tag in $build_tags; do
   CONNECTOR_IMAGE_DIGEST=$(ecr_digest "$ECR_BASE/registry-connector" "$tag")
@@ -100,7 +115,7 @@ for tag in $build_tags; do
   CONNECTOR_IMAGE_DIGEST=""
 done
 test -n "$CONNECTOR_IMAGE_DIGEST" || { echo "No registry-connector and registry-connector-ui image carries a build tag of the promoted staff-api ($build_tags)." >&2; exit 1; }
-echo "Promoted staff-api $SERVICE_DIGEST is build $BUILD_TAG"
+echo "Promoted chart is build $BUILD_TAG (chart commit ${SOURCE_BUILD_TAG:-none recorded}; staff-api $SERVICE_DIGEST)"
 echo "api, worker, beat: $CONNECTOR_IMAGE_REPOSITORY@$CONNECTOR_IMAGE_DIGEST"
 echo "ui: $CONNECTOR_UI_IMAGE_REPOSITORY@$CONNECTOR_UI_IMAGE_DIGEST"
 
