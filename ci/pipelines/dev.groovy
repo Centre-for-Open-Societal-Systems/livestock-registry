@@ -71,6 +71,8 @@ pipeline {
                 sh 'python3 -m unittest discover -s test -p test_sample_approver_password.py -v'
                 // Rollback of a failed deploy and the chart-pin updater, with stand-in helm/kubectl and GitHub (no cluster, no network).
                 sh 'python3 -m unittest discover -s test -p test_deploy_ci.py -v'
+                // Which connector build the staging upgrade pins, with stand-in aws/helm/kubectl (no cluster, no network).
+                sh 'python3 -m unittest discover -s test -p test_connector_staging_build_tag.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src oan/livestock-reference-tests:rc557 -m unittest discover -s livestock-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
