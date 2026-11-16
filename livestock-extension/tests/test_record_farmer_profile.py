@@ -171,16 +171,41 @@ def test_every_mirrored_column_is_on_the_livestock_record():
     for column in projection.MIRRORED_PROFILE_FIELDS.values():
         assert re.search(rf"^    {column}: Mapped\[", model, re.M), column
 
+class DeployFillTests(FanOutTests):
+    """fill_empty_profiles: run by the staff-api migrate command on every deploy."""
 
-class BackfillTests(FanOutTests):
-    async def test_the_backfill_copies_details_onto_existing_active_records(self):
+    async def test_the_deploy_fill_writes_only_empty_values_of_active_records(self):
         async with self.sessions.begin() as session:
-            with self.assertLogs("oan-farmer-reference-projection", "WARNING") as logged:
-                records, changed = await projection.backfill_profiles(session, Farmer, Record)
-        # Four linked ACTIVE records: two refreshed, "other-farmer" has no Farmer here, "mismatch" is logged.
-        self.assertEqual((records, changed), (4, 2))
-        self.assertIn("mismatch", logged.output[0])
+            # A value the record already holds is never overwritten by the deploy fill.
+            (await session.get(Record, "active-2")).farmer_gender = "FEMALE"
+        filled = await projection.fill_empty_profiles(self.engine, "farmers", "records")
+        async with self.sessions() as session:
+            one, two = await session.get(Record, "active-1"), await session.get(Record, "active-2")
+            self.assertEqual((one.farmer_gender, one.farmer_marital_status, one.farmer_mobile_number),
+                             ("MALE", "SINGLE", "+251911000001"))
+            self.assertEqual((two.farmer_gender, two.farmer_marital_status, two.farmer_mobile_number),
+                             ("FEMALE", "SINGLE", "+251911000001"))
+            # Not active, no Farmer here, or under another Farmer ID: left as they are.
+            for left in ("inactive", "other-farmer", "mismatch"):
+                self.assertIsNone((await session.get(Record, left)).farmer_gender, left)
+            # A Farmer without a value fills nothing.
+            self.assertIsNone(one.farmer_education_level)
+        # active-1: gender, marital status, mobile; active-2: mobile only.
+        self.assertEqual(filled, 4)
+
+    async def test_a_second_deploy_fill_changes_nothing(self):
+        await projection.fill_empty_profiles(self.engine, "farmers", "records")
+        self.assertEqual(await projection.fill_empty_profiles(self.engine, "farmers", "records"), 0)
+
+    async def test_an_empty_string_counts_as_empty(self):
+        async with self.sessions.begin() as session:
+            (await session.get(Record, "active-1")).farmer_gender = ""
+        await projection.fill_empty_profiles(self.engine, "farmers", "records")
         async with self.sessions() as session:
             self.assertEqual((await session.get(Record, "active-1")).farmer_gender, "MALE")
-            self.assertIsNone((await session.get(Record, "other-farmer")).farmer_gender)
-            self.assertIsNone((await session.get(Record, "inactive")).farmer_gender)
+
+
+def test_migrate_runs_the_deploy_fill():
+    app = (SOURCE / "app.py").read_text(encoding="utf-8")
+    migrate = app[app.index("def migrate_database"):]
+    assert migrate.index("migrate_existing_schema(dbengine.get())") < migrate.index("await fill_empty_profiles(")

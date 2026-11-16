@@ -47,6 +47,11 @@ class Initializer(BaseInitializer):
                 [getattr(models,name) for name in MODEL_NAMES]+list(REFERENCE_MODELS))
             from .schema_compat import migrate_existing_schema
             await migrate_existing_schema(dbengine.get())
+            # The farmer's details of records written before they came from the Farmer,
+            # empty values only (farmer_reference/projection.py): no manual step after a deploy.
+            from .farmer_reference.projection import fill_empty_profiles
+            await fill_empty_profiles(dbengine.get(), models.G2PRegisterFarmer.__table__.name,
+                                      models.G2PRegisterLivestock.__table__.name)
         # OAN Farmer's migration-loop boundary: don't reuse connections from
         # the core migration's already-closed event loop.
         dbengine.get().sync_engine.dispose(close=False)
