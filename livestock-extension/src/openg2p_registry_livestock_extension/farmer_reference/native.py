@@ -41,6 +41,26 @@ def domain_models():
     return import_module("openg2p_registry_extensions.register_domain.models")
 
 
+# The records of this registry that name a Farmer (farmer_uuid), by model name.
+DEPENDENT_RECORD_MODELS = ("G2PRegisterCropSown", "G2PRegisterLivestock")
+
+
+async def refresh_dependent_records(session, local_farmer_id):
+    """Copy an approved Farmer onto every active record of this registry that names it."""
+    from .projection import refresh_linked_records
+
+    models = domain_models()
+    farmer = await session.get(models.G2PRegisterFarmer, local_farmer_id)
+    if farmer is None:
+        return 0
+    changed = 0
+    for name in DEPENDENT_RECORD_MODELS:
+        model = getattr(models, name, None)
+        if model is not None and hasattr(model, "farmer_uuid"):
+            changed += await refresh_linked_records(session, farmer, model)
+    return changed
+
+
 async def farmer_definition(session):
     return (await session.execute(select(G2PRegisterDefinition).where(
         G2PRegisterDefinition.register_mnemonic == "Farmer"))).scalar_one()
@@ -521,6 +541,9 @@ class ReferenceChangeRequestService(DirectApprovalClosed, G2PRegisterChangeReque
             farmer.farmer_name = " ".join(value.strip() for value in
                 (farmer.first_name, farmer.middle_name, farmer.last_name) if value and value.strip()) or None
             await session.flush()
+        if request.action == "UPDATE":
+            # The approved change reaches the records that name this Farmer, in this transaction.
+            await refresh_dependent_records(session, reference.local_farmer_id)
 
 
 class ReferenceWebhookService(G2PAweWebhookService):
