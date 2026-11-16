@@ -44,11 +44,11 @@ esac
 """
 
 
-def chart_archive(path, source_commit):
+def chart_archive(path, source_commit, staff_api=PREFIX + "/staff-api"):
     chart = "apiVersion: v2\nname: openg2p-livestock-registry\nversion: 1.0.0-rc.464\nannotations:\n"
     if source_commit:
         chart += f"  oan.org/source-commit: {source_commit}\n"
-    values = f"registry:\n  staffApi:\n    image:\n      repository: {PREFIX}/staff-api\n      tag: 1.0.0-rc.464@{PROMOTED}\n"
+    values = f"registry:\n  staffApi:\n    image:\n      repository: {staff_api}\n      tag: 1.0.0-rc.464@{PROMOTED}\n"
     with tarfile.open(path, "w:gz") as bundle:
         for name, text in (("Chart.yaml", chart), ("values.yaml", values)):
             data = text.encode()
@@ -73,8 +73,8 @@ class ConnectorBuildTagTest(unittest.TestCase):
             path.write_text(body, newline="\n")
             path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
-    def run_script(self, source_commit, digest_tags, tags):
-        chart_archive(self.repo / "built-chart/openg2p-livestock-registry-1.0.0-rc.464.tgz", source_commit)
+    def run_script(self, source_commit, digest_tags, tags, **chart):
+        chart_archive(self.repo / "built-chart/openg2p-livestock-registry-1.0.0-rc.464.tgz", source_commit, **chart)
         env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ["PATH"], KUBECONFIG="/nonexistent",
                    PLAN_ONLY="1", DIGEST_TAGS=digest_tags, TAGS="\n".join(tags))
         done = subprocess.run(["bash", str(self.repo / SCRIPT)], cwd=str(self.repo), env=env,
@@ -97,6 +97,19 @@ class ConnectorBuildTagTest(unittest.TestCase):
             f"registry-connector:{COMMIT[:12]}={CONNECTOR}", f"registry-connector-ui:{COMMIT[:12]}={CONNECTOR_UI}"])
         self.assertEqual(code, 0, out)
         self.assertIn(f"Promoted chart is build {COMMIT[:12]} (chart commit none recorded;", out)
+
+    def test_a_chart_on_the_eoan_names_finds_the_connector_of_the_same_platform_and_build(self):
+        # eoan/livestock-registry/<image>-<RP version>:<version>-<branch>.<build> (ci/image_names.py). Build tags are
+        # unique, so the promoted staff-api digest still carries its own.
+        eoan = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/eoan/livestock-registry"
+        code, out = self.run_script(COMMIT, "staging\t1.0.0-rc.464\t0.0.0-develop.57", [
+            f"registry-connector-1.2.2-rc.614:0.0.0-develop.57={CONNECTOR}",
+            f"registry-connector-ui-1.2.2-rc.614:0.0.0-develop.57={CONNECTOR_UI}"],
+            staff_api=eoan + "/staff-api-1.2.2-rc.614")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Promoted chart is build 0.0.0-develop.57", out)
+        self.assertIn(f"api, worker, beat: {eoan}/registry-connector-1.2.2-rc.614@{CONNECTOR}", out)
+        self.assertIn(f"ui: {eoan}/registry-connector-ui-1.2.2-rc.614@{CONNECTOR_UI}", out)
 
     def test_no_build_tag_anywhere_fails_before_the_cluster(self):
         code, out = self.run_script("", "staging\t1.0.0-rc.464", [])

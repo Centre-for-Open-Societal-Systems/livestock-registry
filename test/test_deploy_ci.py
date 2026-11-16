@@ -10,6 +10,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import stat
 import subprocess
@@ -83,6 +84,9 @@ class DeployRollbackTests(unittest.TestCase):
         for name in ("deploy-livestock-dev.sh", "release-rollback.sh"):
             shutil.copy(ROOT / "ci/deploy" / name, self.repo / "ci/deploy" / name)
         shutil.copy(ROOT / "ci/deploy/bump_pin.py", self.repo / "ci/deploy/bump_pin.py")
+        shutil.copy(ROOT / "ci/image_names.py", self.repo / "ci/image_names.py")
+        (self.repo / "helm/openg2p-livestock-registry").mkdir(parents=True)
+        shutil.copy(ROOT / "helm/openg2p-livestock-registry/Chart.yaml", self.repo / "helm/openg2p-livestock-registry/Chart.yaml")
         (self.repo / "ci/deploy/oan_chart.py").write_text(CHART_STUB)
         (self.repo / "ci/check-new-dev-routes.py").write_text(ROUTES_STUB)
         (self.repo / "ci/refactor/deployment_guard.py").write_text(GUARD_STUB)
@@ -194,6 +198,9 @@ class DeployRollbackTests(unittest.TestCase):
         rc, out, calls = self.run_deploy()
         self.assertEqual(rc, 0, out)
         self.assertIn("registry.staffApi.image.tag=abcdef123456", calls)
+        rp = re.search(r"(?m)^appVersion: (\S+)$", (ROOT / "helm/openg2p-livestock-registry/Chart.yaml").read_text()).group(1)
+        self.assertIn("registry.staffApi.image.repository=123456789012.dkr.ecr.ap-south-1.amazonaws.com/"
+                      "eoan/livestock-registry/staff-api-" + rp, calls)
         self.assertNotIn("helm rollback", calls)
 
     def test_the_upgrade_is_marked_started_only_just_before_helm_upgrade(self):
@@ -406,6 +413,33 @@ class PipelineWiringTests(unittest.TestCase):
         self.assertNotIn("catchError(", stage)                              # a failed deploy fails the build
         for gone in ("OAN_CHART_PIN_FILE", "candidate", "NEWDEV_SKIP_DEPLOY"):
             self.assertNotIn(gone, self.text)
+
+    def test_images_are_named_by_ci_image_names(self):
+        build = self.stage("Build & Push Images", "Stash deploy")
+        self.assertIn('python3 ci/image_names.py tag "$BRANCH_NAME" "$BUILD_NUMBER"', build)
+        self.assertIn('python3 ci/image_names.py repository ${name}', build)
+        self.assertIn('def image = "${env.ECR_REGISTRY}/${repository}:${env.IMAGE_TAG}"', build)
+        self.assertNotIn("take(12)", self.text)
+
+    def test_the_chart_takes_each_image_s_repository_from_the_digest_file(self):
+        package = (ROOT / "ci/deploy/package-chart.sh").read_text()
+        self.assertIn("read -r component repository digest", package)
+        self.assertIn('"$path" "$ECR_REGISTRY/$repository" "$IMAGE_TAG" "$digest"', package)
+
+    def test_the_live_values_take_the_image_names_of_ci_image_names(self):
+        self.assertNotIn("ECR_PATH", self.text)
+        values = self.stage("Prepare Deploy Values", "Package chart")
+        self.assertIn("unstash 'deploy'", values)
+        self.assertIn("repository: \\${staff_api}", values)
+        self.assertNotIn("declare -A", values)                   # Jenkins sh may be dash: no bash arrays
+
+    def test_every_build_tests_the_image_names(self):
+        self.assertIn("python3 -m unittest discover -s test -p test_image_names.py -v", self.text)
+
+    def test_the_deploy_stash_carries_what_ci_image_names_reads(self):
+        # The deploy agents run from this stash, and ci/image_names.py reads the chart's Chart.yaml.
+        self.assertIn("stash name: 'deploy', includes: 'ci/**,scripts/**,.central-charts/**,"
+                      "helm/openg2p-livestock-registry/Chart.yaml'", self.text)
 
     def test_digests_are_captured_after_the_pushes_and_stashed(self):
         build = self.stage("Build & Push Images", "Stash deploy")
