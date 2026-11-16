@@ -54,7 +54,7 @@ status=$(helm list -n "$NAMESPACE" --filter "^${RELEASE}\$" -o json | python3 -c
 echo "Current release: $RELEASE ($status)"
 test "$status" = "deployed openg2p-connector-0.1.0"
 helm history "$RELEASE" -n "$NAMESPACE" --max 5
-for secret in "$NAMESPACE/livestock-connector" "$NAMESPACE/livestock-farmer-lookup-signing-ed25519" "$NAMESPACE/ecr-pull-secret" "$NAMESPACE/commons-postgresql" "commons/registry-connector"; do
+for secret in "$NAMESPACE/livestock-connector" "$NAMESPACE/livestock-farmer-lookup-signing-ed25519" "$NAMESPACE/livestock-registry-ecr-pull-secret" "$NAMESPACE/commons-postgresql" "commons/registry-connector"; do
   kubectl get secret -n "${secret%%/*}" "${secret#*/}" -o name > /dev/null || { echo "Secret $secret is missing." >&2; exit 1; }
 done
 
