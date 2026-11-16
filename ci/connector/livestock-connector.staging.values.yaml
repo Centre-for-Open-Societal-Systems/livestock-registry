@@ -19,7 +19,11 @@ global:
   connectorDBSecret: livestock-connector
   connectorDBUserPasswordKey: livestock-connector-db-user
 
+# livestock-registry-ecr-pull-secret is refreshed every 6 h by the registry's own ECR refresher
+# (livestock-registry-ecr-refresh, from the registry chart). The hand-made ecr-pull-secret lost its refresher
+# (CronJob ecr-secret-refresh, gone since 12 Nov) and expired on 13 Nov, so a new connector digest could not be pulled.
 imagePullSecrets:
+  - name: livestock-registry-ecr-pull-secret
   - name: ecr-pull-secret
 
 commonEnv:

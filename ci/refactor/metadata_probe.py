@@ -24,8 +24,9 @@ app.Initializer()
 models = importlib.import_module("openg2p_registry_extensions.register_domain.models")
 from openg2p_fastapi_common.models import BaseORMModel
 
+password = os.environ.get("REFACTOR_DB_PASSWORD", "postgres")
 hostname = f"oan-refactor-metadata-{domain}-db"
-engine = create_engine(f"postgresql+psycopg2://postgres@{hostname}/refactor_metadata")
+engine = create_engine(f"postgresql+psycopg2://postgres:{password}@{hostname}/refactor_metadata")
 with engine.begin() as connection:
     connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
 BaseORMModel.metadata.create_all(engine)

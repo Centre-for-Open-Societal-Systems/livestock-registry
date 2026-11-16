@@ -28,8 +28,9 @@ from openg2p_registry_core.models import IncomingRawDataPayload,IncomingClassifi
 from openg2p_registry_core.helpers import PatternMatcher,TemplateHelper
 models=importlib.import_module('openg2p_registry_extensions.register_domain.models')
 cfg=yaml.safe_load((repo/'integrations/farmer-reference/config.yaml').read_text(encoding='utf-8'))
+password=os.environ.get('REFACTOR_DB_PASSWORD','postgres')
 host=f'oan-refactor-metadata-{domain}-db'
-url=f'postgresql+psycopg2://postgres@{host}/refactor_metadata'
+url=f'postgresql+psycopg2://postgres:{password}@{host}/refactor_metadata'
 engine=create_engine(url)
 identity={'farmer_id':'FR-000000000001','fayda_fan_id':'0000000000000001'}
 event={'event_id':'synthetic-event','event_type':'farmer_reference.changed.v1',**identity}
@@ -70,7 +71,7 @@ with Session(engine) as session:
     assert farmer.first_name=='Approved local'
 
 async def build_payload():
-    engine=create_async_engine(f'postgresql+asyncpg://postgres@{host}/refactor_metadata')
+    engine=create_async_engine(f'postgresql+asyncpg://postgres:{password}@{host}/refactor_metadata')
     try:
         async with async_sessionmaker(engine)() as session:
             payload=await builder._build_change_request_payload_async(session,classified,SimpleNamespace(transformed_data_json=rendered))

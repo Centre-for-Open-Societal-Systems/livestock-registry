@@ -7,7 +7,8 @@ EVENT_TYPE = "farmer_reference.changed.v1"
 # FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1). All three are accepted while senders move over.
 FARMER_CHANGED_EVENT_TYPE = "farmer-registry.farmer.changed.v1"
 FARMER_PROFILE_CHANGED_EVENT_TYPE = "farmer-registry.farmer-profile.changed.v1"
-EVENT_TYPES = frozenset({EVENT_TYPE, FARMER_CHANGED_EVENT_TYPE, FARMER_PROFILE_CHANGED_EVENT_TYPE})
+FARMER_PROFILE_UPDATES_EVENT_TYPE = "farmer.profile.updates.v1"
+EVENT_TYPES = frozenset({EVENT_TYPE, FARMER_CHANGED_EVENT_TYPE, FARMER_PROFILE_CHANGED_EVENT_TYPE, FARMER_PROFILE_UPDATES_EVENT_TYPE})
 EVENT_FIELDS = frozenset({"event_id", "event_type", "farmer_id", "fayda_fan_id", "fayda_fin"})
 REQUIRED_EVENT_FIELDS = frozenset({"event_id", "event_type", "farmer_id"})
 

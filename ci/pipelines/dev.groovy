@@ -20,7 +20,10 @@ pipeline {
 
     environment {
         AWS_REGION       = 'ap-south-1'
-        ECR_PATH         = 'openg2p/livestock-registry'
+        // Registry images: eoan/livestock-registry/<image>-<RP version>:<version>-<branch>.<build>, named by
+        // ci/image_names.py from helm/openg2p-livestock-registry/Chart.yaml. The dashboard images come from their own
+        // repositories and keep their names.
+        DASHBOARD_API_ECR = 'openg2p/livestock-registry/dashboard-api'
         DASHBOARD_UI_ECR = 'openg2p/livestock-registry/dashboard-ui'
         RP_VERSION       = '1.2.2-rc.614' // Same native platform as the immutable central profile
         HELM_RELEASE     = 'livestock-registry'
@@ -73,6 +76,8 @@ pipeline {
                 sh 'python3 -m unittest discover -s test -p test_deploy_ci.py -v'
                 // Which connector build the staging upgrade pins, with stand-in aws/helm/kubectl (no cluster, no network).
                 sh 'python3 -m unittest discover -s test -p test_connector_staging_build_tag.py -v'
+                // The ECR names of the images (ci/image_names.py).
+                sh 'python3 -m unittest discover -s test -p test_image_names.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src oan/livestock-reference-tests:rc557 -m unittest discover -s livestock-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
@@ -153,7 +158,8 @@ pipeline {
                 ]) {
                     script {
                         env.ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                        env.IMAGE_TAG    = env.GIT_COMMIT.take(12)
+                        env.IMAGE_TAG    = sh(returnStdout: true,
+                            script: 'python3 ci/image_names.py tag "$BRANCH_NAME" "$BUILD_NUMBER"').trim()
                     }
                     sh '''
                         echo "=== Logging in to ECR ==="
@@ -164,18 +170,22 @@ pipeline {
                     '''
                     script {
                         def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'registry-connector', 'registry-connector-ui']
+                        def repositories = [:]
                         components.each { name ->
-                            def image = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:${env.IMAGE_TAG}"
+                            def repository = sh(returnStdout: true, script: "python3 ci/image_names.py repository ${name}").trim()
+                            repositories[name] = repository
+                            def image = "${env.ECR_REGISTRY}/${repository}:${env.IMAGE_TAG}"
                             // On-demand agents start with an empty Docker cache: layers come from the
                             // branch's cache tag in ECR (inline cache metadata), pushed every build.
-                            def cache = "${env.ECR_REGISTRY}/${ECR_PATH}/${name}:cache-${env.BRANCH_NAME}"
+                            def cache = "${env.ECR_REGISTRY}/${repository}:cache-${env.BRANCH_NAME}"
                             sh """
                                 echo "=== Building and pushing ${name} ==="
                                 docker build --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from ${cache} --build-arg RP_VERSION=${RP_VERSION} \
                                     -f docker/${name}/Dockerfile -t ${image} -t ${cache} --pull .
-                                # ECR does not create repositories on push (registry-connector is new).
-                                aws ecr describe-repositories --region ${AWS_REGION} --repository-names ${ECR_PATH}/${name} > /dev/null 2>&1 \
-                                  || aws ecr create-repository --region ${AWS_REGION} --repository-name ${ECR_PATH}/${name} > /dev/null
+                                # ECR does not create repositories on push, and a new platform version is a new repository name.
+                                aws ecr describe-repositories --region ${AWS_REGION} --repository-names ${repository} > /dev/null 2>&1 \
+                                  || aws ecr create-repository --region ${AWS_REGION} --repository-name ${repository} \
+                                       --image-scanning-configuration scanOnPush=true > /dev/null
                                 docker push ${image}
                                 docker push ${cache}
                             """
@@ -202,8 +212,8 @@ pipeline {
                             // The dashboard service, from its own repository (cloned
                             // by 'Checkout dashboard-api'), with its own build context.
                             // Its ECR repository is created outside CI, like the others.
-                            def api = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api:${env.IMAGE_TAG}"
-                            def apiCache = "${env.ECR_REGISTRY}/${ECR_PATH}/dashboard-api:cache-${env.BRANCH_NAME}"
+                            def api = "${env.ECR_REGISTRY}/${DASHBOARD_API_ECR}:${env.IMAGE_TAG}"
+                            def apiCache = "${env.ECR_REGISTRY}/${DASHBOARD_API_ECR}:cache-${env.BRANCH_NAME}"
                             sh """
                                 echo "=== Building and pushing dashboard-api (${env.DASHBOARD_API_REF_USED} @ ${env.DASHBOARD_API_SHA}) ==="
                                 docker build --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from ${apiCache} \
@@ -216,19 +226,20 @@ pipeline {
                             """
                         }
 
-                        // The ECR digest of every image the chart carries: 'Package chart' writes
-                        // <commit>@<digest> into the packaged copy.
-                        def digested = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui']
-                        if (env.DASHBOARD_API_SHA) { digested << 'dashboard-api' }
+                        // The ECR repository and digest of every image the chart carries: 'Package chart' writes
+                        // <repository> and <tag>@<digest> into the packaged copy. component<TAB>repository<TAB>digest
+                        def digested = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui'].collect { [it, repositories[it]] }
+                        if (env.DASHBOARD_API_SHA) { digested << ['dashboard-api', DASHBOARD_API_ECR] }
                         sh """
                             set -eu
                             mkdir -p .build
                             : > .build/image-digests.tsv
-                            for c in ${digested.join(' ')}; do
-                                d=\$(aws ecr describe-images --region ${AWS_REGION} --repository-name ${ECR_PATH}/\$c \
+                            for entry in ${digested.collect { it.join('=') }.join(' ')}; do
+                                c=\${entry%%=*} r=\${entry#*=}
+                                d=\$(aws ecr describe-images --region ${AWS_REGION} --repository-name "\$r" \
                                       --image-ids imageTag=${env.IMAGE_TAG} --query 'imageDetails[0].imageDigest' --output text)
-                                case "\$d" in sha256:*) ;; *) echo "no ECR digest for \$c:${env.IMAGE_TAG}" >&2; exit 1 ;; esac
-                                printf '%s\\t%s\\n' "\$c" "\$d" >> .build/image-digests.tsv
+                                case "\$d" in sha256:*) ;; *) echo "no ECR digest for \$r:${env.IMAGE_TAG}" >&2; exit 1 ;; esac
+                                printf '%s\\t%s\\t%s\\n' "\$c" "\$r" "\$d" >> .build/image-digests.tsv
                             done
                         """
                         stash name: 'image-digests', includes: '.build/image-digests.tsv'
@@ -244,7 +255,7 @@ pipeline {
             // deploys offline, without GitHub access.
             steps {
                 sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/deploy/oan_chart.py prefetch registry'
-                stash name: 'deploy', includes: 'ci/**,scripts/**,.central-charts/**'
+                stash name: 'deploy', includes: 'ci/**,scripts/**,.central-charts/**,helm/openg2p-livestock-registry/Chart.yaml'
             }
         }
 
@@ -264,36 +275,45 @@ pipeline {
             }
             agent { label 'oan-ci-deploy' }
             steps {
+                unstash 'deploy'
                 sh """
+                    set -eu
+                    # ci/image_names.py, resolved before the heredoc: a failed lookup stops here (plain sh, no arrays).
+                    staff_api=${env.ECR_REGISTRY}/\$(python3 ci/image_names.py repository staff-api)
+                    partner_api=${env.ECR_REGISTRY}/\$(python3 ci/image_names.py repository partner-api)
+                    celery=${env.ECR_REGISTRY}/\$(python3 ci/image_names.py repository celery)
+                    db_seed=${env.ECR_REGISTRY}/\$(python3 ci/image_names.py repository db-seed)
+                    staff_ui=${env.ECR_REGISTRY}/\$(python3 ci/image_names.py repository staff-ui)
+                    sanity_tests=${env.ECR_REGISTRY}/\$(python3 ci/image_names.py repository sanity-tests)
                     cat > /tmp/values-live-cicd-\${BUILD_NUMBER}.yaml <<EOF
 registry:
   staffApi:
     image:
-      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/staff-api
+      repository: \${staff_api}
       tag: "${env.IMAGE_TAG}"
   partnerApi:
     image:
-      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/partner-api
+      repository: \${partner_api}
       tag: "${env.IMAGE_TAG}"
   celeryWorker:
     image:
-      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/celery
+      repository: \${celery}
       tag: "${env.IMAGE_TAG}"
   celeryBeat:
     image:
-      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/celery
+      repository: \${celery}
       tag: "${env.IMAGE_TAG}"
   dbSeed:
     image:
-      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/db-seed
+      repository: \${db_seed}
       tag: "${env.IMAGE_TAG}"
   staffUi:
     image:
-      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/staff-ui
+      repository: \${staff_ui}
       tag: "${env.IMAGE_TAG}"
   sanity:
     image:
-      repository: ${env.ECR_REGISTRY}/${ECR_PATH}/sanity-tests
+      repository: \${sanity_tests}
       tag: "${env.IMAGE_TAG}"
 EOF
                 """
@@ -315,9 +335,7 @@ EOF
                 checkout scm
                 sh 'mkdir -p .build && rm -f .build/image-digests.tsv'
                 unstash 'image-digests'
-                withEnv(["ECR_PATH=${ECR_PATH}"]) {
-                    sh 'bash ci/deploy/package-chart.sh'
-                }
+                sh 'bash ci/deploy/package-chart.sh'
                 stash name: 'built-chart', includes: 'built-chart/**'
             }
         }
@@ -345,7 +363,7 @@ EOF
                 withCredentials([file(credentialsId: "${DEV_KUBECONFIG_CRED_ID}", variable: 'KUBECONFIG')]) {
                     script {
                         def deployEnv = [
-                            "DEV_NAMESPACE=${DEV_NAMESPACE}", "ECR_REGISTRY=${env.ECR_REGISTRY}", "ECR_PATH=${ECR_PATH}",
+                            "DEV_NAMESPACE=${DEV_NAMESPACE}", "ECR_REGISTRY=${env.ECR_REGISTRY}", "DASHBOARD_API_ECR=${DASHBOARD_API_ECR}",
                             "IMAGE_TAG=${env.IMAGE_TAG}", "DASHBOARD_UI_ECR=${DASHBOARD_UI_ECR}", "DASHBOARD_UI_SHA=${env.DASHBOARD_UI_SHA}",
                             "BUILT_CHART_DIR=${env.WORKSPACE}/built-chart",
                         ]

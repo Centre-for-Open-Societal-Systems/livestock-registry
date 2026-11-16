@@ -23,6 +23,7 @@ def main(domain, pipeline=False):
     writer_user = ["--user", f"{os.getuid()}:{os.getgid()}"] if hasattr(os, "getuid") else []
     network = "oan-refactor-metadata-" + domain
     database = network + "-db"
+    password = os.environ.get("REFACTOR_DB_PASSWORD", "postgres")
     created_network = created_database = False
     network_id = database_id = None
     def run(*args):
@@ -48,7 +49,7 @@ def main(domain, pipeline=False):
         # At 256m a backend was OOM-killed in the cgroup and the postmaster restarted into crash recovery mid-suite
         # ("Consistent recovery state has not been yet reached"), failing every later test.
         database_id = run("docker","run","--detach","--memory=1g","--name",database,"--network",network,"--label","oan-refactor.disposable=metadata",
-            "-e","POSTGRES_HOST_AUTH_METHOD=trust","-e","POSTGRES_DB=refactor_metadata","postgres:15-alpine").stdout.strip()
+            "-e",f"POSTGRES_PASSWORD={password}","-e",f"PGPASSWORD={password}","-e","POSTGRES_DB=refactor_metadata","postgres:15-alpine").stdout.strip()
         created_database = True
         def wait_ready(when):
             # Ready means a real query over TCP succeeds three times in a row. pg_isready alone also answers while the
@@ -68,6 +69,7 @@ def main(domain, pipeline=False):
         wait_ready("after start")
         def probe(mode):
             result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
+                "-e",f"REFACTOR_DB_PASSWORD={password}",
                 "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
                 os.environ.get("OAN_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),"/probe/metadata_probe.py","/work",domain,mode)
             print(result.stdout.splitlines()[-1],flush=True)
@@ -111,7 +113,7 @@ def main(domain, pipeline=False):
                     "-v",f"{repo.as_posix()}:/work","-w","/work",
                     "-e",f"REGISTRY_EXTENSION_MODULE=openg2p_registry_{domain}_extension",
                     "-e",f"PYTHONPATH=/work/{domain}-extension/src:/work/{domain}-extension/tests",
-                    "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres@{database}/{module_database}",
+                    "-e",f"FARMER_TEST_DATABASE_URL=postgresql+asyncpg://postgres:{password}@{database}/{module_database}",
                     os.environ.get("OAN_REFACTOR_TEST_IMAGE","oan/farmer-reference-tests:rc557"),
                     "-m","pytest","-q","-p","no:cacheprovider",f"{domain}-extension/tests/{test_module.name}",
                     f"--junitxml=/work/ci-output/refactor/new-dev/{report}")
@@ -178,6 +180,7 @@ def main(domain, pipeline=False):
             "real_workflow_http":"NOT RUN; requires separate isolated Postman dependency"}),flush=True)
         if pipeline:
             result = run("docker","run","--rm",*writer_user,"--memory=768m","--network",network,"--entrypoint","python",
+                "-e",f"REFACTOR_DB_PASSWORD={password}",
                 "-v",f"{repo.as_posix()}:/work","-v",f"{probes.as_posix()}:/probe:ro",
                 "openg2p/openg2p-registry-celery:1.2.2-rc.614","/probe/notification_pipeline_probe.py","/work",domain)
             print(result.stdout.splitlines()[-1],flush=True)

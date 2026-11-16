@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Package helm/openg2p-livestock-registry with this build's images into built-chart/, with
 # scripts/ci/package_chart.py of oan-helm. The deploy installs that archive and publish-chart.sh
-# publishes the same file. .build/image-digests.tsv comes from the stage Build & Push Images.
+# publishes the same file. .build/image-digests.tsv (component, ECR repository, digest) comes from the stage
+# Build & Push Images.
 set -euo pipefail
 : "${BRANCH_NAME:?Jenkins sets the branch}"
 : "${ECR_REGISTRY:?Missing ECR registry}"
-: "${ECR_PATH:?Missing ECR path}"
 : "${IMAGE_TAG:?Missing image tag}"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
-while IFS=$'\t' read -r component digest; do
+while IFS=$'\t' read -r component repository digest; do
   case "$component" in
     staff-api) paths=registry.staffApi.image ;;
     partner-api) paths=registry.partnerApi.image ;;
@@ -22,7 +22,7 @@ while IFS=$'\t' read -r component digest; do
     *) echo "No chart image for $component" >&2; exit 1 ;;
   esac
   for path in $paths; do
-    printf '%s\t%s\t%s@%s\n' "$path" "$ECR_REGISTRY/$ECR_PATH/$component" "$IMAGE_TAG" "$digest"
+    printf '%s\t%s\t%s@%s\n' "$path" "$ECR_REGISTRY/$repository" "$IMAGE_TAG" "$digest"
   done
 done < .build/image-digests.tsv > "$WORK/images.tsv"
 

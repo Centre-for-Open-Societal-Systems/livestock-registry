@@ -22,7 +22,7 @@
 #   DEV_NAMESPACE     default livestock
 #   HELM_RELEASE      default livestock-registry
 #   ECR_REGISTRY      <account>.dkr.ecr.<region>.amazonaws.com
-#   ECR_PATH          default openg2p/livestock-registry
+#   DASHBOARD_API_ECR default openg2p/livestock-registry/dashboard-api (the registry images: ci/image_names.py)
 #   IMAGE_TAG         this build's image tag
 #   DASHBOARD_UI_ECR, DASHBOARD_UI_SHA  dashboard UI image (ci/dashboard/deploy-ui.sh)
 #   BUILD_NUMBER      names the archived rendered manifests
@@ -36,7 +36,13 @@ cd "$REPO_ROOT"
 : "${IMAGE_TAG:?set IMAGE_TAG}"
 DEV_NAMESPACE="${DEV_NAMESPACE:-livestock}"
 HELM_RELEASE="${HELM_RELEASE:-livestock-registry}"
-ECR_PATH="${ECR_PATH:-openg2p/livestock-registry}"
+DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/livestock-registry/dashboard-api}"
+# eoan/livestock-registry/<component>-<RP version> (ci/image_names.py), resolved before anything is changed: a failed
+# lookup stops here.
+declare -A IMAGE
+for component in staff-api partner-api celery db-seed staff-ui sanity-tests; do
+  IMAGE[$component]="${ECR_REGISTRY}/$(python3 ci/image_names.py repository "$component")"
+done
 BUILD_NUMBER="${BUILD_NUMBER:-local}"
 # shellcheck source=release-rollback.sh
 . "$REPO_ROOT/ci/deploy/release-rollback.sh"
@@ -101,22 +107,22 @@ DASHBOARD_API_DIGEST=$(helm show values "$CHART" | awk '
 echo "dashboard-api image: ${IMAGE_TAG}${DASHBOARD_API_DIGEST:+@${DASHBOARD_API_DIGEST}}"
 
 IMAGE_SET_FLAGS=(
-  --set "registry.staffApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/staff-api"
+  --set "registry.staffApi.image.repository=${IMAGE[staff-api]}"
   --set-string "registry.staffApi.image.tag=${IMAGE_TAG}"
-  --set "registry.partnerApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/partner-api"
+  --set "registry.partnerApi.image.repository=${IMAGE[partner-api]}"
   --set-string "registry.partnerApi.image.tag=${IMAGE_TAG}"
-  --set "registry.celeryWorker.image.repository=${ECR_REGISTRY}/${ECR_PATH}/celery"
+  --set "registry.celeryWorker.image.repository=${IMAGE[celery]}"
   --set-string "registry.celeryWorker.image.tag=${IMAGE_TAG}"
-  --set "registry.celeryBeat.image.repository=${ECR_REGISTRY}/${ECR_PATH}/celery"
+  --set "registry.celeryBeat.image.repository=${IMAGE[celery]}"
   --set-string "registry.celeryBeat.image.tag=${IMAGE_TAG}"
-  --set "registry.dbSeed.image.repository=${ECR_REGISTRY}/${ECR_PATH}/db-seed"
+  --set "registry.dbSeed.image.repository=${IMAGE[db-seed]}"
   --set-string "registry.dbSeed.image.tag=${IMAGE_TAG}"
-  --set "registry.staffUi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/staff-ui"
+  --set "registry.staffUi.image.repository=${IMAGE[staff-ui]}"
   --set-string "registry.staffUi.image.tag=${IMAGE_TAG}"
-  --set "registry.sanity.image.repository=${ECR_REGISTRY}/${ECR_PATH}/sanity-tests"
+  --set "registry.sanity.image.repository=${IMAGE[sanity-tests]}"
   --set-string "registry.sanity.image.tag=${IMAGE_TAG}"
   --set dashboardApi.enabled=true
-  --set "dashboardApi.image.repository=${ECR_REGISTRY}/${ECR_PATH}/dashboard-api"
+  --set "dashboardApi.image.repository=${ECR_REGISTRY}/${DASHBOARD_API_ECR}"
   --set-string "dashboardApi.image.tag=${IMAGE_TAG}"
   --set-string "dashboardApi.image.digest=${DASHBOARD_API_DIGEST}"
   --set reporting.views.enabled=true
