@@ -15,7 +15,7 @@ from openg2p_registry_core.models.g2p_intake_form import G2PIntakeForm
 from openg2p_registry_core.models import (
     G2PRegister, G2PRegisterHistory, G2PGeo, G2PGeoHistory
 )
-from sqlalchemy import Date, Integer, String, Text
+from sqlalchemy import Boolean, Date, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .admin_area import G2PAdminArea
@@ -38,6 +38,18 @@ class G2PLivestock(G2PAdminArea):
     farmer_id: Mapped[str] = mapped_column(String, nullable=True)
     fayda_fan_id: Mapped[str] = mapped_column(String, nullable=True)
     farmer_name: Mapped[str] = mapped_column(String, nullable=True)
+    # The farmer's personal details, copied from the approved Farmer reference
+    # (farmer_reference/projection.py, MIRRORED_PROFILE_FIELDS) and shown read-only on the
+    # record's first tab. Refreshed when the record is written and when a change
+    # to the Farmer is approved here; never cleared by a Farmer without a value.
+    farmer_gender: Mapped[str] = mapped_column(String, nullable=True)
+    farmer_date_of_birth: Mapped[str] = mapped_column(Date, nullable=True)
+    farmer_mobile_number: Mapped[str] = mapped_column(String, nullable=True)
+    farmer_marital_status: Mapped[str] = mapped_column(String, nullable=True)
+    farmer_education_level: Mapped[str] = mapped_column(String, nullable=True)
+    farmer_language_spoken: Mapped[str] = mapped_column(String, nullable=True)
+    farmer_disabled: Mapped[bool] = mapped_column(Boolean, nullable=True)
+    farmer_disability_type: Mapped[str] = mapped_column(String, nullable=True)
 
     # Holding identity.
     oan_id: Mapped[str] = mapped_column(String, nullable=True)
