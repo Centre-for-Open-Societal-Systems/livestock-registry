@@ -157,7 +157,10 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
                 cr.change_request_id, session, approved_by="synthetic-reviewer")
             return reference.local_farmer_id
 
-    async def test_native_farmer_update_preserves_omissions_and_does_not_write_linked_domain(self):
+    async def test_native_farmer_update_preserves_omissions_and_refreshes_only_the_farmer_on_linked_records(self):
+        # An approved change to a Farmer reaches the records that name it, in the same transaction (task 7,
+        # farmer_reference/projection.refresh_linked_records): the farmer's name and personal details, and on a crop
+        # record its Address. The record's own fields and its business approval are left as they are.
         from dataclasses import replace
         from datetime import date, datetime
         local_id = await self._approved_reference()
@@ -185,9 +188,13 @@ class NativeReferenceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(farmer.email, "approved@example.invalid")
             self.assertEqual(farmer.date_of_birth, date(1990, 1, 1))
             self.assertEqual(farmer.farmer_name, "Approved new Farmer")
-            self.assertEqual(linked.farmer_name, "Verified Farmer")
-            self.assertEqual(getattr(linked, domain_geo), "domain-woreda")
+            self.assertEqual(linked.farmer_name, "Approved new Farmer")
+            self.assertEqual(linked.farmer_date_of_birth, date(1990, 1, 1))
+            # A crop record's Address is the farmer's (97e_address_section.sql); a livestock holding keeps its own area.
+            self.assertEqual(getattr(linked, domain_geo),
+                             "new-source-woreda" if domain_geo == "woreda" else "domain-woreda")
             self.assertEqual(linked.last_approved_by, "business-reviewer")
+            self.assertEqual(linked.created_by, "synthetic-creator")
 
     async def test_native_rejection_closes_managed_dependency_and_duplicate_callback_is_idempotent(self):
         from types import SimpleNamespace
