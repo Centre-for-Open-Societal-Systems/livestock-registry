@@ -111,6 +111,19 @@ class ConnectorBuildTagTest(unittest.TestCase):
         self.assertIn(f"api, worker, beat: {eoan}/registry-connector-1.2.2-rc.614@{CONNECTOR}", out)
         self.assertIn(f"ui: {eoan}/registry-connector-ui-1.2.2-rc.614@{CONNECTOR_UI}", out)
 
+    def test_a_chart_on_the_init_yaml_names_finds_registry_connector_api_without_a_suffix(self):
+        # The connector images are not platform images: eoan/livestock-registry/registry-connector-api and
+        # registry-connector-ui carry no RP suffix (ci/image_names.py). The staging tag is a promotion, not a build.
+        eoan = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/eoan/livestock-registry"
+        code, out = self.run_script(COMMIT, "1.0.0-staging.3	1.0.0-develop.230", [
+            f"registry-connector-api:1.0.0-develop.230={CONNECTOR}",
+            f"registry-connector-ui:1.0.0-develop.230={CONNECTOR_UI}"],
+            staff_api=eoan + "/staff-api-1.2.2-rc.614")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Promoted chart is build 1.0.0-develop.230", out)
+        self.assertIn(f"api, worker, beat: {eoan}/registry-connector-api@{CONNECTOR}", out)
+        self.assertIn(f"ui: {eoan}/registry-connector-ui@{CONNECTOR_UI}", out)
+
     def test_no_build_tag_anywhere_fails_before_the_cluster(self):
         code, out = self.run_script("", "staging\t1.0.0-rc.464", [])
         self.assertNotEqual(code, 0)

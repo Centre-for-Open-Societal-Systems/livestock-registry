@@ -22,9 +22,9 @@
 #   DEV_NAMESPACE     default livestock
 #   HELM_RELEASE      default livestock-registry
 #   ECR_REGISTRY      <account>.dkr.ecr.<region>.amazonaws.com
-#   DASHBOARD_API_ECR default openg2p/livestock-registry/dashboard-api (the registry images: ci/image_names.py)
+#   DASHBOARD_API_ECR default eoan/livestock-registry/dashboard-api (every image name: ci/image_names.py)
 #   IMAGE_TAG         this build's image tag
-#   DASHBOARD_UI_ECR, DASHBOARD_UI_SHA  dashboard UI image (ci/dashboard/deploy-ui.sh)
+#   DASHBOARD_UI_ECR, DASHBOARD_UI_SHA, DASHBOARD_UI_TAG  dashboard UI image and its build tag (ci/dashboard/deploy-ui.sh)
 #   BUILD_NUMBER      names the archived rendered manifests
 set -euo pipefail
 set +x
@@ -36,7 +36,7 @@ cd "$REPO_ROOT"
 : "${IMAGE_TAG:?set IMAGE_TAG}"
 DEV_NAMESPACE="${DEV_NAMESPACE:-livestock}"
 HELM_RELEASE="${HELM_RELEASE:-livestock-registry}"
-DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-openg2p/livestock-registry/dashboard-api}"
+DASHBOARD_API_ECR="${DASHBOARD_API_ECR:-$(python3 ci/image_names.py repository dashboard-api)}"
 # eoan/livestock-registry/<component>-<RP version> (ci/image_names.py), resolved before anything is changed: a failed
 # lookup stops here.
 declare -A IMAGE
@@ -206,7 +206,7 @@ done
 
 kubectl rollout status "deployment/$HELM_RELEASE-dashboard-api" -n "$DEV_NAMESPACE" --timeout=420s
 if [ -n "${DASHBOARD_UI_SHA:-}" ]; then
-  bash ci/dashboard/deploy-ui.sh livestock "$DEV_NAMESPACE" "${ECR_REGISTRY}/${DASHBOARD_UI_ECR:?set DASHBOARD_UI_ECR}" "$DASHBOARD_UI_SHA"
+  bash ci/dashboard/deploy-ui.sh livestock "$DEV_NAMESPACE" "${ECR_REGISTRY}/${DASHBOARD_UI_ECR:?set DASHBOARD_UI_ECR}" "${DASHBOARD_UI_TAG:-$IMAGE_TAG}"
 fi
 for component in staff-portal-api staff-portal-ui partner-api celery-worker celery-beat-producer; do
   kubectl rollout status "deployment/$HELM_RELEASE-$component" -n "$DEV_NAMESPACE" --timeout=180s
