@@ -240,7 +240,7 @@ def _issue_code(reference_code: str) -> str:
     return "FARMER_NOT_FOUND"
 
 
-class ReferenceIntakeService(DirectApprovalClosed, FaydaIdMixin, RequiredFieldsMixin, IntakeUpsertHook, G2PIntakeFormDataService):
+class ReferenceIntakeService(FaydaIdMixin, RequiredFieldsMixin, IntakeUpsertHook, DirectApprovalClosed, G2PIntakeFormDataService):
     # FaydaIdMixin shows a stored FIN or FAN in the Fayda ID box and keeps it on a
     # blank re-save (fayda_id_view.py); RequiredFieldsMixin refuses a save or a
     # submit that leaves a required field empty, on every channel (required_intake.py);
