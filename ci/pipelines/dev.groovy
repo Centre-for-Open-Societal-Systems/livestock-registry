@@ -252,6 +252,17 @@ pipeline {
             }
         }
 
+        stage('Checks green') {
+            // Nothing reaches New Dev unless every GitHub check of this commit passed (ci/deploy/require-green-checks.sh).
+            // The images were built meanwhile; a red or still-pending commit stops here.
+            when { allOf { branch 'develop'; not { changeRequest() } } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: "${OAN_HELM_FORK_CRED_ID}", usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                    sh 'bash ci/deploy/require-green-checks.sh Centre-for-Open-Societal-Systems/livestock-registry "$(git rev-parse --verify HEAD)"'
+                }
+            }
+        }
+
         stage('Stash deploy') {
             when { allOf { not { changeRequest() }; anyOf { branch 'develop'; branch 'staging' } } }
             // The deploy node gets the scripts of exactly this commit and the
