@@ -85,6 +85,7 @@ class DeployRollbackTests(unittest.TestCase):
             shutil.copy(ROOT / "ci/deploy" / name, self.repo / "ci/deploy" / name)
         shutil.copy(ROOT / "ci/deploy/bump_pin.py", self.repo / "ci/deploy/bump_pin.py")
         shutil.copy(ROOT / "ci/image_names.py", self.repo / "ci/image_names.py")
+        shutil.copy(ROOT / "init.yaml", self.repo / "init.yaml")
         (self.repo / "helm/openg2p-livestock-registry").mkdir(parents=True)
         shutil.copy(ROOT / "helm/openg2p-livestock-registry/Chart.yaml", self.repo / "helm/openg2p-livestock-registry/Chart.yaml")
         (self.repo / "ci/deploy/oan_chart.py").write_text(CHART_STUB)
@@ -437,9 +438,28 @@ class PipelineWiringTests(unittest.TestCase):
         self.assertIn("python3 -m unittest discover -s test -p test_image_names.py -v", self.text)
 
     def test_the_deploy_stash_carries_what_ci_image_names_reads(self):
-        # The deploy agents run from this stash, and ci/image_names.py reads the chart's Chart.yaml.
-        self.assertIn("stash name: 'deploy', includes: 'ci/**,scripts/**,.central-charts/**,"
+        # The deploy agents run from this stash, and ci/image_names.py reads init.yaml and the chart's Chart.yaml.
+        self.assertIn("stash name: 'deploy', includes: 'init.yaml,ci/**,scripts/**,.central-charts/**,"
                       "helm/openg2p-livestock-registry/Chart.yaml'", self.text)
+
+    def test_every_pushed_repository_gets_the_standard_ecr_settings_first(self):
+        build = self.stage("Build & Push Images", "Stash deploy")
+        self.assertIn('sh "python3 ci/ecr_repository.py ensure ${repository} ${legacy}"', build)
+        self.assertNotIn("create-repository", build)              # only ci/ecr_repository.py creates repositories
+        for image in ("ensureRepository(name, repository)", "ensureRepository('dashboard-ui', DASHBOARD_UI_ECR)",
+                      "ensureRepository('dashboard-api', DASHBOARD_API_ECR)"):
+            self.assertIn(image, build)
+        self.assertLess(build.index("ensureRepository(name, repository)"), build.index("docker push ${image}"))
+        self.assertIn("python3 -m unittest discover -s test -p test_ecr_repository.py -v", self.text)
+
+    def test_tags_are_immutable_so_nothing_pushes_a_moving_tag(self):
+        build = self.stage("Build & Push Images", "Stash deploy")
+        self.assertNotIn("cache-${env.BRANCH_NAME}", build)
+        self.assertNotIn("--cache-from", build)
+        self.assertNotIn("${env.DASHBOARD_UI_SHA}\"", build)    # the dashboard UI is tagged with the build tag
+        self.assertIn('def ui = "${env.ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${env.IMAGE_TAG}"', build)
+        self.assertIn("DASHBOARD_API_ECR = 'eoan/livestock-registry/dashboard-api'", self.text)
+        self.assertIn("DASHBOARD_UI_ECR = 'eoan/livestock-registry/dashboard-ui'", self.text)
 
     def test_digests_are_captured_after_the_pushes_and_stashed(self):
         build = self.stage("Build & Push Images", "Stash deploy")

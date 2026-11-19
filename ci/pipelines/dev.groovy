@@ -20,11 +20,11 @@ pipeline {
 
     environment {
         AWS_REGION       = 'ap-south-1'
-        // Registry images: eoan/livestock-registry/<image>-<RP version>:<version>-<branch>.<build>, named by
-        // ci/image_names.py from helm/openg2p-livestock-registry/Chart.yaml. The dashboard images come from their own
-        // repositories and keep their names.
-        DASHBOARD_API_ECR = 'openg2p/livestock-registry/dashboard-api'
-        DASHBOARD_UI_ECR = 'openg2p/livestock-registry/dashboard-ui'
+        // Every image this job builds: eoan/livestock-registry/<image>[-<RP version>]:<version>-<branch>.<build>, named
+        // by ci/image_names.py (version from init.yaml, RP version from helm/openg2p-livestock-registry/Chart.yaml).
+        // The dashboard images are built from their own source repositories but published here, under this job's names.
+        DASHBOARD_API_ECR = 'eoan/livestock-registry/dashboard-api'
+        DASHBOARD_UI_ECR = 'eoan/livestock-registry/dashboard-ui'
         RP_VERSION       = '1.2.2-rc.614' // Same native platform as the immutable central profile
         HELM_RELEASE     = 'livestock-registry'
         HELM_NAMESPACE   = 'live'
@@ -78,6 +78,8 @@ pipeline {
                 sh 'python3 -m unittest discover -s test -p test_connector_staging_build_tag.py -v'
                 // The ECR names of the images (ci/image_names.py).
                 sh 'python3 -m unittest discover -s test -p test_image_names.py -v'
+                // The ECR settings of every eoan repository (ci/ecr_repository.py).
+                sh 'python3 -m unittest discover -s test -p test_ecr_repository.py -v'
                 sh 'docker run --rm --network none --entrypoint python -v "$PWD:/work:ro" -w /work -e REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension -e PYTHONPATH=/work/livestock-extension/src oan/livestock-reference-tests:rc557 -m unittest discover -s livestock-extension/tests -p "test_farmer_reference_*.py" -v'
             }
         }
@@ -171,23 +173,24 @@ pipeline {
                     script {
                         def components = ['staff-api', 'partner-api', 'celery', 'db-seed', 'sanity-tests', 'staff-ui', 'registry-connector', 'registry-connector-ui']
                         def repositories = [:]
+                        // ECR does not create repositories on push, a new platform version is a new repository name, and
+                        // every eoan repository has immutable tags, scan on push, AES256 and the owner and naming tags:
+                        // ci/ecr_repository.py creates a missing one and corrects an existing one, printing each change.
+                        // Tags are immutable, so a version is pushed once and there is no moving tag (no cache-<branch>).
+                        def ensureRepository = { String image, String repository ->
+                            def legacy = sh(returnStdout: true, script: "python3 ci/image_names.py legacy ${image}").trim()
+                            sh "python3 ci/ecr_repository.py ensure ${repository} ${legacy}"
+                        }
                         components.each { name ->
                             def repository = sh(returnStdout: true, script: "python3 ci/image_names.py repository ${name}").trim()
                             repositories[name] = repository
                             def image = "${env.ECR_REGISTRY}/${repository}:${env.IMAGE_TAG}"
-                            // On-demand agents start with an empty Docker cache: layers come from the
-                            // branch's cache tag in ECR (inline cache metadata), pushed every build.
-                            def cache = "${env.ECR_REGISTRY}/${repository}:cache-${env.BRANCH_NAME}"
+                            ensureRepository(name, repository)
                             sh """
                                 echo "=== Building and pushing ${name} ==="
-                                docker build --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from ${cache} --build-arg RP_VERSION=${RP_VERSION} \
-                                    -f docker/${name}/Dockerfile -t ${image} -t ${cache} --pull .
-                                # ECR does not create repositories on push, and a new platform version is a new repository name.
-                                aws ecr describe-repositories --region ${AWS_REGION} --repository-names ${repository} > /dev/null 2>&1 \
-                                  || aws ecr create-repository --region ${AWS_REGION} --repository-name ${repository} \
-                                       --image-scanning-configuration scanOnPush=true > /dev/null
+                                docker build --build-arg RP_VERSION=${RP_VERSION} \
+                                    -f docker/${name}/Dockerfile -t ${image} --pull .
                                 docker push ${image}
-                                docker push ${cache}
                             """
                             if (name == 'registry-connector') {
                                 // The connector extension's tests, inside the image just pushed.
@@ -200,9 +203,12 @@ pipeline {
                         }
 
                         if (env.DASHBOARD_UI_SHA) {
-                            def ui = "${env.ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${env.DASHBOARD_UI_SHA}"
+                            ensureRepository('dashboard-ui', DASHBOARD_UI_ECR)
+                            def ui = "${env.ECR_REGISTRY}/${DASHBOARD_UI_ECR}:${env.IMAGE_TAG}"
                             sh """
-                                docker build --label org.opencontainers.image.revision=${env.DASHBOARD_UI_SHA} \
+                                docker build --label org.opencontainers.image.source=${DASHBOARD_UI_REPO} \
+                                  --label org.opencontainers.image.revision=${env.DASHBOARD_UI_SHA} \
+                                  --label org.opencontainers.image.ref.name=${env.DASHBOARD_UI_REF_USED} \
                                   -f .build/dashboard-ui/Dockerfile -t ${ui} .build/dashboard-ui
                                 docker push ${ui}
                             """
@@ -211,18 +217,16 @@ pipeline {
                         if (env.DASHBOARD_API_SHA) {
                             // The dashboard service, from its own repository (cloned
                             // by 'Checkout dashboard-api'), with its own build context.
-                            // Its ECR repository is created outside CI, like the others.
+                            ensureRepository('dashboard-api', DASHBOARD_API_ECR)
                             def api = "${env.ECR_REGISTRY}/${DASHBOARD_API_ECR}:${env.IMAGE_TAG}"
-                            def apiCache = "${env.ECR_REGISTRY}/${DASHBOARD_API_ECR}:cache-${env.BRANCH_NAME}"
                             sh """
                                 echo "=== Building and pushing dashboard-api (${env.DASHBOARD_API_REF_USED} @ ${env.DASHBOARD_API_SHA}) ==="
-                                docker build --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from ${apiCache} \
+                                docker build \
                                     --label org.opencontainers.image.source=${DASHBOARD_API_REPO} \
                                     --label org.opencontainers.image.revision=${env.DASHBOARD_API_SHA} \
                                     --label org.opencontainers.image.ref.name=${env.DASHBOARD_API_REF_USED} \
-                                    -f .build/dashboard-api/Dockerfile -t ${api} -t ${apiCache} .build/dashboard-api
+                                    -f .build/dashboard-api/Dockerfile -t ${api} .build/dashboard-api
                                 docker push ${api}
-                                docker push ${apiCache}
                             """
                         }
 
@@ -255,7 +259,7 @@ pipeline {
             // deploys offline, without GitHub access.
             steps {
                 sh 'docker run --rm --user "$(id -u):$(id -g)" --entrypoint python -v "$PWD:/work" -w /work openg2p/openg2p-registry-staff-api:1.2.2-rc.614 ci/deploy/oan_chart.py prefetch registry'
-                stash name: 'deploy', includes: 'ci/**,scripts/**,.central-charts/**,helm/openg2p-livestock-registry/Chart.yaml'
+                stash name: 'deploy', includes: 'init.yaml,ci/**,scripts/**,.central-charts/**,helm/openg2p-livestock-registry/Chart.yaml'
             }
         }
 
@@ -365,6 +369,7 @@ EOF
                         def deployEnv = [
                             "DEV_NAMESPACE=${DEV_NAMESPACE}", "ECR_REGISTRY=${env.ECR_REGISTRY}", "DASHBOARD_API_ECR=${DASHBOARD_API_ECR}",
                             "IMAGE_TAG=${env.IMAGE_TAG}", "DASHBOARD_UI_ECR=${DASHBOARD_UI_ECR}", "DASHBOARD_UI_SHA=${env.DASHBOARD_UI_SHA}",
+                            "DASHBOARD_UI_TAG=${env.DASHBOARD_UI_SHA ? env.IMAGE_TAG : ''}",
                             "BUILT_CHART_DIR=${env.WORKSPACE}/built-chart",
                         ]
                         withEnv(deployEnv) {
