@@ -10,10 +10,10 @@ helm lint chart -f livestock-connector.values.yaml > /dev/null
 helm template livestock-connector chart -n livestock -f livestock-connector.values.yaml > "$base"
 helm lint chart -f livestock-connector.values.yaml -f definitions.newdev.yaml > /dev/null
 helm template livestock-connector chart -n livestock -f livestock-connector.values.yaml -f definitions.newdev.yaml > "$out"
-digest=sha256:138d7ec301963da9b75cd4111ec2a8f393f56a44165580f4ba38ddcf05fc3236
-test "$(grep -c "image: \"379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector@$digest\"" "$out")" -eq 4  # api, worker, beat and the definitions Job
-ui_digest=sha256:9b49598c2f02c01a967cb5b2ec2be4ff43048261bf8de26b21f05439613b1fb0
-grep -q "image: \"379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry/registry-connector-ui@$ui_digest\"" "$out"
+digest=sha256:7eab1f5bb5300d582a859f494eb5e81ccd974927de4e12acb12cc2f99158c210
+test "$(grep -c "image: \"379220350808.dkr.ecr.ap-south-1.amazonaws.com/eoan/livestock-registry/registry-connector-api@$digest\"" "$out")" -eq 4  # api, worker, beat and the definitions Job
+ui_digest=sha256:a228c772beff628821b169279e36704f155ee9aa871572c25d4f1383189b9fdd
+grep -q "image: \"379220350808.dkr.ecr.ap-south-1.amazonaws.com/eoan/livestock-registry/registry-connector-ui@$ui_digest\"" "$out"
 for name in CONNECTOR_VALIDATE_MAPPED_PAYLOAD CONNECTOR_SIGNING_KID CONNECTOR_SIGNING_KEY_PEM; do
   # api, worker and beat each render it in the container and in the postgres-checker init container.
   test "$(grep -c "name: $name\$" "$out")" -eq 6
@@ -34,13 +34,13 @@ staging=$(mktemp)
 trap 'rm -f "$out" "$base" "$staging"' EXIT
 sd=sha256:$(printf 'a%.0s' $(seq 1 64))
 sui=sha256:$(printf 'b%.0s' $(seq 1 64))
-repo=379220350808.dkr.ecr.ap-south-1.amazonaws.com/openg2p/livestock-registry
-override='{"api":{"image":{"repository":"'$repo'/registry-connector","tag":"t","digest":"'$sd'"}},"worker":{"image":{"repository":"'$repo'/registry-connector","tag":"t","digest":"'$sd'"}},"beat":{"image":{"repository":"'$repo'/registry-connector","tag":"t","digest":"'$sd'"}},"ui":{"image":{"repository":"'$repo'/registry-connector-ui","tag":"t","digest":"'$sui'"}}}'
+repo=379220350808.dkr.ecr.ap-south-1.amazonaws.com/eoan/livestock-registry
+override='{"api":{"image":{"repository":"'$repo'/registry-connector-api","tag":"t","digest":"'$sd'"}},"worker":{"image":{"repository":"'$repo'/registry-connector-api","tag":"t","digest":"'$sd'"}},"beat":{"image":{"repository":"'$repo'/registry-connector-api","tag":"t","digest":"'$sd'"}},"ui":{"image":{"repository":"'$repo'/registry-connector-ui","tag":"t","digest":"'$sui'"}}}'
 echo "$override" > "$staging.json"
 helm lint chart -f livestock-connector.staging.values.yaml -f "$staging.json" -f definitions.staging.yaml > /dev/null
 helm template livestock-connector chart -n live -f livestock-connector.staging.values.yaml -f "$staging.json" -f definitions.staging.yaml > "$staging"
 rm -f "$staging.json"
-test "$(grep -c "image: \"$repo/registry-connector@$sd\"" "$staging")" -eq 4  # api, worker, beat and the definitions Job
+test "$(grep -c "image: \"$repo/registry-connector-api@$sd\"" "$staging")" -eq 4  # api, worker, beat and the definitions Job
 grep -q "image: \"$repo/registry-connector-ui@$sui\"" "$staging"
 if grep -q 'connector-service\|postgres-init:develop' "$staging"; then echo "FAIL: staging renders a retired image or the database init Job" >&2; exit 1; fi
 test "$(grep -c 'kind: Job' "$staging")" -eq 1
