@@ -16,7 +16,7 @@
     "platformVersion": "1.2.2-rc.614"
   },
   "dashboard": {
-    "repository": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/0b25fcc12b89019d06cc4a050030f4b9d3e73ef6/repository/",
+    "repository": "https://raw.githubusercontent.com/Centre-for-Open-Societal-Systems/oan-helm/18f5bca0e5ce56fb430a031c0c4c7dede3c0dd15/repository/",
     "name": "livestock-registry-dashboard",
     "version": "0.1.2",
     "sha256": "c1a5cce9b82070b782aefa954b74a11907ace7babafe90ad913614fe0d4c9ff0",
@@ -26,7 +26,7 @@
     "promotionReady": true,
     "values": {
       "path": "environments/dev/values/livestock-dashboard.yaml",
-      "sha256": "a9e01c57cb6fab44adbdc88098ecac175f52f94c4a449fcfaea31d3626aea5be"
+      "sha256": "4137c7b41c9f3284f9daeeaa7f2959b8c0e6873321e2b5fb25a81469e60e6d36"
     }
   }
 }
