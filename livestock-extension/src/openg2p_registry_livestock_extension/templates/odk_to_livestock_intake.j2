@@ -410,6 +410,14 @@
       {% set a_sp = (species_map.get(a_sp_raw | replace('livestock_species_', ''), a_sp_raw | replace('livestock_species_', '') | upper)) if a_sp_raw else none %}
       {% for be in a.get('breeding_events', []) %}
         {% set ai = be.get('artificial_insemination_tab', {}) or {} %}
+        {#- Form v8 and earlier ask only "AI technician" (ai_technician_id), which officers fill with a
+            name or an ID. Until every phone has v9 (ai_technician_name), that answer is used as the
+            name only when it is letters (spaces, hyphens and apostrophes allowed, up to 100
+            characters), as the registry's name rule requires; an ID such as AIT-07 is never sent as
+            a name. -#}
+        {% set ai_answer = ((ai.get('ai_technician_id') or '') | string) | trim %}
+        {% set ai_letters = ai_answer.replace(' ', '').replace('-', '').replace("'", '').replace('’', '') %}
+        {% set ai_named = ai_answer if (ai_letters and ai_letters.isalpha() and ai_answer | length <= 100) else none %}
         {% set raw_et = ((be.get('event_type') or be.get('breeding_event_type') or 'NATURAL') | string) | upper %}
         {% set raw_bloc = ((be.get('location') or 'HOME') | string) | upper %}
         {% set _ = ns.items.append({
@@ -422,7 +430,7 @@
           "sire_or_semen_id": be.get('sire_or_semen_id'),
           "location": "HOME" if "HOME" in raw_bloc else ("VETERINARY" if "VET" in raw_bloc else ("MARKET" if "MARKET" in raw_bloc else ("QUARANTINE_CENTER" if "QUARANTINE" in raw_bloc else ("FIELD" if "FIELD" in raw_bloc else "OTHER")))),
           "location_details": be.get('location_details'),
-          "ai_technician_name": ai.get('ai_technician_name') or be.get('ai_technician_name'),
+          "ai_technician_name": ai.get('ai_technician_name') or be.get('ai_technician_name') or ai_named,
           "ai_technique": ai.get('ai_technique') or be.get('ai_technique'),
           "semen_batch_number": ai.get('semen_batch_number') or be.get('semen_batch_number'),
           "expected_calving_date": be.get('expected_calving_date'),
