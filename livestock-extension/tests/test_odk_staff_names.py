@@ -77,3 +77,28 @@ def test_the_template_never_reads_an_id_into_a_name():
     for line in template.splitlines():
         if '"veterinarian_name"' in line or '"ai_technician_name"' in line:
             assert '_id' not in line.split(':', 1)[1], line
+
+
+def technician(tab):
+    output = render({'breeding_events': [{'breeding_event_type': 'artificial_insemination',
+                                          'breeding_date': '2025-12-20', 'artificial_insemination_tab': tab}]})
+    return values(output, 'ai_technician_name')[0]
+
+
+# Form v8 and earlier have only the "AI technician" answer (ai_technician_id); officers wrote a
+# name or an ID there. Until every phone has v9, a letters-only answer is the name.
+
+def test_a_v8_answer_that_is_a_name_is_used_as_the_name():
+    assert technician({'ai_technician_id': 'Tigist Haile'}) == 'Tigist Haile'
+    assert technician({'ai_technician_id': " O'Brien-Tesfaye "}) == "O'Brien-Tesfaye"
+    assert technician({'ai_technician_id': 'ትግስት ኃይሌ'}) == 'ትግስት ኃይሌ'
+
+
+def test_a_v8_answer_that_looks_like_an_id_is_refused():
+    for answer in ('AIT-07', 'VET 001', '12345', 'T.Haile', 'a' * 101, '', '  '):
+        assert technician({'ai_technician_id': answer}) is None, answer
+
+
+def test_the_v9_name_question_wins_over_the_v8_answer():
+    assert technician({'ai_technician_id': 'Abebe Kebede', 'ai_technician_name': 'Tigist Haile'}) == 'Tigist Haile'
+    assert technician({'ai_technician_id': 'AIT-07', 'ai_technician_name': 'Tigist Haile'}) == 'Tigist Haile'
