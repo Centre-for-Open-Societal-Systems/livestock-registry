@@ -101,11 +101,34 @@ def _classes(path):
     return {n.name: [ast.unparse(b) for b in n.bases] for n in tree.body if isinstance(n, ast.ClassDef)}
 
 
-def test_every_installed_intake_and_change_request_service_carries_the_guard_first():
+def _mixins_without_a_direct_call():
+    """Classes of the extension that define neither direct call nor a workflow method, by name."""
+    safe = set()
+    for module in PACKAGE.rglob("*.py"):
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                defined = {n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+                if not defined & ({"approve_submission", "approve_change_request"} | WORKFLOW_METHODS):
+                    safe.add(node.name)
+    return safe
+
+
+def test_every_installed_intake_and_change_request_service_carries_the_guard():
+    # The guard must answer a direct approval before the platform class does. Only a mixin
+    # that defines no direct call and no workflow method may come before it (the Fayda ID view
+    # and the required-fields mixin wrap reads, save and finalize); the extension's own tests
+    # pin their order (test_fayda_id_view.py, test_required_intake.py).
+    safe = _mixins_without_a_direct_call()
     for path, names in GUARDED.items():
         classes = _classes(path)
         for name in names:
-            assert classes[name][0] == "DirectApprovalClosed", f"{path}:{name} must put the guard first"
+            bases = classes[name]
+            assert "DirectApprovalClosed" in bases, f"{path}:{name} lacks the guard"
+            guard = bases.index("DirectApprovalClosed")
+            assert guard < len(bases) - 1, f"{path}:{name} must put the guard before the platform class"
+            before = [base for base in bases[:guard] if base not in safe]
+            assert not before, f"{path}:{name}: {before} come before the guard and may answer a direct call"
 
 
 def _methods(path):
