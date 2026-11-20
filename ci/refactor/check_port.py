@@ -51,8 +51,9 @@ def verify(repo: Path, domain: str) -> dict:
     if not re.fullmatch(r"https://raw\.githubusercontent\.com/Centre-for-Open-Societal-Systems/oan-helm/[0-9a-f]{40}/repository/",pin["repository"]):
         errors.append("central chart commit is not immutable")
     # The registry chart is promotion-ready since oan-helm 1.0.0-dev.17 (the
-    # Farmer reference was proven end to end); the dashboard chart still is not.
-    if pin["promotionReady"] is not True or profile["dashboard"]["promotionReady"] is not False:
+    # Farmer reference was proven end to end). The dashboard chart 0.1.2 has run on
+    # staging since 17 November 2026, so New Dev deploys it too.
+    if pin["promotionReady"] is not True or profile["dashboard"]["promotionReady"] is not True:
         errors.append("chart pins do not match the accepted promotion state")
     for name in ("openg2p-connector-service", "openg2p-connector-ui"):
         if any((repo / name).rglob("Chart.yaml")) or (repo / name / "Dockerfile").exists():

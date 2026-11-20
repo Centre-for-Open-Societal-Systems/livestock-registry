@@ -23,7 +23,7 @@
     "environment": "dev",
     "namespace": "livestock",
     "release": "livestock-registry-dashboard",
-    "promotionReady": false,
+    "promotionReady": true,
     "values": {
       "path": "environments/dev/values/livestock-dashboard.yaml",
       "sha256": "a9e01c57cb6fab44adbdc88098ecac175f52f94c4a449fcfaea31d3626aea5be"
