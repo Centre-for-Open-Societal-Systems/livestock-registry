@@ -4,7 +4,18 @@ case "${1:-source}" in source|--native) ;; *) echo "Usage: ci/validate.sh [--nat
 export REGISTRY_EXTENSION_MODULE=openg2p_registry_livestock_extension
 export PYTHONPATH="livestock-extension/src${PYTHONPATH:+:$PYTHONPATH}"
 python -m ruff check --no-cache --select E9,F63,F7,F82 livestock-extension/src livestock-extension/tests
-python -m pytest -q -p no:cacheprovider test/test_sample_loader.py test/test_rp_pin_lockstep.py test/test_oan_chart.py test/test_deployment_guard.py test/test_onboarding_runner_failure.py test/test_metadata_transitions.py test/test_default_approvals.py test/test_verified_update_policy.py test/test_readable_text.py test/test_reporting_labels.py test/test_require_green_checks.py test/test_direct_approval.py
+# Every test in test/, so a new test file runs without being listed here. test/sanity runs against a deployment.
+python -m pytest -q -p no:cacheprovider test --ignore=test/sanity ci/connector/tests
+# The ODK transform against the sample submissions (natural and AI breeding).
+python odk/test_transform.py
+# The Node tests: the staff UI widgets (they import TypeScript, which Node runs from 22.18) and the staging dashboard
+# access proxy. The Jenkins test image has no Node; the GitHub contracts check runs them, and Jenkins deploys only
+# when every GitHub check is green.
+if command -v node > /dev/null; then
+  node --test test/*.test.mjs scripts/operations/staging-dashboard/access-proxy.test.mjs
+else
+  echo "note: node unavailable; the .test.mjs files run in the GitHub contracts check"
+fi
 # Native suites require the published OpenG2P runtime. GitHub's native-image
 # step runs these independently; Jenkins requests this mode inside that image.
 if [[ "${1:-source}" == --native ]]; then
