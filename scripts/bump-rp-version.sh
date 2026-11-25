@@ -15,12 +15,13 @@ python3 - "$version" <<'PY'
 from pathlib import Path
 import re,sys
 version=sys.argv[1]
-for path in (Path('docker')).glob('*/Dockerfile'):
-    body=path.read_text()
-    if re.search(r'^ARG RP_VERSION=',body,re.M):
-        path.write_text(re.sub(r'^ARG RP_VERSION=.*', 'ARG RP_VERSION='+version,body,flags=re.M))
-path=Path('Jenkinsfile')
-body=path.read_text(encoding='utf-8')
-path.write_text(re.sub(r"(RP_VERSION\s*=\s*')[^']+",r'\g<1>'+version,body),encoding='utf-8')
+# Every platform version these files name: the Dockerfiles' ARG RP_VERSION, the RP_VERSION in dev.groovy, the
+# openg2p/openg2p-registry-* image tags the pipeline and the test image run, and the refactor checks and probes.
+# test/test_rp_pin_lockstep.py (PLATFORM_FILES) checks the same files.
+for pattern in ('Jenkinsfile','ci/pipelines/*.groovy','ci/refactor/*','docker/*/Dockerfile'):
+    for path in sorted(Path('.').glob(pattern)):
+        if path.is_file():
+            body=path.read_text(encoding='utf-8')
+            path.write_text(re.sub(r'\b\d+\.\d+\.\d+-rc\.\d+\b',version,body),encoding='utf-8')
 PY
 echo "Images aligned to central platform $version; review the diff before committing."

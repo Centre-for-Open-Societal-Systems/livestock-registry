@@ -19,7 +19,7 @@ the Dockerfiles and the pipeline moved with it (see NOTE below).
 
 A new platform version is NOT propagated automatically: the images must extend the platform bundled in the chart
 (test/test_rp_pin_lockstep.py), and the platform version also appears in ci/pipelines/dev.groovy (RP_VERSION and the
-openg2p/openg2p-registry-* image tags) and in ci/refactor. Run scripts/bump-rp-version.sh and update those by hand.
+openg2p/openg2p-registry-* image tags) and in ci/refactor. scripts/bump-rp-version.sh moves all of them.
 
 Standard library only; runs on the deploy node's stock Python.
 """
@@ -187,15 +187,15 @@ def main(argv=None):
     print("\n".join(describe(old, new)))
     if not args.write:
         if old[ROLE].get("platformVersion") != new[ROLE]["platformVersion"]:
-            print("NOTE: platform version changes; after --write run scripts/bump-rp-version.sh and move RP_VERSION and the "
-                  "openg2p/openg2p-registry-* tags in ci/pipelines/dev.groovy and ci/refactor by hand.")
+            print("NOTE: platform version changes; after --write run scripts/bump-rp-version.sh, which moves the Dockerfiles, "
+                  "ci/pipelines/dev.groovy and ci/refactor with it.")
         print("\n(dry run: nothing written; add --write to update " + str(PROFILE.name) + ")")
         return
     for path in apply_pin(old, new):
         print("updated " + path)
     if old[ROLE].get("platformVersion") != new[ROLE]["platformVersion"]:
-        print("NOTE: platform version changed: run scripts/bump-rp-version.sh and move RP_VERSION and the "
-              "openg2p/openg2p-registry-* tags in ci/pipelines/dev.groovy and ci/refactor by hand.")
+        print("NOTE: platform version changed: run scripts/bump-rp-version.sh, which moves the Dockerfiles, "
+              "ci/pipelines/dev.groovy and ci/refactor with it.")
     print("next: python3 -m unittest discover -s test -p test_oan_chart.py && python3 ci/deploy/oan_chart.py prefetch registry")
 
 
