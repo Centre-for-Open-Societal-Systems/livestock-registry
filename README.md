@@ -33,3 +33,5 @@ for the verified 316 fields, registered schema/location widgets and preserved
 source cleanup. Helm lives in OAN oan-helm; this repository consumes exact
 archives through [the central profile](ci/deploy/oan-chart.json). Deployment
 remains blocked until the explicit acceptance requirements pass.
+
+What checks a change, where it runs and how to run it locally: [ci/README.md](ci/README.md).
