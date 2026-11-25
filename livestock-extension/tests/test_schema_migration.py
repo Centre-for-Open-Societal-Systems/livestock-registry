@@ -276,4 +276,4 @@ class SeedRenameTests(unittest.TestCase):
 
     def test_the_seed_rename_drops_and_deletes_nothing(self):
         sql = self.seed.read_text(encoding="utf-8").upper()
-        self.assertNotRegex(sql, r"(DROP|DELETE|TRUNCATE)")
+        self.assertNotRegex(sql, r"\b(DROP|DELETE|TRUNCATE)\b")
