@@ -489,7 +489,7 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/zz_patch_no_past_only_date_constraint.sql",
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/update_020_patch_no_past_only_date_constraint.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
@@ -541,7 +541,7 @@
     {
       "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-inbound-message-rules/patch_livestock_odk_ingestion.sql",
       "decision": "retired",
-      "reason": "Replaced by meta_data/zz-oan/20_odk_to_livestock_intake.sql (ODK_TO_LIVESTOCK_INTAKE)"
+      "reason": "Replaced by meta_data/site-configuration/20_odk_to_livestock_intake.sql (ODK_TO_LIVESTOCK_INTAKE)"
     },
     {
       "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/registry-outbound-messages-templates/outgoing_templates.sql",

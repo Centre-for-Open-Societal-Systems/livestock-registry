@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "livestock-extension/src/openg2p_registry_livestock_extension"
 META = PACKAGE / "meta_data"
-OVERLAY = META / "zz-oan/85_readable_text.sql"
+OVERLAY = META / "site-configuration/85_readable_text.sql"
 
 # Known short forms (DOVAR and LITS are source systems) and the date format
 # mask are allowed to stay in capitals.
@@ -150,8 +150,8 @@ class ReadableTextTests(unittest.TestCase):
 
     def test_overlay_runs_after_the_other_text_overlays(self):
         files = sorted(str(p.relative_to(META)).replace("\\", "/") for p in META.rglob("*.sql"))
-        mine = files.index("zz-oan/85_readable_text.sql")
-        for earlier in ("zz-oan/30_label_casing.sql", "zz-oan/40_farmer_tab_layout.sql"):
+        mine = files.index("site-configuration/85_readable_text.sql")
+        for earlier in ("site-configuration/30_label_casing.sql", "site-configuration/40_farmer_tab_layout.sql"):
             self.assertLess(files.index(earlier), mine)
 
     def test_overlay_keeps_option_values(self):

@@ -14,7 +14,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 META = ROOT / "livestock-extension" / "src" / "openg2p_registry_livestock_extension" / "meta_data" / "register-metadata"
-PATCH = META / "zzzzzzzzz_animal_dialog_species_rules.sql"
+PATCH = META / "update_090_animal_dialog_species_rules.sql"
 WIDGETS = ROOT / "ui" / "staff-ui" / "overrides" / "src" / "oan" / "widgets"
 
 RULES = "species_rules"
@@ -40,8 +40,8 @@ def actions(column):
 
 def test_it_runs_after_the_field_order_patch_and_before_the_required_row_overlay():
     files = sorted(p.name for p in META.glob("*.sql"))
-    assert files.index("zzzzzzzzz_animal_dialog_field_order.sql") < files.index(PATCH.name)
-    assert files.index(PATCH.name) < files.index("zzzzzzzzzz_required_animal_row.sql")
+    assert files.index("update_090_animal_dialog_field_order.sql") < files.index(PATCH.name)
+    assert files.index(PATCH.name) < files.index("update_100_required_animal_row.sql")
     assert "WHERE section_id = 'livestock_animal_details_section_01'" in PATCH.read_text(encoding="utf-8")
 
 

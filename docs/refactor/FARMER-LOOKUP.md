@@ -13,7 +13,7 @@ intake (decision of 2026-10-28: Crop Sown and Livestock do not use eSignet).
 
 ## How it works
 
-- `livestock-extension/src/openg2p_registry_livestock_extension/meta_data/zz-oan/10_farmer_lookup.sql` creates the section and binds it first on
+- `livestock-extension/src/openg2p_registry_livestock_extension/meta_data/site-configuration/10_farmer_lookup.sql` creates the section and binds it first on
   every intake tab. The folder sorts after `register-metadata/`, and the seed applies every
   file under `meta_data/` in sorted path order, so this file runs after the older identity
   overlays on every deploy and replaces what they re-apply. It is idempotent and safe on an

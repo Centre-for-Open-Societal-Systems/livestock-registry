@@ -16,7 +16,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 PACKAGE = os.environ.get("REGISTRY_EXTENSION_MODULE", "openg2p_registry_livestock_extension")
 projection = importlib.import_module(PACKAGE + ".farmer_reference.projection")
 SOURCE = Path(__file__).resolve().parents[1] / "src/openg2p_registry_livestock_extension"
-OVERLAY = SOURCE / "meta_data/zz-oan/96_record_farmer_profile.sql"
+OVERLAY = SOURCE / "meta_data/site-configuration/96_record_farmer_profile.sql"
 LIVESTOCK_REGISTER = "997676d3-7008-59f9-b23e-613ad79bbb08"
 
 

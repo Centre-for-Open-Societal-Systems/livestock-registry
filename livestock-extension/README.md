@@ -101,7 +101,7 @@ VERIFIED on that approval).
   the administrator to give a staff member the role and a data policy"). There
   is no fallback to another level or place.
 - The Farmer identity section keeps its own Farmer reference policy
-  (`zzz_farmer_reference_awe.sql`).
+  (`update_030_farmer_reference_awe.sql`).
 
 ### Catalogues and lookups
 
@@ -129,3 +129,10 @@ Closed value sets stay as Python enums (`register_domain/models/enums.py`):
 livestock state, source system, sync status, animal state, sex, health status,
 vaccination status, health-event type, vital-event type and cause, breeding event
 type and outcome, event location, import source and state, and audit action type.
+
+## Metadata seed order
+
+OpenG2P applies SQL in lexical path order. Within a metadata directory,
+`update_<order>_<purpose>.sql` runs after the base rows. The order prefix
+keeps dependent updates in sequence. `site-configuration/` runs after the
+base metadata categories, and `translations_fields.sql` runs after it.

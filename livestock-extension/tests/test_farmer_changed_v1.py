@@ -14,7 +14,7 @@ enrichers=importlib.import_module(PACKAGE+'.ingestion_pipeline.enricher_services
 from jinja2 import Environment
 
 ROOT=Path(importlib.import_module(PACKAGE).__file__).parent
-SEED=(ROOT/'meta_data/registry-inbound-message-rules/zz_farmer_changed_v1.sql').read_text(encoding='utf-8')
+SEED=(ROOT/'meta_data/registry-inbound-message-rules/update_020_farmer_changed_v1.sql').read_text(encoding='utf-8')
 EVENT={'event_id':'synthetic-event','farmer_id':'FR-000000000001','fayda_fan_id':'0000000000000001'}
 
 
@@ -38,7 +38,7 @@ class FarmerChangedTests(unittest.TestCase):
             self.assertFalse(re.match(pattern,'farmer-registry.farmer.changed.v10'))
 
     def test_the_final_name_model_is_seeded_with_its_own_pattern(self):
-        seed=(ROOT/'meta_data/registry-inbound-message-rules/zz_farmer_profile_changed_v1.sql').read_text(encoding='utf-8')
+        seed=(ROOT/'meta_data/registry-inbound-message-rules/update_020_farmer_profile_changed_v1.sql').read_text(encoding='utf-8')
         self.assertIn("'FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1'",seed)
         patterns=set(re.findall(r"\$\.body\.message\.payload\.event_type=>(\^farmer[^']+)'",seed))
         self.assertEqual(patterns,{'^farmer-registry[.]farmer-profile[.]changed[.]v1$'})

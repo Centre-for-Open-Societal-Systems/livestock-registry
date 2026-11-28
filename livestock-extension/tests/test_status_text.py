@@ -5,12 +5,12 @@ import re
 from pathlib import Path
 
 META = Path(__file__).resolve().parents[1] / "src" / "openg2p_registry_livestock_extension" / "meta_data"
-OAN = META / "zz-oan"
+OAN = META / "site-configuration"
 JSON_BLOCK = re.compile(r"'(\{.*?\})'::jsonb", re.DOTALL)
 
 
 def english():
-    """The English domain translations after the zz-oan files are applied in file order."""
+    """The English domain translations after the site-configuration files are applied in file order."""
     merged = {}
     for path in sorted(OAN.glob("*.sql")):
         for block in JSON_BLOCK.findall(path.read_text(encoding="utf-8")):

@@ -34,5 +34,5 @@ COPY --chmod=755 docker/db-seed/load_sample_data.py /seed/
 # registry configuration (registry-configurations/g2p_registry_configuration.sql,
 # which inserts the row with the factory theme) and points that row at oan_theme;
 # the factory theme row stays as seeded (DO NOTHING).
-RUN mkdir -p /seed/meta_data/zz-oan  && python3 /openg2p-data/scripts/themes/build_theme_sql.py livestock > /seed/meta_data/zz-oan/90_oan_theme.sql
+RUN mkdir -p /seed/meta_data/site-configuration  && python3 /openg2p-data/scripts/themes/build_theme_sql.py livestock > /seed/meta_data/site-configuration/90_oan_theme.sql
 ENTRYPOINT ["/seed/entrypoint.sh"]

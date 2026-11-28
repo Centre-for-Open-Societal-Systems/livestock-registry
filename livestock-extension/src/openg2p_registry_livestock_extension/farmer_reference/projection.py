@@ -64,7 +64,7 @@ def _mirror(domain_row, farmer):
 
 
 # The farmer's personal details, from the approved Farmer, shown read-only on the
-# record's first tab (zz-oan/96_record_farmer_profile.sql). Farmer column -> record column.
+# record's first tab (site-configuration/96_record_farmer_profile.sql). Farmer column -> record column.
 MIRRORED_PROFILE_FIELDS = {
     "gender": "farmer_gender", "date_of_birth": "farmer_date_of_birth",
     "mobile_number": "farmer_mobile_number", "marital_status": "farmer_marital_status",

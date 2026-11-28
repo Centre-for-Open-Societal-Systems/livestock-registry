@@ -7,7 +7,7 @@
 -- still apply. Read-only dates (the *_ec twins, audit timestamps) keep the
 -- Gregorian display.
 --
--- Runs last in zz-oan so it also covers sections that earlier files rewrite.
+-- Runs last in site-configuration so it also covers sections that earlier files rewrite.
 -- Livestock's Next Due Date (oan-next-due-date) renders the same native
 -- widget, so it takes the same calendar.
 CREATE OR REPLACE FUNCTION pg_temp.oan_ethiopian_dates(node jsonb)

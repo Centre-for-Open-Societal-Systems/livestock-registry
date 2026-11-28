@@ -5,7 +5,7 @@ from pathlib import Path
 
 PACKAGE = "openg2p_registry_livestock_extension"
 META = Path(importlib.import_module(PACKAGE).__file__).parent / "meta_data"
-CLEANUP = "zz-oan/92_remove_fayda_verification.sql"
+CLEANUP = "site-configuration/92_remove_fayda_verification.sql"
 
 
 def seed_files():
