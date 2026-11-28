@@ -80,7 +80,7 @@ def test_import_configuration_has_a_fixed_id_and_points_at_the_form_own_data_mod
 
 
 def test_data_model_key_paths_pattern_and_template_rows_are_upserts_on_the_import_envelope():
-    seed = sql('zz-oan', '60_file_import_to_livestock_intake.sql')
+    seed = sql('site-configuration', '60_file_import_to_livestock_intake.sql')
     assert f"('{MODEL}','FILE_IMPORT_TO_LIVESTOCK_INTAKE','$.headers.sender_id=>^Staff Portal$',NULL,TRUE)" in seed
     assert (f"('{MODEL}_key_path','{MODEL}','$.headers.message_id','$.headers.sender_id',"
             f"'$.headers.signature','$.body','FALSE','')") in seed
@@ -99,25 +99,25 @@ def test_pattern_enricher_is_the_pass_through_and_not_a_dci_or_odk_one():
     service = enrichers.G2PPassThroughEnricherService()
     payload = {'farmer_id': 'FR-000000000001'}
     assert service.enrich(payload, None) is payload
-    seed = sql('zz-oan', '60_file_import_to_livestock_intake.sql')
+    seed = sql('site-configuration', '60_file_import_to_livestock_intake.sql')
     classes = re.findall(r"'(G2P\w+EnricherService)'", seed)
     assert classes == ['G2PPassThroughEnricherService']
 
 
 def test_the_odk_connector_model_template_and_names_are_untouched_and_unique():
-    odk = ROOT / 'meta_data' / 'zz-oan' / '20_odk_to_livestock_intake.sql'
+    odk = ROOT / 'meta_data' / 'site-configuration' / '20_odk_to_livestock_intake.sql'
     assert sha256(odk) == ODK_SQL_SHA256
     assert sha256(ROOT / 'templates' / 'odk_to_livestock_intake.j2') == ODK_TEMPLATE_SHA256
     text = odk.read_text(encoding='utf-8')
     assert re.search(r"'odk_to_livestock_intake_key_path','odk_to_livestock_intake','\$\.body\.header\.message_id',"
                      r"'\$\.body\.header\.sender_id',\s*'\$\.body\.header\.signature','\$\.body\[''header'',''message'']'", text)
     assert "'$.body.message.payload','G2PDciLivestockCreateEnricherService'" in text
-    seed = sql('zz-oan', '60_file_import_to_livestock_intake.sql')
+    seed = sql('site-configuration', '60_file_import_to_livestock_intake.sql')
     assert not re.search(r"odk_to_livestock_intake'?[,)]", re.sub(r'^--.*$', '', seed, flags=re.MULTILINE))
     names = re.findall(r"'([\w.]+\.j2)','templates'", ''.join(
         sql(folder, name) for folder, name in (
-            ('register-metadata', 'g2p_registry_documents.sql'), ('zz-oan', '20_odk_to_livestock_intake.sql'),
-            ('zz-oan', '60_file_import_to_livestock_intake.sql'))))
+            ('register-metadata', 'g2p_registry_documents.sql'), ('site-configuration', '20_odk_to_livestock_intake.sql'),
+            ('site-configuration', '60_file_import_to_livestock_intake.sql'))))
     assert len(names) == len(set(names)) and TEMPLATE in names
     assert TEMPLATE.startswith('livestock_')
 
@@ -147,7 +147,7 @@ def animal_column_keys():
 
 
 def animal_section_schema():
-    """The animal section as seeded, with the table required the way zzzzzzzzzz_required_animal_row.sql makes it."""
+    """The animal section as seeded, with the table required the way register_required_animal_row.sql makes it."""
     for line in sql('register-metadata', 'g2p_register_sections.sql').splitlines():
         if "'livestock_animal_details_section_01'" in line:
             start = line.index("'{") + 1
@@ -174,7 +174,7 @@ def test_columns_are_the_register_fields_of_the_flat_sections_and_the_one_animal
     columns = set(header())
     assert columns == IDENTITY | PERSONNEL | GEO | ANIMAL
     assert PERSONNEL <= section_widget_ids('livestock_survey_personnel_section_02')
-    assert IDENTITY <= set(re.findall(r'"widget-id": "(\w+)"', sql('zz-oan', '10_farmer_lookup.sql')))
+    assert IDENTITY <= set(re.findall(r'"widget-id": "(\w+)"', sql('site-configuration', '10_farmer_lookup.sql')))
     assert ANIMAL <= animal_column_keys()
     full = {**BASE, 'surveyor_name': 'Sample Surveyor', 'surveyor_mobile_number': '0911000000',
             'supervisor_name': 'Sample Supervisor', 'supervisor_mobile_number': '0922000000',
@@ -294,7 +294,7 @@ def test_gender_is_a_master_data_code_and_the_earlier_template_codes_still_read(
 
 
 def test_import_batch_register_is_not_seeded_and_the_retire_patch_deletes_by_explicit_id_children_first():
-    for folder in ('register-metadata', 'registry-configurations', 'zz-oan'):
+    for folder in ('register-metadata', 'registry-configurations', 'site-configuration'):
         for path in sorted((META / folder).glob('*.sql')):
             if path.name == '42_retire_import_batch_register.sql':
                 continue
@@ -302,7 +302,7 @@ def test_import_batch_register_is_not_seeded_and_the_retire_patch_deletes_by_exp
             assert RETIRED_REGISTER not in text, path.name
             assert 'livestock_import_batch_details_section_01' not in text, path.name
             assert 'ls_import_batch_details' not in text, path.name
-    patch = re.sub(r'^--.*$', '', sql('zz-oan', '42_retire_import_batch_register.sql'), flags=re.MULTILINE)
+    patch = re.sub(r'^--.*$', '', sql('site-configuration', '42_retire_import_batch_register.sql'), flags=re.MULTILINE)
     assert 'NOT IN' not in patch.upper()
     deletes = re.findall(r'DELETE FROM "public"\."(\w+)"', patch)
     assert deletes == ['g2p_register_ui_tab_sections', 'g2p_register_sections', 'g2p_register_schemas',

@@ -2,8 +2,8 @@
 
 An approval is routed by policy_key across two databases seeded by different files:
   * registry: g2p_registry_awe_policy_configurations binds a register, intake form or section to a policy_key
-    (meta_data/register-metadata/zzz_default_approval_awe.sql and zzz_farmer_reference_awe.sql; the reset in
-    zzzzzzzzz_default_binding_reset.sql re-keys older rows to the same defaults)
+    (meta_data/register-metadata/register_form_default_approvals.sql and register_form_farmer_reference_approval.sql; the reset in
+    register_policy_binding_repair.sql re-keys older rows to the same defaults)
   * AWE: approval_policy, approval_stage and approver_rule (awe_meta_data/)
 Nothing checks the join at runtime: a binding to a key the AWE does not have leaves the change request or intake
 without an approval, and the stage and rule seeds insert through a JOIN on policy_key and stage_order, so a
@@ -57,7 +57,7 @@ def test_registry_bindings_join_the_awe_policies():
     rules = {(key, order) for values in rows(awe, "approver_rule")
              for key, order in re.findall(r"\('[0-9a-f-]+','([^']+)',(\d+),'\{", values)}
     reset = re.findall(r"\('([0-9a-f-]+)','(change_request|intake_form)','([^']+)'\)",
-                       (META / "register-metadata/zzzzzzzzz_default_binding_reset.sql").read_text())
+                       (META / "register-metadata/register_policy_binding_repair.sql").read_text())
     bound = bindings()
     assert len(registers) == 10 and len(forms) >= 2 and len(bound) >= 4 and len(reset) == 3
     assert len(policies) == 4 and stages and rules

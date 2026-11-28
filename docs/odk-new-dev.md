@@ -26,7 +26,7 @@ The data model is named after its flow, `ODK_TO_LIVESTOCK_INTAKE` (id
 generic `MY_DATA_MODEL`. Its key path, semantic pattern, incoming template
 (`odk_to_livestock_intake_template`, rendering `odk_to_livestock_intake.j2`)
 and the response template are all seeded by
-`meta_data/zz-oan/20_odk_to_livestock_intake.sql`, which also moves the
+`meta_data/site-configuration/20_odk_to_livestock_intake.sql`, which also moves the
 ingested history (`incoming_raw_data`, `incoming_classified_data`) to the new
 model and deletes the two retired models and their rows by explicit id. The
 seed fails if any row still references a retired model. Switch the connector

@@ -1,7 +1,7 @@
 -- Native policy resolution requires exactly one binding per effective scope.
 -- Preserve full snapshots/IDs before retiring duplicate metadata only. AWE
 -- policies, requests, tasks, decisions, IAM grants and domain rows are untouched.
--- The Farmer-reference section binding is owned by zzz_farmer_reference_awe.sql
+-- The Farmer-reference section binding is owned by register_form_farmer_reference_approval.sql
 -- (policy switch and context fields) and is excluded from the reset.
 INSERT INTO "public".g2p_approval_binding_archive (binding_id,content_hash,original_binding,reason,archived_at)
 SELECT c.awe_policy_config_id,md5(to_jsonb(c)::text),to_jsonb(c),'OpenG2P default approval reset',CURRENT_TIMESTAMP

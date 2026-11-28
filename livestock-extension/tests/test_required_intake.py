@@ -317,10 +317,10 @@ class OverlayFileTests(unittest.TestCase):
 
     def test_required_fields_overlay_sorts_after_the_layout_files_and_stays_targeted(self):
         files = sorted(str(p.relative_to(self.META)).replace("\\", "/") for p in self.META.rglob("*.sql"))
-        overlay = files.index("zz-oan/45_required_fields.sql")
+        overlay = files.index("site-configuration/45_required_fields.sql")
         self.assertTrue(all(files.index(n) < overlay for n in files if n.startswith("register-metadata/")))
-        self.assertTrue(all(files.index(n) < overlay for n in files if n.startswith("zz-oan/") and n < "zz-oan/45"))
-        sql = (self.META / "zz-oan" / "45_required_fields.sql").read_text(encoding="utf-8")
+        self.assertTrue(all(files.index(n) < overlay for n in files if n.startswith("site-configuration/") and n < "site-configuration/45"))
+        sql = (self.META / "site-configuration" / "45_required_fields.sql").read_text(encoding="utf-8")
         self.assertNotIn("NOT IN", sql.upper())
         for section_id, widget_id in (("livestock_survey_personnel_section_02", "surveyor_name"),
                                       ("livestock_livestock_location_section_03", "livestock_geo_hierarchy")):

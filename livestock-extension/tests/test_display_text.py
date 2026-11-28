@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 META = Path(__file__).resolve().parents[1] / "src" / "openg2p_registry_livestock_extension" / "meta_data"
-SQL = (META / "zz-oan" / "90_display_text.sql").read_text(encoding="utf-8")
+SQL = (META / "site-configuration" / "90_display_text.sql").read_text(encoding="utf-8")
 KEY = re.compile(r"^[a-z][a-z0-9_]*$")  # G2PRegisterUITab.validate_tab_label
 
 

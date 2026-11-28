@@ -8,7 +8,7 @@
 -- the front, the other columns keep their order. The table shows its columns in
 -- the same order. Idempotent: a second run finds them in front already.
 -- Sorts after the patch_ls_* files that rewrite the section and before
--- zzzzzzzzzz_required_animal_row.sql, which must stay the last file touching it.
+-- register_required_animal_row.sql, which must stay the last file touching it.
 CREATE OR REPLACE FUNCTION pg_temp.oan_species_breed_first(node jsonb)
 RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE result jsonb; cols jsonb;

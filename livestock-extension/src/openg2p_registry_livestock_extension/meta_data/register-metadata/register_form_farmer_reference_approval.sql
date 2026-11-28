@@ -13,7 +13,7 @@
 -- context_field_names asks the platform to copy change_type (ADD or UPDATE) and
 -- source ("farmer-registry" only for a verified Farmer change) into the
 -- approval request context. It is the same for both policies and harmless to
--- the default one. The reset in zzzzzzzzz_default_binding_reset.sql leaves this
+-- the default one. The reset in register_policy_binding_repair.sql leaves this
 -- binding alone for that reason.
 INSERT INTO g2p_registry_awe_policy_configurations
 (awe_policy_config_id,policy_scope,register_id,intake_form_id,section_id,policy_type,policy_key,context_field_names)

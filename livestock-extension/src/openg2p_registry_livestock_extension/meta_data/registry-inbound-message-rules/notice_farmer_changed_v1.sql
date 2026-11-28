@@ -1,6 +1,6 @@
 -- FARMER_CHANGED_V1: the Farmer registry's change notice under its readable name
 -- (topic and event type farmer-registry.farmer.changed.v1). It sits next to
--- FARMER_REFERENCE_CHANGED_V1 (zz_farmer_reference.sql) until every sender has
+-- FARMER_REFERENCE_CHANGED_V1 (notice_farmer_reference.sql) until every sender has
 -- moved over; it accepts the old event type as well, so the new connectors work
 -- before and after the Farmer registry switches its topic. The old rows are then
 -- removed by explicit id. Same key path, routing and transform as the old

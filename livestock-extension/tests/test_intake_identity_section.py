@@ -42,7 +42,7 @@ class IntakeIdentitySectionTests(unittest.IsolatedAsyncioTestCase):
         native = importlib.import_module("openg2p_registry_extensions.farmer_reference.native")
         models = native.domain_models()
         paths = sorted((ROOT/"meta_data"/"register-metadata").glob("*.sql"))
-        split = next(path for path in paths if path.name == "zzzzzzz_identity_section_split.sql")
+        split = next(path for path in paths if path.name == "register_form_layout_identity_sections.sql")
         await self.replay([path for path in paths if path != split])
         async with self.fixture.sessions() as session:
             original = deepcopy((await session.get(G2PRegisterSection, OLD)).section_ui_schema)

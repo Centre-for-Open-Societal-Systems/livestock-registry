@@ -5,7 +5,7 @@ from pathlib import Path
 
 PACKAGE = os.environ.get("REGISTRY_EXTENSION_MODULE", "openg2p_registry_livestock_extension")
 META = Path(__file__).resolve().parents[1] / "src" / PACKAGE / "meta_data"
-OVERLAY = next((META / "zz-oan").glob("*_farmer_notice_first_reference.sql"))
+OVERLAY = next((META / "site-configuration").glob("*_farmer_notice_first_reference.sql"))
 FORM = "farmer_registry_notice_to_farmer_reference_form"
 FARMER = "fa120001-0000-4000-8000-000000000001" if "cropsown" in PACKAGE else "f9c6a359-9563-5a43-b0fe-6c7e452037a3"
 SECTION = ("cropsown" if "cropsown" in PACKAGE else "livestock") + "_farmer_identity_section_01"

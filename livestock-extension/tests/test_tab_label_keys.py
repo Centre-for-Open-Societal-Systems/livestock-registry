@@ -10,7 +10,7 @@ from pathlib import Path
 
 META = Path(__file__).resolve().parents[1] / "src" / "openg2p_registry_livestock_extension" / "meta_data"
 SEED = META / "register-metadata" / "g2p_register_ui_tabs.sql"
-OVERLAY = META / "zz-oan" / "50_tab_label_keys.sql"
+OVERLAY = META / "site-configuration" / "50_tab_label_keys.sql"
 KEY = re.compile(r"^[a-z][a-z0-9_]*$")  # G2PRegisterUITab.validate_tab_label
 
 

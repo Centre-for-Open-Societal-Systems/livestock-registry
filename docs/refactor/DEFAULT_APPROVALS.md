@@ -82,7 +82,7 @@ whenever `REGISTRY_FARMER_REFERENCE_SOURCE_ID` is set on the process that delive
 is missing, `source` is `unverified` and nothing is ever skipped.
 
 **Shipped setting: review stays on.** The binding in
-`meta_data/register-metadata/zzz_farmer_reference_awe.sql` names the `.default`
+`meta_data/register-metadata/register_form_farmer_reference_approval.sql` names the `.default`
 policy: two human stages for every ADD and UPDATE.
 
 **To turn off the second approval for verified UPDATEs**, change one value: the
@@ -120,7 +120,7 @@ with the request's `awe_request_id`, so `guard_farmer_approval` accepts it; a di
 staff approval is still refused. Requests already in review keep the policy they
 started with. An active policy version cannot be edited, so a different rule needs a
 new policy version or key (retire a policy by explicit id, never with `NOT IN`).
-`zzz_farmer_reference_awe.sql` owns this binding, so the default-binding reset in
-`zzzzzzzzz_default_binding_reset.sql` excludes it. The policy definitions are
+`register_form_farmer_reference_approval.sql` owns this binding, so the default-binding reset in
+`register_policy_binding_repair.sql` excludes it. The policy definitions are
 mirrored in `configuration/farmer-reference-awe-policy.json` (shipped) and
 `configuration/farmer-reference-verified-update-skips-review.json` (optional).

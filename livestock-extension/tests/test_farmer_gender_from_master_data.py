@@ -10,7 +10,7 @@ META = pathlib.Path(__file__).resolve().parents[1] / "src" / "openg2p_registry_l
 GENDER_PATH = "f9c6a359-9563-5a43-b0fe-6c7e452037a3.gender"
 
 
-@pytest.mark.parametrize("name", ["register-metadata/g2p_register_sections.sql", "zz-oan/40_farmer_tab_layout.sql"])
+@pytest.mark.parametrize("name", ["register-metadata/g2p_register_sections.sql", "site-configuration/40_farmer_tab_layout.sql"])
 def test_farmer_gender_is_the_master_data_gender_list(name):
     text = (META / name).read_text(encoding="utf-8")
     compact = re.sub(r"\s+", "", text)
