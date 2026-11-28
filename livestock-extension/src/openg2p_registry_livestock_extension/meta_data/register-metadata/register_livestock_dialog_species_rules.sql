@@ -27,7 +27,7 @@
 -- Only the named columns of the two tables change, found by widget-id and
 -- column-key; every other key on them is kept, and species_rules is added once.
 -- Idempotent. Sorts after the field order patch and before
--- update_100_required_animal_row.sql, which must stay the last file touching
+-- register_required_animal_row.sql, which must stay the last file touching
 -- the animal section.
 CREATE OR REPLACE FUNCTION pg_temp.oan_species_columns(node jsonb, table_id text, patches jsonb, extra jsonb)
 RETURNS jsonb LANGUAGE plpgsql AS $$

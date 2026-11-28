@@ -70,20 +70,20 @@ def test_default_farmer_reference_stages_have_no_skip_rule_and_nothing_uses_the_
     for path in list(SEEDS.glob("*.sql")) + list(REGISTER_METADATA.glob("*.sql")):
         if path.name != "60_verified_update_skips_review.sql":
             assert SKIP_KEY not in comment_free(path.read_text()), path.name
-    binding = comment_free((REGISTER_METADATA / "update_030_farmer_reference_awe.sql").read_text())
+    binding = comment_free((REGISTER_METADATA / "register_form_farmer_reference_approval.sql").read_text())
     assert f"'{DEFAULT_KEY}'" in binding, "shipped setting: two human stages for every change"
 
 
 def test_binding_sends_the_two_context_keys_and_the_reset_leaves_it_alone():
-    binding_sql = (REGISTER_METADATA / "update_030_farmer_reference_awe.sql").read_text()
+    binding_sql = (REGISTER_METADATA / "register_form_farmer_reference_approval.sql").read_text()
     code = comment_free(binding_sql)
     assert "'[\"change_type\", \"source\"]'" in code
     assert "context_field_names=EXCLUDED.context_field_names" in code and "context_field_names=NULL" not in code
     assert SKIP_KEY in binding_sql, "the switch must name the alternative it flips to"
     binding_id = re.search(r"VALUES \('([0-9a-f-]{36})','SECTION'", code).group(1)
-    for name in ("00_archive_approval_bindings.sql", "update_090_default_binding_reset.sql"):
+    for name in ("00_archive_approval_bindings.sql", "register_policy_binding_repair.sql"):
         assert f"c.awe_policy_config_id <> '{binding_id}'" in (REGISTER_METADATA / name).read_text(), name
-    reset = (REGISTER_METADATA / "update_090_default_binding_reset.sql").read_text()
+    reset = (REGISTER_METADATA / "register_policy_binding_repair.sql").read_text()
     assert reset.count(f"c.awe_policy_config_id <> '{binding_id}'") == 2
 
 

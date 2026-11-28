@@ -16,7 +16,7 @@ PACKAGE = os.environ.get("REGISTRY_EXTENSION_MODULE", "openg2p_registry_livestoc
 sys.modules.setdefault("openg2p_registry_extensions", importlib.import_module(PACKAGE))
 META = Path(importlib.import_module(PACKAGE).__file__).parent / "meta_data"
 CLEANUP = (META / "site-configuration/95_validation_keys.sql").read_text(encoding="utf-8")
-LOCATION = (META / "register-metadata/update_040_location_widgets.sql").read_text(encoding="utf-8")
+LOCATION = (META / "register-metadata/register_form_geography.sql").read_text(encoding="utf-8")
 OLD_KEY = re.compile(r"coss_(input_|field_|code_choice|location_widgets)")
 
 

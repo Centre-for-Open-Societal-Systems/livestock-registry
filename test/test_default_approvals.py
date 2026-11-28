@@ -60,11 +60,11 @@ def test_seeds_match_the_declared_policies_and_move_older_databases_in_place():
 
 def test_default_bindings_do_not_request_geographic_candidates_or_install_override():
     package = next(ROOT.glob("*-extension/src/openg2p_registry_*_extension"))
-    for filename in ("update_030_default_approval_awe.sql", "update_030_farmer_reference_awe.sql"):
+    for filename in ("register_form_default_approvals.sql", "register_form_farmer_reference_approval.sql"):
         sql = (package / "meta_data/register-metadata" / filename).read_text()
         assert "geo_woreda" not in sql
         assert "farmer_reference_approver_ids" not in sql
-        if filename == "update_030_default_approval_awe.sql":
+        if filename == "register_form_default_approvals.sql":
             assert "context_field_names=NULL" in sql
         else:
             # The Farmer-reference binding sends change_type and source for the

@@ -1,6 +1,6 @@
 -- FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1: the Farmer registry's change notice under its final
 -- name (event type and WebSub topic farmer-registry.farmer-profile.changed.v1). It sits next to
--- FARMER_CHANGED_V1 (update_020_farmer_changed_v1.sql), which keeps accepting the older event types until
+-- FARMER_CHANGED_V1 (notice_farmer_changed_v1.sql), which keeps accepting the older event types until
 -- every sender has moved over; the two patterns never match the same event type. Same key path,
 -- routing, enricher and update template as the older model (the template documents are shared).
 INSERT INTO public.data_models ("data_model_id","data_model_mnemonic","pattern_for_data_model","response_template_document_id","is_active") VALUES

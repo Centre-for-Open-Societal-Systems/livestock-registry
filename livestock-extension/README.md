@@ -101,7 +101,7 @@ VERIFIED on that approval).
   the administrator to give a staff member the role and a data policy"). There
   is no fallback to another level or place.
 - The Farmer identity section keeps its own Farmer reference policy
-  (`update_030_farmer_reference_awe.sql`).
+  (`register_form_farmer_reference_approval.sql`).
 
 ### Catalogues and lookups
 

@@ -489,7 +489,7 @@
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },
     {
-      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/update_020_patch_no_past_only_date_constraint.sql",
+      "source": "livestock-extension/src/openg2p_registry_livestock_extension/meta_data/register-metadata/register_date_constraints.sql",
       "decision": "ported",
       "reason": "Preserve domain contract; compatibility acceptance pending"
     },

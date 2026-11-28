@@ -7,7 +7,7 @@
 --
 -- Seeding this policy changes nothing: no binding points at it. It takes effect
 -- only when the Farmer-reference binding in
--- meta_data/register-metadata/update_030_farmer_reference_awe.sql names it. An active
+-- meta_data/register-metadata/register_form_farmer_reference_approval.sql names it. An active
 -- policy version is immutable, so a different rule needs a new version or key.
 INSERT INTO public.approval_policy (id,policy_key,version,name,description,status,artifact_type,created_by,forbid_self_approval,forbid_repeat_approvers,created_at,updated_at) VALUES
 ('11c0cf8e-b566-5686-8e2b-c16c33f034d5','registry.change_request.livestock-farmer.verified-update-skips-review',1,'Farmer reference change request - verified updates skip review','Default two human stages; an UPDATE from the verified Farmer registry skips both','active','registry.change_request','seed',FALSE,FALSE,NOW(),NOW())

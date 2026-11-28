@@ -183,7 +183,7 @@ def test_the_animal_row_overlay_sorts_after_every_file_that_rewrites_the_section
     from pathlib import Path
 
     meta = Path(rf.__file__).parent / "meta_data"
-    overlay = meta / "register-metadata/update_100_required_animal_row.sql"
+    overlay = meta / "register-metadata/register_required_animal_row.sql"
     assert sorted((meta / "register-metadata").glob("*.sql"))[-1] == overlay
     # Files outside register-metadata that sort after it never touch the animal section.
     for path in (p for p in sorted(meta.rglob("*.sql")) if p > overlay):

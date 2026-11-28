@@ -147,7 +147,7 @@ def animal_column_keys():
 
 
 def animal_section_schema():
-    """The animal section as seeded, with the table required the way update_100_required_animal_row.sql makes it."""
+    """The animal section as seeded, with the table required the way register_required_animal_row.sql makes it."""
     for line in sql('register-metadata', 'g2p_register_sections.sql').splitlines():
         if "'livestock_animal_details_section_01'" in line:
             start = line.index("'{") + 1

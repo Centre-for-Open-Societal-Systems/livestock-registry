@@ -38,7 +38,7 @@ class ApprovalContextTests(unittest.TestCase):
 
     def test_the_keys_are_exactly_those_the_binding_declares(self):
         self.assertEqual(sorted(self.build("ADD")), sorted(context.CONTEXT_FIELD_NAMES))
-        binding = (SOURCE / "meta_data/register-metadata/update_030_farmer_reference_awe.sql").read_text()
+        binding = (SOURCE / "meta_data/register-metadata/register_form_farmer_reference_approval.sql").read_text()
         self.assertIn('\'["change_type", "source"]\'', binding)
         self.assertEqual(context.CONTEXT_FIELD_NAMES, ["change_type", "source"])
 

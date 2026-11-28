@@ -3,7 +3,7 @@
 The Farmer registry will send `farmer-registry.farmer-profile.changed.v1` (WebSub topic
 `farmer-registry.farmer-profile.changed.v1`, Kafka topic `farmer_registry_farmer_profile_changed_v1`,
 native model `FARMER_REGISTRY_FARMER_PROFILE_CHANGED_V1`, seeded by
-`update_020_farmer_profile_changed_v1.sql`). This registry already accepts it; the two older names below
+`notice_farmer_profile_changed_v1.sql`). This registry already accepts it; the two older names below
 stay accepted until the rename is finished and are then removed.
 
 The older external contract is `farmer_reference.changed.v1`, WebSub topic

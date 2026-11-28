@@ -2,7 +2,7 @@
 
 The identity split previously extracted widgets with lax recursive JSONPath. Array auto-unwrapping could visit widget objects twice. The helper now uses strict descent and deterministically retains the first occurrence per requested widget ID. Its intake assertion and native regression checks count actual widget objects rather than DISTINCT IDs.
 
-The last-sorting `update_080_popup_only_fin.sql` projects FIN widgets to native read-only displays. Stored IDs and data paths remain intact; Verify with Fayda writes the backing FIN field. The separate 16-digit FAN input remains available. Registered Farmer name and source projections remain present. No framework, compiled UI, storage, or verification-service change is included.
+The last-sorting `register_form_readonly_fin.sql` projects FIN widgets to native read-only displays. Stored IDs and data paths remain intact; Verify with Fayda writes the backing FIN field. The separate 16-digit FAN input remains available. Registered Farmer name and source projections remain present. No framework, compiled UI, storage, or verification-service change is included.
 
 `test_popup_identity_metadata.py` checks nested arrays and genuine duplicate IDs against the SQL helper, seeds all metadata, reapplies the final patch twice, and repeats the full seed twice. It walks actual widget arrays to assert five unique intake widgets, read-only FIN in every registered/intake-bound section, editable intake FAN, unchanged stored field paths, registered Farmer name, and stable metadata.
 
